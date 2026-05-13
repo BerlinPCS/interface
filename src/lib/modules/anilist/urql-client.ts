@@ -272,7 +272,8 @@ export default new class URQLClient extends Client {
             UserGenreStatistic: () => null,
             UserStatistics: () => null,
             MediaListOptions: () => null,
-            MediaListTypeOptions: () => null
+            MediaListTypeOptions: () => null,
+            MediaTag: () => null
           }
         }),
         authExchange(async utils => {

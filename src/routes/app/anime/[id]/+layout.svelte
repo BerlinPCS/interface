@@ -60,6 +60,16 @@
 
   $: spoiler = $settings.hideSpoilers && ['CURRENT', 'PLANNING'].includes(list(media)!)
   $: underPoweredSpoiler = spoiler && SUPPORTS.isUnderPowered
+
+  interface Tag {
+    id?: number | null
+    rank?: number | null
+  }
+  function sortTags (a?: Tag | null, b?: Tag | null) {
+    if ((b?.rank ?? 0) > (a?.rank ?? 0)) return 1
+    if ((b?.rank ?? 0) < (a?.rank ?? 0)) return -1
+    return (a?.id ?? 0) - (b?.id ?? 0)
+  }
 </script>
 
 <div class='min-w-0 -ml-14 pl-14 grow items-center flex flex-col h-full overflow-y-auto pb-10' use:dragScroll on:scroll={handleScroll} bind:this={container} style:--custom={media.coverImage?.color ?? '#fff'} style:--red={r} style:--green={g} style:--blue={b}>
@@ -163,7 +173,7 @@
           {genre}
         </Button>
       {/each}
-      {#each media.tags ?? [] as tag, i(tag?.id ?? i)}
+      {#each media.tags?.sort(sortTags) ?? [] as tag, i (tag?.id ?? i)}
         {@const spoiler = !!tag?.isMediaSpoiler || !!tag?.isGeneralSpoiler}
         {@const underPoweredSpoiler = spoiler && SUPPORTS.isUnderPowered}
         {@const hide = tag?.isAdult && !$settings.showHentai}
