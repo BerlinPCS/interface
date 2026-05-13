@@ -13,7 +13,7 @@
 
   import Logo from '$lib/components/icons/Logo.svelte'
   import { episodes as _episodes, client, notes, type Media } from '$lib/modules/anilist'
-  import { authAggregator, list, progress } from '$lib/modules/auth'
+  import { list, progress } from '$lib/modules/auth'
   import { makeEpisodeList } from '$lib/modules/extensions'
   import { click, dragScroll } from '$lib/modules/navigate'
   import { settings, SUPPORTS } from '$lib/modules/settings'
@@ -44,7 +44,9 @@
 
   export let following = client.following(media.id)
 
-  $: followerEntries = $following?.data?.following?.mediaList?.filter(e => e?.user?.id !== authAggregator.id()) ?? []
+  const viewer = client.client.viewer
+
+  $: followerEntries = ($viewer?.viewer?.id && $following?.data?.following?.mediaList?.filter(e => e?.user?.id !== $viewer.viewer?.id)) || []
 
   $: watchProgress = liveAnimeProgress(media.id)
 </script>

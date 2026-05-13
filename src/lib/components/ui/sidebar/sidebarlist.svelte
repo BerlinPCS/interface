@@ -20,10 +20,6 @@
   import { SUPPORTS } from '$lib/modules/settings'
   import { cn, highEntropyValues } from '$lib/utils'
 
-  const auth = client.hasAuth
-
-  $: hasAuth = $auth
-
   let visibilityState: DocumentVisibilityState
 
   $: active = ($lockedState === 'locked' || visibilityState === 'hidden' || ($idleState === 'active' && $activityState === 'active')) && $page.route.id !== '/app/player' && !SUPPORTS.isUnderPowered
@@ -44,6 +40,8 @@
   function manualUpdate () {
     native.openURL('https://hayase.watch/download/')
   }
+
+  const viewer = client.viewer
 </script>
 
 <svelte:document bind:visibilityState />
@@ -133,11 +131,10 @@
 </SidebarButton>
 <SidebarButton href='/app/profile/'>
   <!-- <SidebarButton href='/app/profile/' class='hidden md:flex py-0 animated-icon'> -->
-  {#if hasAuth}
-    {@const viewer = client.profile()}
+  {#if $viewer}
     <Avatar.Root class='size-6 rounded-md'>
-      <Avatar.Image src={viewer?.avatar?.large ?? ''} alt={viewer?.name} />
-      <Avatar.Fallback>{viewer?.name}</Avatar.Fallback>
+      <Avatar.Image src={$viewer.avatar?.large ?? ''} alt={$viewer.name} />
+      <Avatar.Fallback>{$viewer.name}</Avatar.Fallback>
     </Avatar.Root>
   {:else}
     <LogIn size={18} />

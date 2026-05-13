@@ -590,7 +590,7 @@ export const AnimePage = gql(`
         }
       }
     },
-    threads: Page(page: 1, perPage: 16) {
+    threads: Page(perPage: 16) {
       pageInfo {
         hasNextPage,
         total

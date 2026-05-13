@@ -1,5 +1,5 @@
 import { readable } from 'simple-store-svelte'
-import { get } from 'svelte/store'
+import { derived, get } from 'svelte/store'
 import { persisted } from 'svelte-persisted-store'
 
 import { client, episodes, type Media } from '../anilist'
@@ -23,6 +23,13 @@ export default new class AuthAggregator {
     ]
 
     return () => unsub.forEach(fn => fn())
+  })
+
+  viewer = derived([client.client.viewer, kitsu.viewer, mal.viewer], ([$anilistViewer, $kitsuViewer, $malViewer]) => {
+    if ($anilistViewer?.viewer?.id) return $anilistViewer.viewer
+    if ($kitsuViewer?.id) return $kitsuViewer
+    if ($malViewer?.id) return $malViewer
+    return null
   })
 
   syncSettings = persisted('syncSettings', { al: true, local: true, kitsu: true, mal: true })

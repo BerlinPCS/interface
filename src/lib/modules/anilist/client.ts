@@ -228,11 +228,13 @@ class AnilistClient {
 
   following (animeID: number) {
     debug('following: fetching following for anime with ID', animeID)
+    if (!this.client.viewer.value?.viewer?.id) return
     return queryStore({ client: this.client, query: Following, variables: { id: animeID } })
   }
 
   followingMany (animeIDs: number[], requestPolicy: RequestPolicy = 'cache-and-network') {
     debug('followingMany: fetching following for anime with IDs', animeIDs)
+    if (!this.client.viewer.value?.viewer?.id) return
     return queryStore({ client: this.client, query: FollowingMany, variables: { ids: animeIDs }, context: { requestPolicy } })
   }
 

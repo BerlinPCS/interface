@@ -17,8 +17,8 @@
   import * as Dialog from '$lib/components/ui/dialog'
   import { Load } from '$lib/components/ui/img'
   import { Profile } from '$lib/components/ui/profile'
-  import { cover, desc, duration, format, season, status, title, getBGColorForRating } from '$lib/modules/anilist'
-  import { authAggregator, list, of } from '$lib/modules/auth'
+  import { cover, desc, duration, format, season, status, title, getBGColorForRating, client } from '$lib/modules/anilist'
+  import { list, of } from '$lib/modules/auth'
   import native from '$lib/modules/native'
   import { dragScroll } from '$lib/modules/navigate'
   import { settings, SUPPORTS } from '$lib/modules/settings'
@@ -46,8 +46,10 @@
     hideBanner.value = target.scrollTop > 100
   }
 
+  const viewer = client.client.viewer
+
   $: info = data.info
-  $: followerEntries = $info?.data?.following?.mediaList?.filter(e => e?.user?.id !== authAggregator.id()) ?? []
+  $: followerEntries = ($viewer?.viewer?.id && $info.data?.following?.mediaList?.filter(e => e?.user?.id !== $viewer.viewer?.id)) || []
 
   $: nativeTitle = media.title?.native ?? media.title?.romaji ?? ''
   $: romajiTitle = media.title?.romaji ?? media.title?.native ?? ''

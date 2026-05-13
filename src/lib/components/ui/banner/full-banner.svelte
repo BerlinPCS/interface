@@ -10,7 +10,7 @@
   import { goto } from '$app/navigation'
   import { client, desc, duration, format, getTextColorForRating, season, status, title, type Media } from '$lib/modules/anilist'
   import { episodesCached } from '$lib/modules/anizip'
-  import { authAggregator, of } from '$lib/modules/auth'
+  import { of } from '$lib/modules/auth'
   import { click } from '$lib/modules/navigate'
   import { colors } from '$lib/utils'
   export let mediaList: Array<Media | null>
@@ -66,7 +66,9 @@
   const ids = mediaList.map(m => m?.id).filter(e => e) as number[]
   const following = client.followingMany(ids, 'cache-first')
 
-  $: filtered = $following?.data?.Page?.mediaList?.filter(ml => ml?.user?.id !== authAggregator.id()) ?? []
+  const viewer = client.client.viewer
+
+  $: filtered = ($viewer?.viewer?.id && $following?.data?.Page?.mediaList?.filter(ml => ml?.user?.id !== $viewer.viewer?.id)) || []
 
   $: usersForCurrent = filtered.filter((f): f is NonNullable<typeof f> => f?.media?.id === current?.id && !!f?.user).map(({ user }) => user!)
 </script>
