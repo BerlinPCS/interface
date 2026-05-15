@@ -83,6 +83,7 @@
     background: linear-gradient(180deg, #0000 0%, #0a0a0a00 80%, #0a0a0ae3 95%, #0a0a0a 100%);
   }
   .absolute-container {
+    will-change: transform;
     animation: 0.3s ease 0s 1 load-in;
     transform: translate3d(-50%, 0, 0) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(1) scaleY(1);
     opacity: 1;

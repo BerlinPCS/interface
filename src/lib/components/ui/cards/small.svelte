@@ -28,7 +28,7 @@
   $: status = list(media)
 </script>
 
-<div class='text-white cursor-pointer shrink-0 relative pointer-events-auto' use:hover={[onclick, onhover]}>
+<div class='text-white cursor-pointer shrink-0 relative pointer-events-auto active:z-[10] focus-visible:z-[10]' use:hover={[onclick, onhover]}>
   {#if !hidden}
     <PreviewCard {media} />
   {/if}
