@@ -143,7 +143,6 @@ export function hover (node: HTMLElement, [cb = noop, hoverUpdate = noop]: [type
     }
   }, ctrl)
   node.addEventListener('drag', () => {
-    if (inputType.value === 'mouse') return
     unhoverLastElement()
   }, ctrl)
   node.addEventListener('contextmenu', e => {
