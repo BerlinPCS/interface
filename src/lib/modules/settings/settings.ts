@@ -29,6 +29,18 @@ export const malClientID = persisted('mal-client-id', malID, {
   beforeRead: v => v || malID
 })
 
+const simklID = ''
+export const simklClientID = persisted('simkl-client-id', simklID, {
+  beforeWrite: v => v || simklID,
+  beforeRead: v => v || simklID
+})
+
+const simklSecret = ''
+export const simklClientSecret = persisted('simkl-client-secret', simklSecret, {
+  beforeWrite: v => v || simklSecret,
+  beforeRead: v => v || simklSecret
+})
+
 export const nsfw = derived(settings, $settings => ($settings.showHentai ? null : ['Hentai']))
 
 debug.subscribe((value) => {

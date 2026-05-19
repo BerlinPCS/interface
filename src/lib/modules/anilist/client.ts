@@ -40,13 +40,14 @@ class AnilistClient {
     })
   }
 
-  userlists = derived<typeof this.client.viewer, OperationResultState<ResultOf<typeof UserLists>>>(this.client.viewer, (store, set) => {
-    return queryStore({ client: this.client, query: UserLists, variables: { id: store?.viewer?.id }, context: { requestPolicy: 'cache-and-network' } }).subscribe(set)
+  userlists = derived<typeof this.client.viewer, OperationResultState<ResultOf<typeof UserLists>> | undefined>(this.client.viewer, (store, set) => {
+    if (!store?.viewer?.id) return
+    return queryStore({ client: this.client, query: UserLists, variables: { id: store.viewer.id }, context: { requestPolicy: 'cache-and-network' } }).subscribe(set)
   })
 
   continueIDs = derivedArray(this.userlists, $userLists => {
     debug('continueIDs: checking for IDs')
-    const mediaList = $userLists.data?.MediaListCollection?.lists?.reduce<NonNullable<NonNullable<NonNullable<NonNullable<ResultOf<typeof UserLists>['MediaListCollection']>['lists']>[0]>['entries']>>((filtered, list) => {
+    const mediaList = $userLists?.data?.MediaListCollection?.lists?.reduce<NonNullable<NonNullable<NonNullable<NonNullable<ResultOf<typeof UserLists>['MediaListCollection']>['lists']>[0]>['entries']>>((filtered, list) => {
       return (list?.status === 'CURRENT' || list?.status === 'REPEATING') ? filtered.concat(list.entries) : filtered
     }, [])
     if (!mediaList?.length) return []
@@ -65,7 +66,7 @@ class AnilistClient {
 
   sequelIDs = derivedArray(this.userlists, $userLists => {
     debug('sequelIDs: checking for IDs')
-    const mediaList = $userLists.data?.MediaListCollection?.lists?.find(list => list?.status === 'COMPLETED')?.entries
+    const mediaList = $userLists?.data?.MediaListCollection?.lists?.find(list => list?.status === 'COMPLETED')?.entries
     if (!mediaList) return []
 
     const ids = [...new Set(mediaList.flatMap(entry => {
@@ -78,7 +79,7 @@ class AnilistClient {
 
   planningIDs = derivedArray(this.userlists, $userLists => {
     debug('planningIDs: checking for IDs')
-    const mediaList = $userLists.data?.MediaListCollection?.lists?.find(list => list?.status === 'PLANNING')?.entries
+    const mediaList = $userLists?.data?.MediaListCollection?.lists?.find(list => list?.status === 'PLANNING')?.entries
     if (!mediaList) return []
     const ids = mediaList.map(entry => entry?.media?.id).filter((id): id is number => !!id)
     debug('planningIDs: found IDs', ids)

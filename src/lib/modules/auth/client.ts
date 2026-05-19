@@ -7,6 +7,7 @@ import { client, episodes, type Media } from '../anilist'
 import kitsu from './kitsu'
 import local from './local'
 import mal from './mal'
+import simkl from './simkl'
 
 import type { Entry, UserFrag } from '../anilist/queries'
 import type { ResultOf, VariablesOf } from 'gql.tada'
@@ -15,24 +16,25 @@ import { derivedArray } from '$lib/utils'
 
 export default new class AuthAggregator {
   hasAuth = readable(this.checkAuth(), set => {
-    // add other subscriptions here for MAL, kitsu, tvdb, etc
     const unsub = [
       client.client.viewer.subscribe(() => set(this.checkAuth())),
       kitsu.viewer.subscribe(() => set(this.checkAuth())),
-      mal.viewer.subscribe(() => set(this.checkAuth()))
+      mal.viewer.subscribe(() => set(this.checkAuth())),
+      simkl.viewer.subscribe(() => set(this.checkAuth()))
     ]
 
     return () => unsub.forEach(fn => fn())
   })
 
-  viewer = derived([client.client.viewer, kitsu.viewer, mal.viewer], ([$anilistViewer, $kitsuViewer, $malViewer]) => {
+  viewer = derived([client.client.viewer, kitsu.viewer, mal.viewer, simkl.viewer], ([$anilistViewer, $kitsuViewer, $malViewer, $simklViewer]) => {
     if ($anilistViewer?.viewer?.id) return $anilistViewer.viewer
     if ($kitsuViewer?.id) return $kitsuViewer
     if ($malViewer?.id) return $malViewer
+    if ($simklViewer?.id) return $simklViewer
     return null
   })
 
-  syncSettings = persisted('syncSettings', { al: true, local: true, kitsu: true, mal: true })
+  syncSettings = persisted('syncSettings', { al: true, local: true, kitsu: true, mal: true, simkl: true })
   // AUTH
 
   anilist () {
@@ -47,13 +49,18 @@ export default new class AuthAggregator {
     return !!mal.id()
   }
 
+  simkl () {
+    return !!simkl.id()
+  }
+
   checkAuth () {
-    return this.anilist() || this.kitsu() || this.mal()
+    return this.anilist() || this.kitsu() || this.mal() || this.simkl()
   }
 
   id () {
     if (this.anilist()) return client.client.viewer.value!.viewer?.id
     if (this.kitsu()) return kitsu.id()
+    if (this.simkl()) return simkl.id()
 
     return -1
   }
@@ -62,12 +69,14 @@ export default new class AuthAggregator {
     if (this.anilist()) return client.client.viewer.value?.viewer ?? undefined
     if (this.kitsu()) return kitsu.profile()
     if (this.mal()) return mal.profile()
+    if (this.simkl()) return simkl.profile()
   }
 
   mediaListEntry (media: Pick<Media, 'mediaListEntry' | 'id'>) {
     if (this.anilist()) return media.mediaListEntry
     if (this.kitsu()) return kitsu.userlist.value[media.id]
     if (this.mal()) return mal.userlist.value[media.id]
+    if (this.simkl()) return simkl.userlist.value[media.id]
 
     return local.get(media.id)?.mediaListEntry
   }
@@ -85,6 +94,7 @@ export default new class AuthAggregator {
     if (this.anilist()) return client.schedule(undefined, onList)
     if (this.kitsu()) return kitsu.schedule(onList)
     if (this.mal()) return mal.schedule(onList)
+    if (this.simkl()) return simkl.schedule(onList)
 
     return local.schedule(onList)
   }
@@ -97,18 +107,20 @@ export default new class AuthAggregator {
     ])
   }
 
-  planningIDs = derivedArray([client.planningIDs, kitsu.planningIDs, local.planningIDs, mal.planningIDs], ([$client, $kitsu, $local, $mal]) => {
+  planningIDs = derivedArray([client.planningIDs, kitsu.planningIDs, local.planningIDs, mal.planningIDs, simkl.planningIDs], ([$client, $kitsu, $local, $mal, $simkl]) => {
     if (this.anilist()) return $client
     if (this.kitsu()) return $kitsu
     if (this.mal()) return $mal
+    if (this.simkl()) return $simkl
     if ($local.length) return $local
     return null
   })
 
-  continueIDs = derivedArray([client.continueIDs, kitsu.continueIDs, local.continueIDs, mal.continueIDs], ([$client, $kitsu, $local, $mal]) => {
+  continueIDs = derivedArray([client.continueIDs, kitsu.continueIDs, local.continueIDs, mal.continueIDs, simkl.continueIDs], ([$client, $kitsu, $local, $mal, $simkl]) => {
     if (this.anilist()) return $client
     if (this.kitsu()) return $kitsu
     if (this.mal()) return $mal
+    if (this.simkl()) return $simkl
     if ($local.length) return $local
     return null
   })
@@ -149,6 +161,7 @@ export default new class AuthAggregator {
       sync.al && this.anilist() && client.deleteEntry(media),
       sync.kitsu && this.kitsu() && kitsu.deleteEntry(media),
       sync.mal && this.mal() && mal.deleteEntry(media),
+      sync.simkl && this.simkl() && simkl.deleteEntry(media),
       sync.local && local.deleteEntry(media)
     ])
   }
@@ -164,6 +177,7 @@ export default new class AuthAggregator {
       sync.al && this.anilist() && client.entry(variables),
       sync.kitsu && this.kitsu() && kitsu.entry(variables),
       sync.mal && this.mal() && mal.entry(variables),
+      sync.simkl && this.simkl() && simkl.entry(variables),
       sync.local && local.entry(variables)
     ])
   }

@@ -8,6 +8,7 @@
   import Anilist from '$lib/components/icons/Anilist.svelte'
   import Kitsu from '$lib/components/icons/Kitsu.svelte'
   import MyAnimeList from '$lib/components/icons/MyAnimeList.svelte'
+  import Simkl from '$lib/components/icons/Simkl.svelte'
   import { Bolt } from '$lib/components/icons/animated'
   import * as Avatar from '$lib/components/ui/avatar'
   import { Button } from '$lib/components/ui/button'
@@ -22,9 +23,10 @@
   import { authAggregator } from '$lib/modules/auth'
   import ksclient from '$lib/modules/auth/kitsu'
   import malclient from '$lib/modules/auth/mal'
+  import simklclient from '$lib/modules/auth/simkl'
   import native from '$lib/modules/native'
   import { click } from '$lib/modules/navigate'
-  import { anilistClientID, malClientID } from '$lib/modules/settings'
+  import { anilistClientID, malClientID, simklClientID, simklClientSecret } from '$lib/modules/settings'
 
   const alviewer = client.client.viewer
 
@@ -39,6 +41,10 @@
   const malviewer = malclient.viewer
 
   $: mal = $malviewer
+
+  const simklviewer = simklclient.viewer
+
+  $: simkl = $simklviewer
 
   let kitsuLogin = ''
   let kitsuPassword = ''
@@ -260,6 +266,58 @@
     <div class='flex gap-2 items-center'>
       <Switch hideState={true} id='mal-sync-switch' bind:checked={$syncSettings.mal} />
       <Label for='mal-sync-switch' class='cursor-pointer'>Enable Sync</Label>
+    </div>
+  </div>
+</div>
+<div>
+  <div class='bg-neutral-900 px-6 py-4 rounded-t-md flex flex-row gap-3'>
+    {#if simkl?.id}
+      <div use:click={() => native.openURL(`https://simkl.com/profile/${simkl.name}`)} class='flex flex-row gap-3'>
+        <Avatar.Root class='size-8 rounded-md'>
+          <Avatar.Image src={simkl.avatar?.large ?? ''} alt={simkl.name} />
+          <Avatar.Fallback>{simkl.name}</Avatar.Fallback>
+        </Avatar.Root>
+        <div class='flex flex-col'>
+          <div class='text-sm'>
+            {simkl.name}
+          </div>
+          <div class='text-[9px] text-muted-foreground leading-snug'>
+            Simkl
+          </div>
+        </div>
+      </div>
+    {:else}
+      <div>Not logged in</div>
+    {/if}
+    <Simkl class='size-6 ml-auto' />
+  </div>
+  <div class='bg-neutral-950 px-6 py-4 rounded-b-md flex justify-between'>
+    <div class='flex items-center gap-2'>
+      {#if simkl?.id}
+        <Button variant='secondary' on:click={() => simklclient.logout()}>Logout</Button>
+      {:else}
+        <Button variant='secondary' on:click={() => login(simklclient.login())}>Login</Button>
+      {/if}
+      <Dialog.Root portal='#root'>
+        <Dialog.Trigger let:builder asChild>
+          <Button builders={[builder]} variant='ghost' size='icon' class='animated-icon'><Bolt size={18} /></Button>
+        </Dialog.Trigger>
+        <Dialog.Content class='max-w-4xl w-full bg-black'>
+          <Dialog.Header>
+            <Dialog.Title class='font-weight-bold font-bold'>Simkl Settings</Dialog.Title>
+          </Dialog.Header>
+          <SettingCard title='Client ID' description='Required for authentication. Get yours at https://simkl.com/settings/developer/new' let:id>
+            <Input type='text' class='w-96' {id} placeholder='Simkl Client ID' bind:value={$simklClientID} />
+          </SettingCard>
+          <SettingCard title='Client Secret' description='Required for token exchange. Found in the same Simkl dev app settings.' let:id>
+            <Input type='password' class='w-96' {id} placeholder='Simkl Client Secret' bind:value={$simklClientSecret} />
+          </SettingCard>
+        </Dialog.Content>
+      </Dialog.Root>
+    </div>
+    <div class='flex gap-2 items-center'>
+      <Switch hideState={true} id='simkl-sync-switch' bind:checked={$syncSettings.simkl} />
+      <Label for='simkl-sync-switch' class='cursor-pointer'>Enable Sync</Label>
     </div>
   </div>
 </div>
