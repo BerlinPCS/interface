@@ -4,7 +4,7 @@ import type { Media } from '$lib/modules/anilist'
 import type { ResolvedFile } from './resolver'
 import type Subtitles from './subtitles'
 import type { Track } from '../../../../app'
-import type { SessionMetadata } from 'native'
+import type { SessionMetadata, SubtitleTrack } from 'native'
 
 export interface MediaInfo {
   file: ResolvedFile
@@ -31,7 +31,7 @@ export function normalizeTracks (_tracks: Track[]) {
   }, {})
 }
 
-export function normalizeSubs (_tracks?: Record<number | string, { meta: { language?: string, type: string, header: string, number: string, name?: string } }>) {
+export function normalizeSubs (_tracks?: Record<number | string, { meta: SubtitleTrack }>) {
   if (!_tracks) return {}
   const hasEng = Object.values(_tracks).some(({ meta }) => meta.language === 'eng' || meta.language === 'en')
   const lang = Object.values(_tracks).map(({ meta }) => ({
