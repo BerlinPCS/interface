@@ -376,7 +376,8 @@
       const playbackTime = getBackendPlaybackTime()
 
       if (audioCtx && !paused && audioCtx.state === 'running' && performance.now() - lastAudioPushTime > 500) {
-        audioCtx.suspend()
+        readyState = 2
+        await audioCtx.suspend()
       }
 
       const timeChanged = Math.abs(currentTime - playbackTime) > 0.001
