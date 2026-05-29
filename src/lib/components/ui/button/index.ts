@@ -37,7 +37,8 @@ const iconSizes = {
   default: '0.8rem',
   lg: '1.2rem',
   icon: '1rem',
-  'icon-sm': '0.7rem'
+  'icon-sm': '0.7rem',
+  'icon-lg': '1rem'
 }
 
 type Variant = VariantProps<typeof buttonVariants>['variant']

@@ -33,8 +33,8 @@
 
 {#if $breakpoints.md}
   {#await episodesCached(id) then metadata}
-    {@const banner = metadata?.backdrops.sort((a, b) => b.vote_average - a.vote_average).find(i => i.iso_639_1 == null && i.aspect_ratio > 1.2)?.file_path}
-    {@const cover = metadata?.posters.sort((a, b) => b.vote_average - a.vote_average).find(i => i.iso_639_1 == null && i.aspect_ratio > 1.2)?.file_path}
+    {@const banner = metadata?.backdrops?.sort((a, b) => b.vote_average - a.vote_average).find(i => i.iso_639_1 == null && i.aspect_ratio > 1.2)?.file_path}
+    {@const cover = metadata?.posters?.sort((a, b) => b.vote_average - a.vote_average).find(i => i.iso_639_1 == null && i.aspect_ratio > 1.2)?.file_path}
     {@const fallback = banner || cover}
     {#if fallback}
       <Load src={fallback} alt={title(media)} class={className} />

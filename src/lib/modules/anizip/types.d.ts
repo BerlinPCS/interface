@@ -72,10 +72,10 @@ export interface MappingsResponse {
 }
 
 export interface ImagesResponse {
-  backdrops: Backdrop[]
+  backdrops?: Backdrop[]
   id?: number
-  logos: Backdrop[]
-  posters: Backdrop[]
+  logos?: Backdrop[]
+  posters?: Backdrop[]
 }
 
 export interface Backdrop {

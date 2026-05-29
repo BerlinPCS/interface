@@ -93,7 +93,7 @@
     <div class='w-full flex flex-col items-center text-center lg:items-start lg:text-left justify-end gap-4'>
       <a class='text-white font-black text-3xl lg:text-4xl line-clamp-2 w-[900px] max-w-[85%] leading-tight text-balance fade-in hover:text-neutral-300 hover:underline cursor-pointer text-shadow-lg' href='/app/anime/{current.id}'>
         {#await episodesCached(current.id) then metadata}
-          {@const src = metadata?.logos.sort((a, b) => b.vote_average - a.vote_average).find(i => i.iso_639_1 === 'en' && i.aspect_ratio > 1.2)?.file_path}
+          {@const src = metadata?.logos?.sort((a, b) => b.vote_average - a.vote_average).find(i => i.iso_639_1 === 'en' && i.aspect_ratio > 1.2)?.file_path}
           {#if src}
             <div class='w-full flex justify-center lg:justify-start'>
               <Load {src} alt={title(current)} class='drop-shadow-lg w-[30rem]' />
