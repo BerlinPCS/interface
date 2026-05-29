@@ -453,13 +453,15 @@
       lastAudioPushTime = performance.now()
 
       const bufferedSeconds = (samplesSent - samplesConsumed) / audioCtx.sampleRate
-      if (bufferedSeconds >= 2) {
+      const bufferThreshold = 2 * Math.max(playbackRate, 0.5)
+      if (bufferedSeconds >= bufferThreshold) {
         // eslint-disable-next-line @typescript-eslint/no-loop-func
         await new Promise<void>((resolve) => {
           const id = setInterval(() => {
             if (asyncId !== currentAsyncId) return
+            lastAudioPushTime = performance.now()
             const bufferedSeconds = (samplesSent - samplesConsumed) / (audioCtx?.sampleRate ?? 1)
-            if (bufferedSeconds < 2) {
+            if (bufferedSeconds < bufferThreshold) {
               clearInterval(id)
               resolve()
             }
