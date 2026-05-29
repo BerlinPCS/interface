@@ -201,7 +201,7 @@
   let workletNode: AudioWorkletNode | undefined
   let samplesSent = 0
   let samplesConsumed = 0
-
+  let lastPlaybackRate = 1
   let lastAudioPushTime = 0
 
   function getBackendPlaybackTime () {
@@ -209,10 +209,9 @@
 
     if (!paused) {
       const baseLatency = audioCtx.baseLatency
-      // const outputLatency = audioCtx.outputLatency
       const contextStart = audioContextStartTime ?? audioCtx.currentTime
 
-      return clamp(playbackTimeAtStart + clamp(audioCtx.currentTime - contextStart - baseLatency), 0, duration)
+      return clamp(playbackTimeAtStart + clamp(audioCtx.currentTime - contextStart - baseLatency) * playbackRate, 0, duration)
     }
 
     return playbackTimeAtStart
@@ -367,6 +366,7 @@
 
     audioContextStartTime = audioCtx.currentTime
     playbackTimeAtStart = currentTime
+    workletNode?.port.postMessage({ type: 'rate', playbackRate })
 
     audioBufferIterator = audioSink!.buffers(currentTime)
 
@@ -592,11 +592,13 @@
     }
   }
 
-  // $: if (playbackRate) {
-  //   for (const node of audioNodeQueue) {
-  //     node.playbackRate.value = playbackRate
-  //   }
-  // }
+  $: if (playbackRate !== lastPlaybackRate && audioCtx) {
+    const preTime = playbackTimeAtStart + clamp(audioCtx.currentTime - (audioContextStartTime ?? audioCtx.currentTime) - audioCtx.baseLatency, 0) * lastPlaybackRate
+    playbackTimeAtStart = clamp(preTime, 0, duration)
+    audioContextStartTime = audioCtx.currentTime
+    workletNode?.port.postMessage({ type: 'rate', playbackRate })
+    lastPlaybackRate = playbackRate
+  }
 
   export function requestVideoFrameCallback (callback: VideoFrameRequestCallback) {
     const now = performance.now()
