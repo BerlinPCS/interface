@@ -202,16 +202,17 @@
   let samplesSent = 0
   let samplesConsumed = 0
 
+  let lastAudioPushTime = 0
+
   function getBackendPlaybackTime () {
     if (!audioCtx) return 0
 
     if (!paused) {
       const baseLatency = audioCtx.baseLatency
+      // const outputLatency = audioCtx.outputLatency
       const contextStart = audioContextStartTime ?? audioCtx.currentTime
-      const ctxTime = audioCtx.currentTime - contextStart - baseLatency
-      const consumedTime = samplesConsumed / audioCtx.sampleRate
 
-      return clamp(playbackTimeAtStart + Math.min(ctxTime, consumedTime + 1), 0, duration)
+      return clamp(playbackTimeAtStart + clamp(audioCtx.currentTime - contextStart - baseLatency), 0, duration)
     }
 
     return playbackTimeAtStart
@@ -373,6 +374,11 @@
       rafHandle = requestAnimationFrame(loop)
 
       const playbackTime = getBackendPlaybackTime()
+
+      if (audioCtx && !paused && audioCtx.state === 'running' && performance.now() - lastAudioPushTime > 500) {
+        audioCtx.suspend()
+      }
+
       const timeChanged = Math.abs(currentTime - playbackTime) > 0.001
 
       if (timeChanged) {
@@ -422,6 +428,7 @@
       if (paused || asyncId !== currentAsyncId) break
 
       if (audioCtx?.state === 'suspended') {
+        lastAudioPushTime = performance.now()
         await audioCtx.resume()
         audioContextStartTime = audioCtx.currentTime
         playbackTimeAtStart = currentTime
@@ -443,6 +450,7 @@
       }
 
       samplesSent += frames
+      lastAudioPushTime = performance.now()
 
       const bufferedSeconds = (samplesSent - samplesConsumed) / audioCtx.sampleRate
       if (bufferedSeconds >= 2) {
