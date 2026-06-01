@@ -7,7 +7,6 @@
   import { setContext } from 'svelte'
   import { toast } from 'svelte-sonner'
 
-  import { dev } from '$app/environment'
   import { onNavigate } from '$app/navigation'
   // import Backplate from '$lib/components/Backplate.svelte'
   import Online from '$lib/components/Online.svelte'
@@ -44,13 +43,10 @@
 
   $: scale = SUPPORTS.isAndroidTV ? $settings.uiScale / devicePixelRatio : (SUPPORTS.isAndroid || SUPPORTS.isIOS) ? $settings.uiScale : 1
 
-  const scriptSrc = dev ? "'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' blob:" : "'self' 'wasm-unsafe-eval' blob:"
-  const content = `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' blob: https: data:; font-src 'self'; connect-src 'self' https: wss: http://localhost:*; frame-src 'self' https://www.youtube-nocookie.com; worker-src 'self' blob:; media-src 'self' https://v.animethemes.moe http://localhost:* blob: https://remotion.media; object-src 'none'; base-uri 'self'; form-action 'self'`
 </script>
 
 <svelte:head>
   <meta name='viewport' content='width={scale <= 1 ? 'device-width' : 1}, initial-scale={scale}, minimum-scale={scale}, maximum-scale={scale}, user-scalable=no, viewport-fit=cover' />
-  <meta http-equiv='content-security-policy' {content} />
 </svelte:head>
 
 <div class={cn('size-full flex flex-col bg-black relative overflow-clip')} id='root' data-input={$inputType} on:contextmenu|preventDefault>

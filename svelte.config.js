@@ -111,6 +111,23 @@ const config = {
   },
   preprocess: vitePreprocess(),
   kit: {
+    csp: {
+      mode: 'hash',
+      directives: {
+        'default-src': ['self'],
+        'script-src': ['self', 'wasm-unsafe-eval', 'blob:'],
+        'style-src': ['self'],
+        'img-src': ['self', 'blob:', 'https:', 'data:'],
+        'font-src': ['self'],
+        'connect-src': ['self', 'https:', 'wss:', 'http://localhost:*'],
+        'frame-src': ['self', 'https://www.youtube-nocookie.com'],
+        'worker-src': ['self', 'blob:'],
+        'media-src': ['self', 'https://v.animethemes.moe', 'http://localhost:*', 'blob:', 'https://remotion.media'],
+        'object-src': ['none'],
+        'base-uri': ['self'],
+        'form-action': ['self']
+      }
+    },
     // router: {
     //   type: 'hash',
     //   resolution: 'client'
