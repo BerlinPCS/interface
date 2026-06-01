@@ -37,6 +37,7 @@
   }
 
   $: completed = list(media) === 'COMPLETED'
+  $: rewatching = list(media) === 'REPEATING'
   $: _progress = completed ? 0 : progress(media) ?? 0
 
   $: currentPage = Math.floor((!completed ? _progress : 0) / perPage) + 1
@@ -60,7 +61,7 @@
       {#each getPage(currentPage, episodeList) as { episode, image, title, summary, airingAt, airdate, filler, length, rating, runtime } (episode)}
         {@const watched = _progress >= episode && !completed}
         {@const target = _progress + 1 === episode}
-        {@const spoiler = !watched && !target && $settings.hideSpoilers}
+        {@const spoiler = !watched && !rewatching && !target && $settings.hideSpoilers}
         {@const underPoweredSpoiler = spoiler && SUPPORTS.isUnderPowered}
         <div class={!target ? 'px-3 w-full' : 'contents'}>
           <div use:click={() => play(episode)}
