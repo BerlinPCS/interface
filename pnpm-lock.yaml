@@ -58,7 +58,7 @@ importers:
         version: 1.2.2
       anitomyscript:
         specifier: github:thaunknown/anitomyscript
-        version: https://codeload.github.com/thaunknown/anitomyscript/tar.gz/fc00888d69ba59258167f2fac9e86576b29863b7
+        version: https://codeload.github.com/thaunknown/anitomyscript/tar.gz/f64435371bd4c8ffaeb5f304f5b1c4bb5b32cb02
       bittorrent-tracker:
         specifier: 10.0.12
         version: 10.0.12
@@ -90,8 +90,8 @@ importers:
         specifier: ^6.2.2
         version: 6.2.2
       jassub:
-        specifier: ^2.5.1
-        version: 2.5.1
+        specifier: ^2.5.3
+        version: 2.5.3
       js-levenshtein:
         specifier: ^1.1.6
         version: 1.1.6
@@ -1025,8 +1025,8 @@ packages:
   ajv@6.12.6:
     resolution: {integrity: sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g==}
 
-  anitomyscript@https://codeload.github.com/thaunknown/anitomyscript/tar.gz/fc00888d69ba59258167f2fac9e86576b29863b7:
-    resolution: {tarball: https://codeload.github.com/thaunknown/anitomyscript/tar.gz/fc00888d69ba59258167f2fac9e86576b29863b7}
+  anitomyscript@https://codeload.github.com/thaunknown/anitomyscript/tar.gz/f64435371bd4c8ffaeb5f304f5b1c4bb5b32cb02:
+    resolution: {tarball: https://codeload.github.com/thaunknown/anitomyscript/tar.gz/f64435371bd4c8ffaeb5f304f5b1c4bb5b32cb02}
     version: 2.0.10
 
   ansi-regex@5.0.1:
@@ -1999,8 +1999,8 @@ packages:
   jackspeak@3.4.3:
     resolution: {integrity: sha512-OGlZQpz2yfahA/Rd1Y8Cd9SIEsqvXkLVoSw/cgwhnhFMDbsQFeZYoJJ7bIZBS9BcamUW96asq/npPWugM+RQBw==}
 
-  jassub@2.5.1:
-    resolution: {integrity: sha512-cQrQa42zfhNCBcNsYfep8E9acLW66PP87M3ZiNyWPEUyj4JBGhi7buf6aOhUbkNRkHe9iA+TNTZms0JJcS7zIA==}
+  jassub@2.5.3:
+    resolution: {integrity: sha512-BC3k8/juZDJzKcpu0mvSxZbr1Szi2CBydaDLRkLcpMH9Xd/Jt/+fuY98kCwqVDbcqKGkh03cKQw73KWZUcECKg==}
 
   jiti@1.21.7:
     resolution: {integrity: sha512-/imKNG4EbWNrVjoNC/1H5/9GFy+tqjGBHCaSsN+P2RnPqjsLmv6UD3Ej+Kj8nBWaRAwyk7kK5ZUc+OEatnTR3A==}
@@ -3792,7 +3792,7 @@ snapshots:
       json-schema-traverse: 0.4.1
       uri-js: 4.4.1
 
-  anitomyscript@https://codeload.github.com/thaunknown/anitomyscript/tar.gz/fc00888d69ba59258167f2fac9e86576b29863b7: {}
+  anitomyscript@https://codeload.github.com/thaunknown/anitomyscript/tar.gz/f64435371bd4c8ffaeb5f304f5b1c4bb5b32cb02: {}
 
   ansi-regex@5.0.1: {}
 
@@ -4937,7 +4937,7 @@ snapshots:
     optionalDependencies:
       '@pkgjs/parseargs': 0.11.0
 
-  jassub@2.5.1:
+  jassub@2.5.3:
     dependencies:
       abslink: 1.2.2
       lfa-ponyfill: 1.1.0

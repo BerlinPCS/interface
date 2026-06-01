@@ -32,6 +32,7 @@ const config: Config = {
         { values: { DEFAULT: undefined } }
       )
       api.addVariant('mobile', '@media (pointer: none), (pointer: coarse)')
+      api.addVariant('desktop', '@media not ((pointer: none) or (pointer: coarse))')
       api.matchUtilities(
         {
           'view-transition': (value) => ({

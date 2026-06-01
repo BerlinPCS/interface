@@ -1,6 +1,6 @@
 {
 	"name": "ui",
-	"version": "6.4.384",
+	"version": "6.4.385",
 	"license": "BUSL-1.1",
 	"private": true,
 	"packageManager": "pnpm@10.28.0",
@@ -79,7 +79,7 @@
 		"dompurify": "^3.4.2",
 		"events": "^3.3.0",
 		"idb-keyval": "^6.2.2",
-		"jassub": "^2.5.1",
+		"jassub": "^2.5.3",
 		"js-levenshtein": "^1.1.6",
 		"lucide-svelte": "^1.0.1",
 		"marked": "^18.0.3",

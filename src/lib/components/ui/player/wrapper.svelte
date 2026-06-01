@@ -87,7 +87,7 @@
     'w-full',
     isMiniplayer ? 'pointer-events-auto max-w-[22rem] px-4 absolute bottom-0 right-0 [&>*]:rounded-lg [&>*]:overflow-clip miniplayer transition-transform duration-[500ms] ease-[cubic-bezier(0.3,1.5,0.8,1)]' : 'size-full',
     dragging && isMiniplayer && 'dragging',
-    !$isPlaying && 'paused select:paused-show'
+    !$isPlaying && 'paused desktop:select:paused-show mobile:active:paused-show mobile:focus-visible:paused-show'
   )} style:--top={$bottom} style:--left={$right}>
     {#if $active}
       {#await $active}
