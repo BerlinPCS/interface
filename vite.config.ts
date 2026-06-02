@@ -57,7 +57,8 @@ export default defineConfig({
   server: { port: 7344 },
   build: {
     target: 'esnext',
-    sourcemap: true
+    sourcemap: true,
+    assetsInlineLimit: 0
   },
   ssr: {
     target: 'webworker'
