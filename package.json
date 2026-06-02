@@ -1,6 +1,6 @@
 {
 	"name": "ui",
-	"version": "6.4.397",
+	"version": "6.4.398",
 	"license": "BUSL-1.1",
 	"private": true,
 	"packageManager": "pnpm@10.28.0",
@@ -55,7 +55,7 @@
 		"@cloudflare/speedtest": "^1.8.5",
 		"@dagrejs/dagre": "^3.0.0",
 		"@fontsource-variable/nunito": "^5.2.7",
-		"@fontsource/geist-mono": "^5.2.7",
+		"@fontsource/geist-mono": "^5.2.8",
 		"@mediabunny/ac3": "^1.44.2",
 		"@prgm/sveltekit-progress-bar": "2.0.0",
 		"@thaunknown/web-irc": "^1.0.3",

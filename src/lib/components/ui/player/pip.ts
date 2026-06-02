@@ -72,8 +72,7 @@ export default class PictureInPicture {
     canvas.width = this.video.videoWidth
     canvas.height = this.video.videoHeight
     this.subtitles.jassub.resize(false, this.video.videoWidth, this.video.videoHeight)
-    const renderFrame = (noskip?: number) => {
-      if (noskip) this.video!.paused ? video.pause() : video.play()
+    const renderFrame = () => {
       context.drawImage(this.deband?.canvas ?? this.video!, 0, 0)
       if (canvas.width && canvas.height && this.subtitles?.jassub?._canvas) context.drawImage(this.subtitles.jassub._canvas, 0, 0, canvas.width, canvas.height)
       loop = this.video!.requestVideoFrameCallback(renderFrame)
@@ -87,6 +86,7 @@ export default class PictureInPicture {
 
     this.ctrl.signal.addEventListener('abort', () => ctrl.abort(), ctrl)
     video.addEventListener('leavepictureinpicture', () => ctrl.abort(), ctrl)
+    video.addEventListener('play', () => context.drawImage(this.deband?.canvas ?? this.video!, 0, 0), ctrl)
 
     try {
       setTimeout(renderFrame, 10)

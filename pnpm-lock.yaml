@@ -18,7 +18,7 @@ importers:
         specifier: ^5.2.7
         version: 5.2.7
       '@fontsource/geist-mono':
-        specifier: ^5.2.7
+        specifier: ^5.2.8
         version: 5.2.8
       '@mediabunny/ac3':
         specifier: ^1.44.2

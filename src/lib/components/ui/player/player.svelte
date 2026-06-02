@@ -174,7 +174,7 @@
   // functions
   function playPause () {
     playAnimation(paused ? 'play' : 'pause')
-    return paused ? video.play() : video.pause()
+    return paused ? Promise.allSettled([video.play(), pip.element.value?.play()]) : [video.pause(), pip.element.value?.pause()]
   }
   function fullscreen () {
     return fullscreenElement ? document.exitFullscreen() : document.getElementById('episodeListTarget')!.requestFullscreen()
