@@ -306,7 +306,7 @@ details,
 /* animated SVG icons */
 .animated-icon:not(:hover):not(:focus-visible):not(:active) .target-animated-icon {
   animation: none !important;
-  transform: translateX(0) translateX(0) translateZ(0) translate(0, 0) !important;
+  transform: translateX(0) translateX(0) translateZ(0) translate(0, 0) rotate(0) !important;
 }
 
 /* Backplate related things */

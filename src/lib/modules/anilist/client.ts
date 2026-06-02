@@ -281,26 +281,28 @@ class AnilistClient {
     return store
   }
 
-  async _generateRelationsTree (store: RelationsStore, media: RelationTreeMedia) {
+  async _generateRelationsTree (store: RelationsStore, media: RelationTreeMedia, reload = false) {
     const { nodes, edges } = get(store)
 
     const startMedia = media
 
     const position = { x: 0, y: 0 }
 
-    const lastEdgeMedia: number[] = []
+    const lastEdgeMedia = new Set<number>()
 
-    const processEdges = (media: RelationTreeMedia) => {
+    const processEdges = (media: RelationTreeMedia, depth = 0) => {
       if (!media) return
       if ('type' in media && media.type !== 'ANIME') return
       if (!nodes.has(media.id)) {
-        if (!media.relations) lastEdgeMedia.push(media.id)
+        if (depth >= 2) lastEdgeMedia.add(media.id)
         nodes.set(media.id, {
           id: '' + media.id,
           data: { id: media.id, media },
           position
         })
       }
+
+      if (depth >= 2) return
 
       for (const edge of media.relations?.edges ?? []) {
         if (!edge?.node) continue
@@ -328,24 +330,26 @@ class AnilistClient {
         })
 
         // @ts-expect-error yeah recursive, last node has different types since it doesnt have relations
-        processEdges(node)
+        processEdges(node, depth + 1)
       }
     }
 
-    const totalSize = nodes.size + edges.size
-    processEdges(startMedia)
+    const processMedia = (media: Array<typeof startMedia>) => {
+      const totalSize = nodes.size + edges.size
+      for (const m of media) processEdges(m)
 
-    for (const id of nodes.keys()) this._relationsTreeCache.set(id, store)
-    if (totalSize !== (nodes.size + edges.size)) store.set({ nodes, edges })
+      for (const id of nodes.keys()) this._relationsTreeCache.set(id, store)
+      if (totalSize !== (nodes.size + edges.size)) store.set({ nodes, edges })
+    }
+    processMedia([startMedia])
 
-    if (!lastEdgeMedia.length) return
-    const res = await this.client.query(RecrusiveRelations, { ids: lastEdgeMedia }, { requestPolicy: 'cache-first' })
-    if (res.error) console.error(res.error)
+    while (lastEdgeMedia.size) {
+      const res = await this.client.query(RecrusiveRelations, { ids: [...lastEdgeMedia] }, { requestPolicy: reload ? 'network-only' : 'cache-first' })
+      if (res.error) console.error(res.error)
+      if (!res.data?.Page?.media?.length) break
 
-    if (res.data?.Page) {
-      for (const media of res.data.Page.media ?? []) {
-        await this._generateRelationsTree(store, media)
-      }
+      lastEdgeMedia.clear()
+      processMedia(res.data.Page.media)
     }
   }
 }

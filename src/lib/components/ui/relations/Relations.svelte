@@ -13,6 +13,7 @@
   import type { FullMedia } from '$lib/modules/anilist/queries'
   import type { FragmentOf } from 'gql.tada'
 
+  import Refresh from '$lib/components/icons/animated/refresh.svelte'
   import { client } from '$lib/modules/anilist'
 
   export let media: Media
@@ -110,6 +111,10 @@
     }, 150)
   }
 
+  function refresh () {
+    client._generateRelationsTree(nodesStore, media, true)
+  }
+
   onMount(() => {
     fitAndLayout()
     setTimeout(fitAndLayout)
@@ -142,6 +147,9 @@
       {:else}
         <Maximize2 />
       {/if}
+    </ControlButton>
+    <ControlButton on:click={refresh} class='animated-icon'>
+      <Refresh />
     </ControlButton>
   </Controls>
 </SvelteFlow>
