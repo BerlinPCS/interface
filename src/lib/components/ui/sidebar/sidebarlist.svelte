@@ -9,6 +9,7 @@
 
   import { goto } from '$app/navigation'
   import { page } from '$app/stores'
+  import StatusDot from '$lib/components/StatusDot.svelte'
   import Logo from '$lib/components/icons/Logo.svelte'
   import { Home, Search, Calendar, Users, Download, Bolt, LogIn } from '$lib/components/icons/animated'
   import CloudDownload from '$lib/components/icons/animated/cloud-download.svelte'
@@ -18,6 +19,7 @@
   import { lockedState, idleState, activityState } from '$lib/modules/idle'
   import native from '$lib/modules/native'
   import { SUPPORTS } from '$lib/modules/settings'
+  import { w2globby } from '$lib/modules/w2g/lobby'
   import { breakpoints, cn, highEntropyValues } from '$lib/utils'
 
   let visibilityState: DocumentVisibilityState
@@ -68,6 +70,9 @@
 </SidebarButton>
 <SidebarButton href='/app/w2g/' class='animated-icon' {size}>
   <Users size={18} />
+  {#if $w2globby}
+    <StatusDot class='top-1 right-1 absolute !me-0' variant='COMPLETED' />
+  {/if}
 </SidebarButton>
 <!-- <SidebarButton href='/app/chat/' class='animated-icon'>
   <Messages size={18} />
