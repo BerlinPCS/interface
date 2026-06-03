@@ -181,10 +181,15 @@ a {
   -webkit-user-drag: none;
 }
 
-#episodeListTarget:fullscreen {
+#episodeListTarget:fullscreen,
+#episodeListTarget.custom-fullscreen {
   user-select: none;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
+}
+
+body:has(.custom-fullscreen)> :not(:has(.custom-fullscreen), .custom-fullscreen) {
+  display: none;
 }
 
 @keyframes load-in {

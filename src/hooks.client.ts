@@ -1,5 +1,34 @@
 import type { HandleClientError } from '@sveltejs/kit'
 
+import SUPPORTS from '$lib/modules/settings/supports'
+
+if (SUPPORTS.isIOS) {
+  let customFS: Element | undefined
+
+  Object.defineProperty(document, 'fullscreenElement', {
+    get: () => customFS,
+    configurable: true,
+    enumerable: true
+  })
+
+  Element.prototype.requestFullscreen = function (opts) {
+    if (document.fullscreenElement === this) return Promise.resolve()
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    customFS = this
+    this.classList.add('custom-fullscreen')
+    document.dispatchEvent(new Event('fullscreenchange'))
+    return Promise.resolve()
+  }
+
+  Document.prototype.exitFullscreen = function () {
+    if (!customFS) return Promise.resolve()
+    customFS.classList.remove('custom-fullscreen')
+    customFS = undefined
+    document.dispatchEvent(new Event('fullscreenchange'))
+    return Promise.resolve()
+  }
+}
+
 if (typeof Promise.withResolvers === 'undefined') {
   Promise.withResolvers = function <T> () {
     let resolve!: (value: T | PromiseLike<T>) => void

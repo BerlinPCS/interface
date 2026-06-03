@@ -9,13 +9,15 @@ const config: Config = {
       api.addVariant('starting', '@starting-style')
       api.addVariant('select', ['&:hover', '&:focus-visible', '&:active'])
       api.addVariant('group-select', [':merge(.group):hover &', ':merge(.group):focus-visible &', ':merge(.group):active &'])
-      api.addVariant('fullscreen', '&:fullscreen')
-      api.addVariant('group-fullscreen', ':merge(.group):fullscreen &')
+      api.addVariant('fullscreen', ['&:fullscreen', '&.custom-fullscreen'])
+      api.addVariant('group-fullscreen', [':merge(.group):fullscreen &', ':merge(.group).custom-fullscreen &'])
       api.matchVariant(
         'group-fullscreen',
         (value, { modifier }) => [
           ':merge(.group):fullscreen &',
-          `:merge(.group\\/${modifier}):fullscreen &`
+          `:merge(.group\\/${modifier}):fullscreen &`,
+          ':merge(.group).custom-fullscreen &',
+          `:merge(.group\\/${modifier}).custom-fullscreen &`
         ],
         { values: { DEFAULT: undefined } }
       )

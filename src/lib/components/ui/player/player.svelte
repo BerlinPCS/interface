@@ -177,7 +177,7 @@
     return paused ? Promise.allSettled([video.play(), pip.element.value?.play()]) : [video.pause(), pip.element.value?.pause()]
   }
   function fullscreen () {
-    return fullscreenElement ? document.exitFullscreen() : document.getElementById('episodeListTarget')!.requestFullscreen()
+    return fullscreenElement ? document.exitFullscreen() : document.getElementById('episodeListTarget')!.requestFullscreen({ navigationUI: 'hide' })
   }
   $: fullscreenElement ? screen.orientation.lock?.('landscape') : screen.orientation.unlock?.()
 
