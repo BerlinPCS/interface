@@ -60,6 +60,7 @@
   // horrific hack, but on iPadOS, disabling insets causes lock to be RESPECTED, even tho spec says on Tablets it should be ignored, re-enabling insets correcly ignores lock!
   $: if (!fullscreenElement && !SUPPORTS.isIPad) screen.orientation.lock?.('portrait').catch(() => {})
 
+  // once again, iOS at its finest
   document.body.style.webkitUserSelect = 'none'
   document.body.style.userSelect = 'none'
 </script>

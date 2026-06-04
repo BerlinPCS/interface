@@ -114,6 +114,7 @@ const config = {
     csp: {
       mode: 'hash',
       directives: {
+        'default-src': ['self'],
         'script-src': ['self', 'wasm-unsafe-eval', 'blob:', 'trusted-types-eval'],
         'style-src': ['self', 'unsafe-inline'],
         'style-src-attr': ['unsafe-inline'],
@@ -127,8 +128,7 @@ const config = {
         'base-uri': ['self'],
         'form-action': ['self'],
         'frame-ancestors': ['self'],
-        'manifest-src': ['self'],
-        'upgrade-insecure-requests': true
+        'manifest-src': ['self']
       }
     },
     // router: {
