@@ -145,6 +145,10 @@ canvas {
   border-radius: inherit;
 }
 
+.overtype-placeholder {
+  display: none !important;
+}
+
 
 @font-face {
   font-family: "Twemoji";
