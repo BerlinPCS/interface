@@ -33,7 +33,7 @@
   })
 
   onNavigate((navigation) => {
-    if (!document.startViewTransition || SUPPORTS.isIOS) return
+    if (!document.startViewTransition || (SUPPORTS.isIOS && navigation.delta != null)) return
 
     return new Promise((resolve) => {
       document.startViewTransition(async () => {

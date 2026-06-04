@@ -196,6 +196,10 @@ body:has(.custom-fullscreen)> :not(:has(.custom-fullscreen), .custom-fullscreen)
   display: none;
 }
 
+:root:not(:has(:fullscreen)):not(:has(.custom-fullscreen)) #root {
+  padding-top: env(safe-area-inset-top, unset);
+}
+
 @keyframes load-in {
   from {
     transform: translate3d(0, 1.2rem, 0) scale(0.95);
