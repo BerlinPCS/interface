@@ -159,9 +159,11 @@ canvas {
   font-family: 'Twemoji';
 }
 
-::selection {
-  background: #1f375a6b;
-  color: #3cabfa;
+@supports not (-webkit-touch-callout: none) {
+  ::selection {
+    background: #1f375a6b;
+    color: #3cabfa;
+  }
 }
 
 html,
@@ -174,6 +176,9 @@ body {
   flex-direction: column;
   scroll-behavior: smooth;
   overscroll-behavior: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
   font-family: 'Nunito Variable'
 }
 
@@ -183,8 +188,7 @@ a {
 }
 
 #episodeListTarget:fullscreen,
-#episodeListTarget.custom-fullscreen,
-* {
+#episodeListTarget.custom-fullscreen {
   user-select: none;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
