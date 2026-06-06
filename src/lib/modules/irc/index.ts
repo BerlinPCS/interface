@@ -2,7 +2,7 @@ import Client, { createChannelConstructor } from '@thaunknown/web-irc'
 import { writable } from 'simple-store-svelte'
 import { toast } from 'svelte-sonner'
 
-import { decryptMessage, encryptMessage } from './crypt'
+// import { decryptMessage, encryptMessage } from './crypt'
 
 import type IrcChannel from '@thaunknown/web-irc/channel'
 import type IrcClient from '@thaunknown/web-irc/client'
@@ -103,9 +103,9 @@ export default class MessageClient {
 
     this.irc.on('privmsg', async priv => {
       try {
-        const message = await decryptMessage(priv.message)
+        // const message = await decryptMessage(priv.message)
         const msg: ChatMessage = {
-          message,
+          message: priv.message,
           user: this.users.value[priv.ident]!,
           type: 'incoming',
           date: new Date(priv.time)
@@ -127,8 +127,8 @@ export default class MessageClient {
   }
 
   async say (message: string) {
-    const encrypted = await encryptMessage(message)
-    this.channel!.say(encrypted)
+    // const encrypted = await encryptMessage(message)
+    this.channel!.say(message)
     this.messages.update(messages => [...messages, {
       user: ircUserToChatUser(this.ident),
       message,
@@ -147,8 +147,8 @@ export default class MessageClient {
         enable_chghost: true,
         enable_setname: true,
         message_max_length: 350,
-        host: 'irc.swiftirc.net',
-        port: 5004,
+        host: 'irc.rizon.net',
+        port: 6697,
         tls: true,
         path: '',
         password: '',

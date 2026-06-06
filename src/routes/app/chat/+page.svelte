@@ -1,17 +1,16 @@
-<!-- <script lang='ts'>
+<script lang='ts'>
   import TriangleAlert from 'lucide-svelte/icons/triangle-alert'
 
   import { Button } from '$lib/components/ui/button'
   import { IRC } from '$lib/components/ui/irc'
   import { prevAgreed } from '$lib/modules/irc'
 
-  let agreed = $prevAgreed
   function agree () {
-    agreed = $prevAgreed = true
+    $prevAgreed = true
   }
 </script>
 
-{#if agreed}
+{#if $prevAgreed}
   <IRC />
 {:else}
   <div class='flex grow h-full items-center justify-center flex-col'>
@@ -32,4 +31,4 @@
       </div>
     </div>
   </div>
-{/if} -->
+{/if}

@@ -11,12 +11,13 @@
   import { page } from '$app/stores'
   import StatusDot from '$lib/components/StatusDot.svelte'
   import Logo from '$lib/components/icons/Logo.svelte'
-  import { Home, Search, Calendar, Users, Download, Bolt, LogIn } from '$lib/components/icons/animated'
+  import { Home, Search, Calendar, Users, Download, Bolt, LogIn, Messages } from '$lib/components/icons/animated'
   import CloudDownload from '$lib/components/icons/animated/cloud-download.svelte'
   import * as Avatar from '$lib/components/ui/avatar'
   import * as Tooltip from '$lib/components/ui/tooltip'
   import client from '$lib/modules/auth/client'
   import { lockedState, idleState, activityState } from '$lib/modules/idle'
+  import { irc } from '$lib/modules/irc/lobby'
   import native from '$lib/modules/native'
   import { SUPPORTS } from '$lib/modules/settings'
   import { w2globby } from '$lib/modules/w2g/lobby'
@@ -74,9 +75,12 @@
     <StatusDot class='top-1 right-1 absolute !me-0' variant='COMPLETED' />
   {/if}
 </SidebarButton>
-<!-- <SidebarButton href='/app/chat/' class='animated-icon'>
+<SidebarButton href='/app/chat/' class='animated-icon' {size}>
   <Messages size={18} />
-</SidebarButton> -->
+  {#if $irc}
+    <StatusDot class='top-1 right-1 absolute !me-0' variant='COMPLETED' />
+  {/if}
+</SidebarButton>
 <SidebarButton href='/app/client/' class='animated-icon' id='sidebar-client' data-down='#sidebar-download,#sidebar-donate' {size}>
   <Download size={18} />
 </SidebarButton>
@@ -138,7 +142,7 @@
 <SidebarButton href='/app/settings/' class='animated-icon !transition-none' {size}>
   <Bolt size={18} />
 </SidebarButton>
-<SidebarButton href='/app/profile/' {size}>
+<SidebarButton href='/app/profile/' class='hidden md:flex' {size}>
   <!-- <SidebarButton href='/app/profile/' class='hidden md:flex py-0 animated-icon'> -->
   {#if $viewer}
     <Avatar.Root class='size-6 rounded-md'>

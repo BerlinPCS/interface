@@ -1,29 +1,25 @@
 <script lang='ts' context='module'>
-  import { writable, type Writable } from 'simple-store-svelte'
-
   import { client } from '$lib/modules/anilist'
   import MessageClient from '$lib/modules/irc'
-
-  const irc: Writable<Promise<MessageClient> | null> = writable(null)
 </script>
 
 <script lang='ts'>
   import Interface from './interface.svelte'
 
-  const viewer = client.client.viewer.value
+  import { irc } from '$lib/modules/irc/lobby'
 
-  let ident: { nick: string, id: string, pfpid: string, type: 'al' | 'guest' }
+  const viewer = client.client.viewer
 
-  if (viewer?.viewer) {
-    const url = viewer.viewer.avatar?.large ?? ''
-    const id = '' + viewer.viewer.id
+  let ident: { nick: string, id: string, pfpid: string, type: 'al' | 'guest' } = { nick: 'Guest-' + crypto.randomUUID().slice(0, 6), id: crypto.randomUUID().slice(0, 6), pfpid: '0', type: 'guest' }
+
+  if ($viewer?.viewer) {
+    const url = $viewer.viewer.avatar?.large ?? ''
+    const id = '' + $viewer.viewer.id
     const pfpid = url.slice(url.lastIndexOf('/') + 2 + id.length + 1)
-    ident = { nick: viewer.viewer.name, id, pfpid, type: 'al' }
-  } else {
-    ident = { nick: 'Guest-' + crypto.randomUUID().slice(0, 6), id: crypto.randomUUID().slice(0, 6), pfpid: '0', type: 'guest' }
+    ident = { nick: $viewer.viewer.name, id, pfpid, type: 'al' }
   }
 
-  irc.value ??= MessageClient.new(ident)
+  $irc ??= MessageClient.new(ident)
 </script>
 
 {#if $irc}

@@ -11,6 +11,7 @@
   import { goto } from '$app/navigation'
   import { Textarea } from '$lib/components/ui/textarea'
   import { prevAgreed } from '$lib/modules/irc'
+  import { irc } from '$lib/modules/irc/lobby'
 
   export let client: MessageClient
 
@@ -41,10 +42,11 @@
 
   $: processedUsers = Object.values($users)
 
-  function quit () {
-    $prevAgreed = false
+  async function quit () {
     client.destroy()
-    goto('/app/home')
+    await goto('/app/home')
+    $prevAgreed = false
+    $irc = null
   }
 </script>
 
