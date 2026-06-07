@@ -33,7 +33,8 @@ export default defineConfig({
       targets: [
         { // VITE IS DOG AND DOESNT SUPPORT DYNAMIC JSON IMPORTS
           src: 'node_modules/doc999tor-fast-geoip/data/*.json',
-          dest: 'geoip/'
+          dest: 'geoip/',
+          rename: { stripBase: true }
         }
       ]
     }),
