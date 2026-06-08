@@ -14,7 +14,7 @@
   <IRC />
 {:else}
   <div class='flex grow h-full items-center justify-center flex-col'>
-    <div class='flex flex-col w-[30rem] max-w-full p-5 items-center text-center'>
+    <div class='flex flex-col max-w-[30rem] w-full xs:px-5 py-5 items-center text-center'>
       <TriangleAlert class='text-black max-w-full' size='12rem' fill='#f59e0b' />
       <div class='text-3xl font-bold'>
         Content Warning

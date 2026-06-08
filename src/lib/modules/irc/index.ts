@@ -1,8 +1,10 @@
-import Client, { createChannelConstructor } from '@thaunknown/web-irc'
+import Client from '@thaunknown/web-irc'
 import { writable } from 'simple-store-svelte'
 import { toast } from 'svelte-sonner'
 
 // import { decryptMessage, encryptMessage } from './crypt'
+
+import { Connection } from './connections'
 
 import type IrcChannel from '@thaunknown/web-irc/channel'
 import type IrcClient from '@thaunknown/web-irc/client'
@@ -152,28 +154,31 @@ export default class MessageClient {
     await new Promise<void>(resolve => {
       client.irc.once('connected', resolve)
       client.irc.connect({
-        version: null,
+        // version: null,
         enable_chghost: true,
         enable_setname: true,
         message_max_length: 350,
-        host: 'irc.rizon.net',
-        port: 6697,
+        host: 'irc.hybridirc.com',
+        port: 7002,
         tls: true,
-        path: '',
-        password: '',
-        account: {},
+        // host: 'irc.libera.chat',
+        // port: 6697,
+        // path: '',
+        // password: '',
+        // account: {},
         nick: `${ext[0]}${prefix}${pfpid}_${nick.replace('.', '')}`,
         username: `${type}_${id}`,
-        gecos: 'https://kiwiirc.com/',
+        gecos: 'https://hybridirc.com/',
         encoding: 'utf8',
         auto_reconnect: true,
-        transport: createChannelConstructor('http://do-e.clients.kiwiirc.com/webirc/kiwiirc/', '', '1') // this people are dumb enough to not refresh the ssl cert so don't use https
+        transport: Connection
+        // transport: createChannelConstructor('https://web.libera.chat/webirc/kiwiirc/', '', '1')
       })
     })
 
     await new Promise(resolve => {
       client.irc.once('join', resolve)
-      client.channel = client.irc.channel('#4e63ad91532eb8849330')
+      client.channel = client.irc.channel('#hayase-4e63ad915')
     })
     return client
   }

@@ -120,7 +120,7 @@ const config = {
         'style-src-attr': ['unsafe-inline'],
         'img-src': ['self', 'blob:', 'https:', 'data:'],
         'font-src': ['self'],
-        'connect-src': ['self', 'https:', 'wss:', 'ws:', 'http://localhost:*'],
+        'connect-src': ['self', 'https:', 'wss:', 'http://localhost:*'],
         'frame-src': ['self', 'https://www.youtube-nocookie.com'],
         'worker-src': ['self', 'blob:'],
         'media-src': ['self', 'https://v.animethemes.moe', 'http://localhost:*', 'blob:', 'https://remotion.media'],
