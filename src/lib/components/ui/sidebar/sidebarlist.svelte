@@ -19,7 +19,7 @@
   import { lockedState, idleState, activityState } from '$lib/modules/idle'
   import { irc } from '$lib/modules/irc/lobby'
   import native from '$lib/modules/native'
-  import { SUPPORTS } from '$lib/modules/settings'
+  import SUPPORTS from '$lib/modules/settings/supports'
   import { w2globby } from '$lib/modules/w2g/lobby'
   import { breakpoints, cn, highEntropyValues } from '$lib/utils'
 

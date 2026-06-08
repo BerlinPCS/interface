@@ -1,5 +1,6 @@
 <script lang='ts'>
   import { page } from '$app/stores'
+  import Load from '$lib/components/ui/img/load.svelte'
   import { Menubar } from '$lib/components/ui/menubar'
   import { Separator } from '$lib/components/ui/separator'
 </script>
@@ -18,5 +19,5 @@
       <div class='text-lg text-wrap max-w-full'>{$page.error?.message ?? 'Error'}</div>
     </div>
   </div>
-  <img src='/confused.webp' alt='huh' class='w-96 max-w-full' loading='lazy' decoding='async' />
+  <Load src='/confused.webp' alt='huh' class='w-96 max-w-full' />
 </div>

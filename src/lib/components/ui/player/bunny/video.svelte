@@ -3,7 +3,7 @@
 <script lang='ts' context='module'>
   import { canDecodeAudio } from 'mediabunny'
 
-  import { SUPPORTS } from '$lib/modules/settings'
+  import SUPPORTS from '$lib/modules/settings/supports'
 
   let loadPromise: Promise<void> | null = null
 

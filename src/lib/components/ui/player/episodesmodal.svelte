@@ -9,7 +9,7 @@
   import { client } from '$lib/modules/anilist'
   import { episodes as eps } from '$lib/modules/anizip'
   import { click } from '$lib/modules/navigate'
-  import { SUPPORTS } from '$lib/modules/settings'
+  import SUPPORTS from '$lib/modules/settings/supports'
 
   export let portal: HTMLElement
   let episodeListOpen = false

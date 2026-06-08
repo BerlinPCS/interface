@@ -1,7 +1,11 @@
 <script lang='ts'>
   import { page } from '$app/stores'
+  import Load from '$lib/components/ui/img/load.svelte'
   import { Menubar } from '$lib/components/ui/menubar'
   import { Separator } from '$lib/components/ui/separator'
+  import SUPPORTS from '$lib/modules/settings/supports'
+
+  if ($page.status === 401 && SUPPORTS.isIOS) setInterval(() => location.reload(), 2_000)
 </script>
 
 <div class='size-full flex flex-col grow items-center justify-center gap-9'>
@@ -18,5 +22,5 @@
       <div class='text-lg text-wrap max-w-full'>{$page.error?.message ?? 'Error'}</div>
     </div>
   </div>
-  <img src='/confused.webp' alt='huh' class='w-96 max-w-full' loading='lazy' decoding='async' />
+  <Load src='/confused.webp' alt='huh' class='w-96 max-w-full' />
 </div>

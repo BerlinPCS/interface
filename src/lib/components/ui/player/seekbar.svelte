@@ -34,7 +34,7 @@
   import type Thumbnailer from './thumbnailer'
 
   import { customDoubleClick } from '$lib/modules/navigate'
-  import { SUPPORTS } from '$lib/modules/settings'
+  import SUPPORTS from '$lib/modules/settings/supports'
   import { toTS } from '$lib/utils'
 
   const dispatch = createEventDispatcher<{

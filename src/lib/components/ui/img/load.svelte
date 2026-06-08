@@ -1,7 +1,7 @@
 <script lang='ts'>
   import type { HTMLImgAttributes } from 'svelte/elements'
 
-  import { SUPPORTS } from '$lib/modules/settings'
+  import SUPPORTS from '$lib/modules/settings/supports'
   import { cn } from '$lib/utils'
 
   type $$Props = HTMLImgAttributes & { color?: string | null | undefined }

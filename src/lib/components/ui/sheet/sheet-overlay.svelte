@@ -2,7 +2,7 @@
   import { Dialog as SheetPrimitive } from 'bits-ui'
   import { fade } from 'svelte/transition'
 
-  import { SUPPORTS } from '$lib/modules/settings'
+  import SUPPORTS from '$lib/modules/settings/supports'
   import { cn } from '$lib/utils.js'
 
   type $$Props = SheetPrimitive.OverlayProps
