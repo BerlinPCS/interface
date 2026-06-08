@@ -41,10 +41,10 @@ interface PressState {
   nextRepeatAt: number
 }
 
-const pressed = new Map<string, PressState>() // key = `${gamepadIndex}:${buttonIndex}`
+const pressed = new Map<`${number}:${number}`, PressState>() // `${gamepadIndex}:${buttonIndex}`
 
 let rafId = 0
-let connectedCount = 0
+let pad: Gamepad | null |undefined
 
 function dispatch (type: 'keydown' | 'keyup', { key, code }: ButtonMap, repeat = false) {
   inputType.value = 'dpad'
@@ -63,8 +63,7 @@ function dispatch (type: 'keydown' | 'keyup', { key, code }: ButtonMap, repeat =
   }
 }
 
-function handleButton (gamepadIndex: number, buttonIndex: number, isDown: boolean, now: number, map: ButtonMap) {
-  const id = `${gamepadIndex}:${buttonIndex}`
+function handleButton (id: `${number}:${number}`, isDown: boolean, now: number, map: ButtonMap) {
   const state = pressed.get(id)
 
   if (isDown && !state) {
@@ -85,42 +84,46 @@ function handleButton (gamepadIndex: number, buttonIndex: number, isDown: boolea
   }
 }
 
-function poll () {
-  rafId = requestAnimationFrame(poll)
-  if (activityState.value === 'inactive') return
+function updateActivePad () {
+  pad = navigator.getGamepads().find(p => p?.mapping === 'standard')
+  if (pad && activityState.value === 'active') start()
+  else stop()
+}
+
+function start () {
+  if (!pad || rafId) return
+  rafId = requestAnimationFrame(start)
   const now = performance.now()
 
-  for (const pad of navigator.getGamepads()) {
-    if (!pad) continue
+  for (let i = 0; i < pad.buttons.length; i++) {
+    const map = BUTTON_MAP[i]
+    if (!map) continue
+    handleButton(`${pad.index}:${i}`, pad.buttons[i]!.pressed, now, map)
+  }
 
-    for (let i = 0; i < pad.buttons.length; i++) {
-      const map = BUTTON_MAP[i]
-      if (!map) continue
-      handleButton(pad.index, i, pad.buttons[i]!.pressed, now, map)
-    }
+  // Left stick: axes[0] = X (left/right), axes[1] = Y (up/down)
+  const [x = 0, y = 0] = pad.axes
 
-    // Left stick: axes[0] = X (left/right), axes[1] = Y (up/down)
-    const [x = 0, y = 0] = pad.axes
+  // Skip axes if they look like non-centered device inputs (e.g. throttle, rudder).
+  // Standard analog sticks return near 0 when at rest, flight-sim peripherals
+  // often peg axes at -1/1 (throttle quadrant, pedals, etc.) causing constant
+  // directional navigation.
+  if (Math.abs(x) < 0.95 || Math.abs(y) < 0.95) {
     handleStickAxis(pad.index, STICK_LEFT, STICK_RIGHT, x, now)
     handleStickAxis(pad.index, STICK_UP, STICK_DOWN, y, now)
   }
 }
 
 function handleStickAxis (gamepadIndex: number, negIdx: number, posIdx: number, value: number, now: number) {
-  const negPressed = pressed.has(`${gamepadIndex}:${negIdx}`)
-  const posPressed = pressed.has(`${gamepadIndex}:${posIdx}`)
+  const negId = `${gamepadIndex}:${negIdx}` as const
+  const posId = `${gamepadIndex}:${posIdx}`as const
 
-  // Hysteresis: higher threshold to press, lower to release
-  const negActive = negPressed ? value < -STICK_RELEASE : value < -STICK_PRESS
-  const posActive = posPressed ? value > STICK_RELEASE : value > STICK_PRESS
+  // higher threshold to press, lower to release
+  const negActive = pressed.has(negId) ? value < -STICK_RELEASE : value < -STICK_PRESS
+  const posActive = pressed.has(posId) ? value > STICK_RELEASE : value > STICK_PRESS
 
-  handleButton(gamepadIndex, negIdx, negActive, now, STICK_MAP[negIdx]!)
-  handleButton(gamepadIndex, posIdx, posActive, now, STICK_MAP[posIdx]!)
-}
-
-function start () {
-  if (rafId) return
-  rafId = requestAnimationFrame(poll)
+  handleButton(negId, negActive, now, STICK_MAP[negIdx]!)
+  handleButton(posId, posActive, now, STICK_MAP[posIdx]!)
 }
 
 function stop () {
@@ -128,7 +131,7 @@ function stop () {
   cancelAnimationFrame(rafId)
   rafId = 0
   // release any buttons still marked as pressed to avoid stuck-key state
-  for (const [id] of pressed) {
+  for (const id of pressed.keys()) {
     const [, buttonIndexStr] = id.split(':')
     const buttonIndex = Number(buttonIndexStr)
     const map = BUTTON_MAP[buttonIndex] ?? STICK_MAP[buttonIndex]
@@ -137,22 +140,9 @@ function stop () {
   pressed.clear()
 }
 
-addEventListener('gamepadconnected', () => {
-  connectedCount++
-  start()
-})
-
-addEventListener('gamepaddisconnected', () => {
-  connectedCount = Math.max(0, connectedCount - 1)
-  if (connectedCount === 0) stop()
-})
-
-// Some browsers only expose already-connected gamepads via polling, not events.
-// If a gamepad is already plugged in at module load, kick off polling.
 if (typeof navigator !== 'undefined' && typeof navigator.getGamepads === 'function') {
-  const existing = navigator.getGamepads().filter(g => !!g).length
-  if (existing) {
-    connectedCount = existing
-    start()
-  }
+  addEventListener('gamepadconnected', updateActivePad)
+  addEventListener('gamepaddisconnected', updateActivePad)
+  // this kicks off polling
+  activityState.subscribe(updateActivePad)
 }
