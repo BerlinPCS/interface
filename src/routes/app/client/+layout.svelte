@@ -73,7 +73,7 @@
   </div>
   <Separator class='my-3 md:my-6 max-w-[1440px] mx-auto' />
   <div class='flex flex-col lg:flex-row gap-x-12 grow min-h-0 overflow-y-auto lg:justify-center' use:dragScroll>
-    <aside class={cn('lg:grow lg:max-w-60 flex flex-col sticky top-0 w-full bg-black z-20 h-full', !current && 'hidden md:flex')}>
+    <aside class={cn('lg:grow lg:max-w-60 flex flex-col sticky top-0 w-full md:bg-black z-20 h-full', !current && 'hidden md:flex')}>
       <SettingsNav {items} />
       <div class='mt-auto text-xs text-muted-foreground px-4 sm:px-2 py-3 md:py-5 flex-row lg:flex-col font-light gap-0.5 gap-x-4 flex-wrap hidden sm:flex'>
         <div>WebTorrent v3.0.16</div>

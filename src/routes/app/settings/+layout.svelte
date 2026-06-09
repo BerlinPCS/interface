@@ -62,7 +62,7 @@
   </div>
   <Separator class='my-3 md:my-6 max-w-[1440px] mx-auto' />
   <div class='flex flex-col lg:flex-row gap-x-12 grow min-h-0 overflow-y-auto lg:justify-center pb-10 md:pb-0' use:dragScroll>
-    <aside class={cn('lg:grow lg:max-w-60 flex flex-col sticky top-0 w-full bg-black z-20 h-full', !current && 'hidden md:flex')}>
+    <aside class={cn('lg:grow lg:max-w-60 flex flex-col sticky top-0 w-full md:bg-black z-20 h-full', !current && 'hidden md:flex')}>
       <div class='py-4 px-6 rounded bg-fuchsia-400 flex flex-col gap-1 sm:gap-2 text-base bg-center bg-cover mb-4 text-secondary' style:background-image='url("/flowers.png")'>
         <div class='font-bold'>Support the Project</div>
         <div class='text-xs'>Please consider supporting the development of Hayase by donating!</div>
