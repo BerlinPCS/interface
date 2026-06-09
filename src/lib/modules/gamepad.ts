@@ -108,7 +108,7 @@ function start () {
   // Standard analog sticks return near 0 when at rest, flight-sim peripherals
   // often peg axes at -1/1 (throttle quadrant, pedals, etc.) causing constant
   // directional navigation.
-  if (Math.abs(x) < 0.95 || Math.abs(y) < 0.95) {
+  if (Math.abs(x) < 0.9 || Math.abs(y) < 0.9) {
     handleStickAxis(pad.index, STICK_LEFT, STICK_RIGHT, x, now)
     handleStickAxis(pad.index, STICK_UP, STICK_DOWN, y, now)
   }
