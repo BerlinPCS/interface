@@ -415,7 +415,7 @@ body:has(.custom-fullscreen)> :not(:has(.custom-fullscreen), .custom-fullscreen)
 *:focus-visible,
 [data-input='dpad'] *:focus {
   outline: none;
-  border-image: fill 0 linear-gradient(#8885, #8885);
+  border-image: fill 0 linear-gradient(hsla(from var(--ring, #888) h s l / 0.53), hsla(from var(--ring, #888) h s l / 0.53));
 }
 
 *::-webkit-scrollbar {

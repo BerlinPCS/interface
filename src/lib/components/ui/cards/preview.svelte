@@ -80,7 +80,7 @@
     /* when clicking, translate fucks up the position, and video might leak down 1 or 2 pixels, stickig under the gradient, look bad */
     margin-bottom: -2px;
     width: 100%; height: 100% ;
-    background: linear-gradient(180deg, #0000 0%, #0a0a0a00 80%, #0a0a0ae3 95%, #0a0a0a 100%);
+    background: linear-gradient(180deg, hsla(from var(--muted, #000) h s l / 0) 0%, hsla(from var(--muted, #0a0a0a) h s l / 0) 80%, hsla(from var(--muted, #0a0a0a) h s l / 0.89) 95%, var(--muted, #0a0a0a) 100%);
   }
   .absolute-container {
     will-change: transform;

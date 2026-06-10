@@ -374,12 +374,3 @@
     {/if}
   </Dialog.Content>
 </Dialog.Root>
-
-<style>
-  .banner {
-    background: linear-gradient(90deg, #000 32%, rgba(0, 0, 0, 0.9) 100%);
-  }
-  .banner-2 {
-    background: linear-gradient(#000d 0%, #000d 90%, #000 100%);
-  }
-</style>
