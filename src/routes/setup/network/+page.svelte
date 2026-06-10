@@ -52,12 +52,12 @@
       const res = await native.checkIncomingConnections(port)
       $hasForwarding = res
       if (res) {
-        $settings.maxConns = 120
+        $settings.maxConns = 200
         return { status: 'success', text: 'Port forwarding is available.' }
       }
       return { status: 'error', text: 'Not available. Peer discovery will suffer. Streaming old, poorly seeded anime might be impossible.', slot: 'port' }
     } catch (error) {
-      return { status: 'error', text: 'Failed to check port forwarding availability. ' + (error instanceof Error ? error.message : error as string) }
+      return { status: 'error', text: 'Failed to check port forwarding availability. ' + (error instanceof Error ? error.message : error as string), slot: 'port' }
     }
   }
 
