@@ -31,7 +31,7 @@
   $: status = list(media)
 </script>
 
-<div class='text-primary p-4 cursor-pointer shrink-0 relative pointer-events-auto' class:z-40={!hidden} use:hover={[onclick, onhover]}>
+<div class='text-foreground p-4 cursor-pointer shrink-0 relative pointer-events-auto' class:z-40={!hidden} use:hover={[onclick, onhover]}>
   {#if !hidden}
     <PreviewCard {media} {trace} />
   {/if}

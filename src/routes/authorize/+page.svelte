@@ -8,7 +8,7 @@
 </script>
 
 <div class='size-full flex flex-col grow items-center justify-center gap-9'>
-  <div class='overflow-x-hidden overflow-y-scroll relative flex justify-center items-center text-primary px-15 w-full font-light'>
+  <div class='overflow-x-hidden overflow-y-scroll relative flex justify-center items-center text-foreground px-15 w-full font-light'>
     <div class='w-96 sm:!hidden justify-center items-center flex-col flex'>
       <div class='text-6xl'>Redirecting...</div>
       <Separator class='my-6 w-40' />

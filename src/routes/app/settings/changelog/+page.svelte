@@ -40,7 +40,7 @@
         </div>
       </div>
       <div class='sm:col-span-9 col-span-full whitespace-pre-wrap text-muted-foreground text-md'>
-        <div class='font-bold text-primary text-lg mb-3'>{sha.slice(0, 6)}</div>{body.replaceAll('- ', '').trim()}
+        <div class='font-bold text-foreground text-lg mb-3'>{sha.slice(0, 6)}</div>{body.replaceAll('- ', '').trim()}
       </div>
     </div>
   {/each}

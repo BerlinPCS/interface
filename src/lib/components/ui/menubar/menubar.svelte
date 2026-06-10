@@ -51,16 +51,16 @@
     <div class='w-full top-0 z-[2000] flex justify-between {draggable} absolute h-8'>
       <div class='flex gap-1.5 items-end ml-14 {isMac ? '!ml-20' : ''}'>
         {#if $settings.showNavigation}
-          <Button size='icon-sm' variant='ghost' disabled={!hasPrevious} class='p-1 shrink-0 custom-not-draggable text-primary' tabindex={-1} on:click={previous}>
+          <Button size='icon-sm' variant='ghost' disabled={!hasPrevious} class='p-1 shrink-0 custom-not-draggable text-foreground' tabindex={-1} on:click={previous}>
             <ArrowLeft strokeWidth='1.2' class='size-5' />
           </Button>
-          <Button size='icon-sm' variant='ghost' disabled={!hasNext} class='p-1 shrink-0 custom-not-draggable text-primary' tabindex={-1} on:click={next}>
+          <Button size='icon-sm' variant='ghost' disabled={!hasNext} class='p-1 shrink-0 custom-not-draggable text-foreground' tabindex={-1} on:click={next}>
             <ArrowRight strokeWidth='1.2' class='size-5' />
           </Button>
         {/if}
       </div>
       {#if !isMac}
-        <div class='window-controls custom-not-draggable flex text-primary'>
+        <div class='window-controls custom-not-draggable flex text-foreground'>
           <button class='flex items-center justify-center h-8 w-[46px] select:bg-secondary-foreground/30' use:click={native.minimise} use:tabindex>
             <svg class='size-3' role='img' viewBox='0 0 12 12'><rect fill='currentColor' height='1' width='10' x='1' y='6' />
           </button>

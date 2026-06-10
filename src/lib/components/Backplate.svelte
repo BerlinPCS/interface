@@ -60,7 +60,7 @@
   class:backplate-fly={isFlying}
   class:backplate-spin={isSpinning}>
   {#each Array.from({ length: 6 }) as _, i (i)}
-    <div class='flex flex-row w-full font-molot font-bold leading-[0.8] ml-[--ml-offset] -rotate-12 text-primary mt-64' style:--ml-offset='calc((-1 * {(i) * 600}px) - 10vw)'>
+    <div class='flex flex-row w-full font-molot font-bold leading-[0.8] ml-[--ml-offset] -rotate-12 text-foreground mt-64' style:--ml-offset='calc((-1 * {(i) * 600}px) - 10vw)'>
       {#each Array.from({ length: 4 }) as _, i (i)}
         <div>
           <div class='bg-striped'>

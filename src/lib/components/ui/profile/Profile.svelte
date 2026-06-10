@@ -46,7 +46,7 @@
             <div class='font-extrabold pb-0.5 text-2xl text-ellipsis overflow-clip pr-0.5'>
               {name}
             </div>
-            <div class='details text-primary/80 flex text-[11px]'>
+            <div class='details text-foreground/80 flex text-[11px]'>
               {#if user.isFollower}
                 <span class='text-nowrap flex items-center'>Follows you</span>
               {/if}
@@ -64,7 +64,7 @@
           {/if}
         </div>
         <Shadow html={user.about ?? 'No user description'} class='w-full max-h-[200px] text-sm py-2 px-4 overflow-y-auto overflow-x-clip' />
-        <div class='details text-primary/80 flex text-[11px] px-4'>
+        <div class='details text-foreground/80 flex text-[11px] px-4'>
           <span class='text-nowrap flex items-center'>{user.statistics?.anime?.count ?? 0} anime</span>
           <span class='text-nowrap flex items-center'>{user.statistics?.anime?.episodesWatched ?? 0} episodes</span>
           <span class='text-nowrap flex items-center'>{since(new Date(Date.now() - (user.statistics?.anime?.minutesWatched ?? 0) * 60 * 1000)).replace('ago', 'watched')}</span>

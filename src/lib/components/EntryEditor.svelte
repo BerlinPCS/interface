@@ -49,7 +49,7 @@
       </div>
       <form class='flex flex-col w-full rounded-r-lg h-full'>
         <div class='pt-4 px-5 w-full'>
-          <h3 class='text-xl leading-6 font-semibold z-30 text-primary sm:line-clamp-1 line-clamp-2'>{title(media)}</h3>
+          <h3 class='text-xl leading-6 font-semibold z-30 text-foreground sm:line-clamp-1 line-clamp-2'>{title(media)}</h3>
         </div>
         <div class='px-5 py-3 grid grid-cols-1 sm:grid-cols-2 gap-5 w-full'>
           <div class='mt-1 flex flex-col'>

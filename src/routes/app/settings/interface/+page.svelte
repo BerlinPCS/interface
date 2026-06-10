@@ -18,10 +18,13 @@
   import { Button } from '$lib/components/ui/button'
   import { SingleCombo } from '$lib/components/ui/combobox'
   import * as Dialog from '$lib/components/ui/dialog'
+  import { Input } from '$lib/components/ui/input'
   import { Slider } from '$lib/components/ui/slider'
   import { Switch } from '$lib/components/ui/switch'
   // import { Textarea } from '$lib/components/ui/textarea'
+  import * as ToggleGroup from '$lib/components/ui/toggle-group'
   // import native from '$lib/modules/native'
+  import { navigate } from '$lib/modules/navigate'
   import { settings, SUPPORTS } from '$lib/modules/settings'
 
   const angle = {
@@ -67,6 +70,46 @@
     dialogOpen = false
   }
 
+  let prevTheme = $settings.theme
+  $: if (!$settings.theme) {
+    $settings.theme = prevTheme
+  } else {
+    prevTheme = $settings.theme
+  }
+
+  const themes = [
+    { value: 'default', label: 'Default' },
+    { value: 'rose', label: 'Rose' },
+    { value: 'ocean', label: 'Ocean' },
+    { value: 'forest', label: 'Forest' },
+    { value: 'amber', label: 'Amber' },
+    { value: 'lavender', label: 'Lavender' },
+    { value: 'system', label: 'System' },
+    { value: 'custom', label: 'Custom' }
+  ]
+
+  const customVarDefs = [
+    { key: '--custom-background', label: 'Background' },
+    { key: '--custom-foreground', label: 'Foreground' },
+    { key: '--custom-muted', label: 'Muted' },
+    { key: '--custom-muted-foreground', label: 'Muted Foreground' },
+    { key: '--custom-card', label: 'Card' },
+    { key: '--custom-card-foreground', label: 'Card Foreground' },
+    { key: '--custom-popover', label: 'Popover' },
+    { key: '--custom-popover-foreground', label: 'Popover Foreground' },
+    { key: '--custom-border', label: 'Border' },
+    { key: '--custom-input', label: 'Input' },
+    { key: '--custom-primary', label: 'Primary' },
+    { key: '--custom-primary-foreground', label: 'Primary Foreground' },
+    { key: '--custom-secondary', label: 'Secondary' },
+    { key: '--custom-secondary-foreground', label: 'Secondary Foreground' },
+    { key: '--custom-accent', label: 'Accent' },
+    { key: '--custom-accent-foreground', label: 'Accent Foreground' },
+    { key: '--custom-destructive', label: 'Destructive' },
+    { key: '--custom-destructive-foreground', label: 'Destructive Foreground' },
+    { key: '--custom-ring', label: 'Ring' }
+  ] as const
+
   const titleTypes = {
     ANILIST: 'Anilist Account Preference',
     ROMAJI: 'Romaji (Shingeki no Kyojin)',
@@ -75,42 +118,75 @@
   } as const
 </script>
 
-{#if !SUPPORTS.isAndroid && !SUPPORTS.isIOS}
-  <div class='font-weight-bold text-xl font-bold'>Rich Pressence Settings</div>
-  <SettingCard let:id title='Show Details in Discord Rich Presence' description='Shows currently played anime and episode in Discord rich presence.'>
-    <Switch {id} bind:checked={$settings.showDetailsInRPC} />
-  </SettingCard>
-{/if}
-<!-- <SettingCard let:id title='CSS Variables' description='Used for custom themes. Can change colors, sizes, spacing and more. Supports only variables.'>
-  <Textarea class='form-control w-60 shrink-0 mw-full bg-dark' placeholder='--accent-color: #e5204c;' bind:value={$variables} {id} />
-</SettingCard> -->
-<div class='font-weight-bold text-xl font-bold'>Appearance Settings</div>
+<div class='font-weight-bold text-xl font-bold'>Display Preferences</div>
+<SettingCard title='Title Language' description='What language should anime titles be displayed in.'>
+  <SingleCombo bind:value={$settings.titleType} items={titleTypes} class='w-60 shrink-0 border-input border' />
+</SettingCard>
 <SettingCard let:id title='Show Hentai' description={'Shows hentai content throughout the app. If disabled all hentai content will be hidden and not shown in search results, but shown if present in your list.\n\nThis is also an AniList account setting, so make sure it is enabled in account settings as well to avoid inconsistencies.'}>
   <Switch {id} bind:checked={$settings.showHentai} />
 </SettingCard>
 <SettingCard let:id title='Hide Spoilers' description='Hides potential spoilers such as titles, descriptions, episode images and ratings throughout the app.'>
   <Switch {id} bind:checked={$settings.hideSpoilers} />
 </SettingCard>
-<SettingCard title='Title Language' description='What language should anime titles be displayed in.'>
-  <SingleCombo bind:value={$settings.titleType} items={titleTypes} class='w-60 shrink-0 border-input border' />
+
+<div class='font-weight-bold text-xl font-bold'>Appearance</div>
+<SettingCard class='md:flex-col md:items-start' title='Color Theme' description='Select a color theme for the interface.'>
+  <ToggleGroup.Root type='single' bind:value={$settings.theme} asChild let:builder variant='ghost'>
+    <div class='grid sm:grid-cols-2 gap-3 w-full' use:builder.action {...builder} on:keydown|capture|stopPropagation={navigate}>
+      {#each themes as { value, label } (value)}
+        <ToggleGroup.Item {value} class='{value === 'default' ? 'theme-default' : 'theme-' + value} h-auto py-8 relative'>
+          <div class='absolute top-4 left-4 text-xl font-bold text-foreground'>{label}</div>
+          <div class='flex flex-col items-center gap-1 px-6 max-w-[260px] pt-4'>
+            <div class='text-xs text-foreground/85'>The quick brown fox</div>
+            <div class='text-[10px] text-muted-foreground'>Muted description text</div>
+            <div class='flex items-center gap-1.5 mt-0.5'>
+              <Button variant='default' size='xs'>Primary</Button>
+              <Button variant='secondary' size='xs'>Secondary</Button>
+              <Button variant='ghost' size='xs'>Ghost</Button>
+            </div>
+            <Input readonly value='Sample' class='h-6 text-[10px] mt-0.5' />
+            <div class='flex items-center gap-1.5 mt-0.5'>
+              <Switch checked={false} hideState />
+            </div>
+            <Slider value={[40]} class='w-full mt-0.5' />
+          </div>
+        </ToggleGroup.Item>
+      {/each}
+    </div>
+  </ToggleGroup.Root>
 </SettingCard>
-<div class='font-weight-bold text-xl font-bold'>UI Settings</div>
+{#if $settings.theme === 'custom'}
+  <SettingCard class='md:flex-col md:items-start' title='Custom Theme Colors' description='Customize each color variable for the custom theme.'>
+    <div class='grid grid-cols-2 gap-x-6 gap-y-2 w-full'>
+      {#each customVarDefs as def (def.key)}
+        <div class='flex items-center gap-2 text-sm text-muted-foreground'>
+          <Input type='color' bind:value={$settings.customThemeColors[def.key]} class='size-7 cursor-pointer border-0 p-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:rounded-lg' />
+          <span>{def.label}</span>
+        </div>
+      {/each}
+    </div>
+  </SettingCard>
+{/if}
+<SettingCard title='Navigation Buttons' description="Show backwards/forwards navigation buttons for when mouse buttons aren't available." let:id>
+  <Switch {id} bind:checked={$settings.showNavigation} />
+</SettingCard>
 <SettingCard title='UI Scale' description='Change the zoom level of the interface.' let:id>
   <Slider bind:value min={0.3} max={2.5} step={0.1} class='w-60 shrink-0' on:pointerup={saveScale} on:keyup={saveScale} on:keydown={saveScale} />
   <div class='text-muted-foreground text-xs'>{Number(value[0]).toFixed(1)}</div>
 </SettingCard>
-<SettingCard title='Navigation Buttons' description="Show backwards/forwards navigation buttons for when mouse buttons aren't available." let:id>
-  <Switch {id} bind:checked={$settings.showNavigation} />
-</SettingCard>
+
 {#if !SUPPORTS.isAndroid && !SUPPORTS.isIOS}
+  <div class='font-weight-bold text-xl font-bold'>Advanced</div>
+  <SettingCard let:id title='Show Details in Discord Rich Presance' description='Shows currently played anime and episode in Discord rich presence.'>
+    <Switch {id} bind:checked={$settings.showDetailsInRPC} />
+  </SettingCard>
   <SettingCard title='ANGLE Backend' description="What ANGLE backend to use for rendering. DON'T CHANGE WITHOUT REASON! On some Windows machines D3D9 might help with flicker. Changing this setting to something your device doesn't support might prevent Hayase from opening which will require a full reinstall. While Vulkan is an available option it might not be fully supported on Linux.">
     <SingleCombo bind:value={$settings.angle} items={angle} class='w-40 shrink-0 border-input border' />
   </SettingCard>
   <!--
-    <div class='font-weight-bold text-xl font-bold'>UI Settings</div>
-    <SettingCard title='Idle Animation' description='Enable/Disable the 3d idle animation. Changing this setting will restart the app.' let:id>
+    <SettingItem title='Idle Animation' description='Enable/Disable the 3d idle animation. Changing this setting will restart the app.' let:id>
       <Switch bind:checked={$settings.idleAnimation} on:click={native.restart} {id} />
-    </SettingCard> -->
+    </SettingItem> -->
 {/if}
 
 <Dialog.Root portal='#root' bind:open={dialogOpen}>

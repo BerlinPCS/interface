@@ -22,7 +22,7 @@
   <div class='flex items-center space-x-2 pt-12 pb-3 px-5'>
     <Checkbox id='terms' bind:checked data-down='#start-setup' />
     <Label for='terms' class='text-md font-medium leading-none text-muted-foreground'>
-      I agree to the <a use:click={() => native.openURL(`${WEB_URL}/terms`)} class='text-primary underline py-2 px-1'>Terms of Service</a> and <a use:click={() => native.openURL(`${WEB_URL}/privacy`)} class='text-primary underline py-2 px-1'>Privacy Policy</a>
+      I agree to the <a use:click={() => native.openURL(`${WEB_URL}/terms`)} class='text-foreground underline py-2 px-1'>Terms of Service</a> and <a use:click={() => native.openURL(`${WEB_URL}/privacy`)} class='text-foreground underline py-2 px-1'>Privacy Policy</a>
     </Label>
   </div>
   <Button id='start-setup' class='text-lg font-bold shrink-0' disabled={!checked} size='lg' href={checked ? './storage' : undefined} data-sveltekit-replacestate>{!checked ? 'Accept terms to continue' : 'Start Setup'}</Button>

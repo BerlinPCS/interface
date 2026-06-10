@@ -33,7 +33,7 @@
 
 {#if !$settings.minimalPlayerUI}
   {#each $animations as { type, id } (id)}
-    <div class='absolute animate-pulse-once text-primary' on:animationend={() => endAnimation(id)}>
+    <div class='absolute animate-pulse-once text-foreground' on:animationend={() => endAnimation(id)}>
       {#if type === 'play'}
         <Play size='64px' fill='currentColor' />
       {:else if type === 'pause'}
@@ -47,7 +47,7 @@
       {:else if type === 'volumedown'}
         <Volume1 size='64px' fill='currentColor' />
       {:else}
-        <div class='text-4xl font-bold text-primary'>{type}</div>
+        <div class='text-4xl font-bold text-foreground'>{type}</div>
       {/if}
     </div>
   {/each}

@@ -42,7 +42,7 @@
     {/if}
   </div>
   <div class='w-full px-4 bg-muted'>
-    <div class='text-lg font-bold truncate inline-block w-full text-primary pt-2' title={title(media)}>
+    <div class='text-lg font-bold truncate inline-block w-full text-foreground pt-2' title={title(media)}>
       {title(media)}
     </div>
     <div class='flex flex-row'>
@@ -50,7 +50,7 @@
       <FavoriteButton {media} class='ml-2' />
       <BookmarkButton {media} class='ml-2' />
     </div>
-    <div class='details text-primary capitalize pt-3 pb-2 flex text-[11px] overflow-clip text-ellipsis text-nowrap'>
+    <div class='details text-foreground capitalize pt-3 pb-2 flex text-[11px] overflow-clip text-ellipsis text-nowrap'>
       <span class='text-nowrap flex items-center'>
         {format(media)}
       </span>

@@ -123,7 +123,7 @@ const config = {
         'connect-src': ['self', 'https:', 'wss:', 'http://localhost:*'],
         'frame-src': ['self', 'https://www.youtube-nocookie.com'],
         'worker-src': ['self', 'blob:'],
-        'media-src': ['self', 'https://v.animethemes.moe', 'http://localhost:*', 'blob:', 'https://remotion.media', 'https:'],
+        'media-src': ['self', 'https://v.animethemes.moe', 'http://localhost:*', 'blob:', 'https://remotion.media'],
         'object-src': ['none'],
         'base-uri': ['self'],
         'form-action': ['self'],

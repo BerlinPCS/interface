@@ -10,6 +10,13 @@
   import { navigate } from '$lib/modules/navigate'
   import { settings, languageCodes, subtitleResolutions, SUPPORTS } from '$lib/modules/settings'
 
+  let prevSubStyle = $settings.subtitleStyle
+  $: if (!$settings.subtitleStyle) {
+    $settings.subtitleStyle = prevSubStyle
+  } else {
+    prevSubStyle = $settings.subtitleStyle
+  }
+
   async function selectPlayer () {
     $settings.playerPath = await native.selectPlayer()
   }

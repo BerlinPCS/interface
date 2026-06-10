@@ -172,6 +172,7 @@ export default Object.assign<Native, Partial<Native>>({
   errors: async () => undefined,
   debug: async () => undefined,
   profile: async () => undefined,
-  updateToNewEndpoint: async () => undefined
+  updateToNewEndpoint: async () => undefined,
+  accentColor: async () => '#aaaaaa'
   // @ts-expect-error idk
 }, globalThis.native as Partial<Native>)

@@ -301,8 +301,8 @@
                         </span>
                       {/if}
                       <span class={cn('text-nowrap flex items-center', result.seeders > 20 ? 'text-green-600' : result.seeders < 5 ? 'text-red-600' : 'text-yellow-600')}>{result.seeders} Seeders</span>
-                      <span class='text-nowrap flex items-center text-primary/80'>{fastPrettyBytes(result.size)}</span>
-                      <span class='text-nowrap flex items-center text-primary/80'>{since(new Date(result.date))}</span>
+                      <span class='text-nowrap flex items-center text-foreground/80'>{fastPrettyBytes(result.size)}</span>
+                      <span class='text-nowrap flex items-center text-foreground/80'>{since(new Date(result.date))}</span>
                     </div>
                     <div class='flex ml-auto flex-row-reverse'>
                       {#each sanitiseTerms(result.parseObject) as { text, color }, i (i)}

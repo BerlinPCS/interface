@@ -26,7 +26,7 @@
       {#if isActive}
         <div class='bg-primary absolute inset-0 rounded-md' in:send={{ key }} out:receive={{ key }} />
       {/if}
-      <div class='relative text-primary transition-colors duration-300' class:!text-background={isActive}>
+      <div class='relative text-foreground transition-colors duration-300' class:!text-background={isActive}>
         {title}
       </div>
     </Button>

@@ -83,7 +83,7 @@
     <div class='flex flex-col md:flex-row w-full items-center md:items-end gap-5 pt-12'>
       <Dialog.Root portal='#root'>
         <Dialog.Trigger class='shrink-0 w-[180px] h-[256px] rounded overflow-hidden relative group focus-visible:ring-1 focus-visible:ring-ring select:scale-[1.02] transition-transform duration-200'>
-          <div class='absolute flex-center size-full bg-background group-select:bg-opacity-50 bg-opacity-0 duration-300 text-primary transition-all ease-out'>
+          <div class='absolute flex-center size-full bg-background group-select:bg-opacity-50 bg-opacity-0 duration-300 text-foreground transition-all ease-out'>
             <Maximize2 class='size-10 scale-75 opacity-0 group-select:opacity-100 group-select:scale-100 duration-300 transition-all ease-out' />
           </div>
           <Load src={cover(media)} color={media.coverImage?.color} class='size-full object-cover' />
@@ -95,7 +95,7 @@
       <div class='flex flex-col gap-4 items-center md:items-start justify-end w-full'>
         <div class='flex flex-col gap-1.5 text-center md:text-start w-full'>
           <h2 class='line-clamp-1 text-base md:text-lg font-light text-muted-foreground select-all'>{media.title?.romaji?.toLowerCase().trim() === title(media).toLowerCase().trim() ? nativeTitle : romajiTitle}</h2>
-          <h1 class='font-black text-3xl md:text-4xl line-clamp-2 text-primary select-all'>{title(media)}</h1>
+          <h1 class='font-black text-3xl md:text-4xl line-clamp-2 text-foreground select-all'>{title(media)}</h1>
           <div class='flex-wrap w-full justify-start md:pt-1 gap-2 hidden md:flex'>
             <div class='rounded px-3.5 font-bold bg-custom text-contrast'>
               {of(media) ?? duration(media) ?? 'N/A'}
@@ -154,7 +154,7 @@
                 </Tooltip.Trigger>
                 <Tooltip.Content side='bottom' align={$breakpoints.md ? 'start' : 'end'} class='hidden min-[380px]:flex bg-transparent items-center p-0 backdrop-fade-[1.5px] md:pe-4 md:ps-0 ps-4 text-center flex-row-reverse md:flex-row'>
                   <SquiggleArrow class='h-14 w-20 rotate-[230deg] md:rotate-[130deg] md:me-2 md:ms-0 ms-2 -scale-x-100 md:scale-x-100' />
-                  <span class='text-primary text-base font-excalifont rotate-3 md:-rotate-3'>Also available<br />on YouTube!</span>
+                  <span class='text-foreground text-base font-excalifont rotate-3 md:-rotate-3'>Also available<br />on YouTube!</span>
                 </Tooltip.Content>
               </Tooltip.Root>
             {:else}

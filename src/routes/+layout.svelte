@@ -50,6 +50,11 @@
 
   $: scale = SUPPORTS.isAndroidTV ? $settings.uiScale / devicePixelRatio : SUPPORTS.isMobile ? $settings.uiScale : 1
 
+  native.accentColor().then(c => document.documentElement.style.setProperty('--sys-accent', c))
+  $: for (const [key, hex] of Object.entries($settings.customThemeColors)) {
+    document.documentElement.style.setProperty(key, hex)
+  }
+
   native.navigate(({ target, value }) => {
     if (target !== 'extensions' || !value) return
     extensionInstalURL.set(sanitizeExtensionUrl(new URL(value, 'http://localhost').searchParams.get('url') ?? value))
@@ -72,7 +77,7 @@
 
 <svelte:document bind:fullscreenElement />
 
-<div class={cn('size-full flex flex-col bg-background relative overflow-clip')} id='root' data-input={$inputType} on:contextmenu|preventDefault>
+<div class={cn('size-full flex flex-col bg-background relative overflow-clip', 'theme-' + $settings.theme)} id='root' data-input={$inputType} on:contextmenu|preventDefault>
   <ProgressBar zIndex={100} bind:complete {displayThresholdMs} />
   <Toaster position='top-right' expand={true} />
 
