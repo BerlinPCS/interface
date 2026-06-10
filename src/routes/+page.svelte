@@ -138,7 +138,7 @@
     top: calc(var(--to-y) * 1px);
     width: calc(var(--to-size) * 2.1px);
     height: calc(var(--to-size) * 1px);
-    background: linear-gradient(to right, #fff, transparent);
+    background: linear-gradient(to right, hsla(from var(--foreground, #fff) h s l / 1), transparent);
     opacity: calc(var(--dist-factor, 0) * var(--spotlight-opacity, 1));
     transform: rotate(var(--to-angle)) perspective(calc(var(--to-size) * 2px)) rotateY(calc(var(--dist-factor) * -50deg - 20deg));
     animation: spotlight-properties .1s ease-out .15s both, spotlight-fade .55s ease-out both;

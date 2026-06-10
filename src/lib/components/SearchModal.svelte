@@ -377,9 +377,9 @@
 
 <style>
   .banner {
-    background: linear-gradient(90deg, #000 32%, rgba(0, 0, 0, 0.9) 100%);
+    background: linear-gradient(90deg, hsla(from var(--background, #000) h s l / 1) 32%, hsla(from var(--background, #000) h s l / 0.9) 100%);
   }
   .banner-2 {
-    background: linear-gradient(#000d 0%, #000d 90%, #000 100%);
+    background: linear-gradient(hsla(from var(--background, #000) h s l / 0.8) 0%, hsla(from var(--background, #000) h s l / 0.8) 90%, var(--background, #000) 100%);
   }
 </style>
