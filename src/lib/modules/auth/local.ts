@@ -11,6 +11,27 @@ import { arrayEqual } from '$lib/utils'
 
 type StoredMedia = Pick<Media, 'isFavourite' | 'mediaListEntry' | 'id'>
 
+function asNumber (value: unknown): value is number {
+  return typeof value === 'number' && isFinite(value)
+}
+
+function sanitiseByKey (key: 'status' | 'score' | 'repeat' | 'progress', value: VariablesOf<typeof Entry>[typeof key]): VariablesOf<typeof Entry>[typeof key] {
+  if (value == null) return value
+  if (key === 'score') {
+    return asNumber(value) ? value / 10 : null
+  }
+  if (key === 'progress') {
+    return asNumber(value) ? Math.max(0, value) : null
+  }
+  if (key === 'repeat') {
+    return asNumber(value) ? Math.max(0, value) : null
+  }
+  if (key === 'status') {
+    return typeof value === 'string' ? value : null
+  }
+  return null
+}
+
 export default new class LocalSync {
   store = createStore('watchlist', 'local')
 
@@ -125,11 +146,8 @@ export default new class LocalSync {
 
       const keys = ['status', 'score', 'repeat', 'progress'] as Array<keyof typeof variables>
       for (const key of keys) {
-        let value = variables[key]
         // @ts-expect-error idk how to fix this tbf
-        if (key === 'score' && value != null) value /= 10
-        // @ts-expect-error idk how to fix this tbf
-        entry.mediaListEntry[key] = value ?? entry.mediaListEntry[key] ?? null
+        entry.mediaListEntry[key] = sanitiseByKey(key, variables[key]) ?? entry.mediaListEntry[key] ?? null
       }
       return { ...entries, [variables.id]: entry }
     })

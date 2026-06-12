@@ -131,6 +131,7 @@ export default new class AuthAggregator {
   })
 
   async watch (outdated: Media, progress: number) {
+    if (!isFinite(progress) || progress < 0) return
     const media = (await client.single(outdated.id, navigator.onLine ? 'network-only' : 'cache-first')).data?.Media ?? outdated
     const totalEps = episodes(media) ?? 1 // episodes or movie which is single episode
     if (totalEps < progress) return // woah, bad data from resolver?!
