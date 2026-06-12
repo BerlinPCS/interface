@@ -383,7 +383,6 @@ body:has(.custom-fullscreen)> :not(:has(.custom-fullscreen), .custom-fullscreen)
 
 :root:not(:has(:fullscreen)):not(:has(.custom-fullscreen)) #root {
   padding-top: env(safe-area-inset-top, unset);
-  padding-bottom: env(safe-area-inset-bottom, unset);
 }
 
 @keyframes load-in {
