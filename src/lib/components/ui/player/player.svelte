@@ -492,7 +492,7 @@
     }
   }
   function ss () {
-    screenshot(canvasSource, videoWidth, videoHeight, subtitles)
+    screenshot(deband?.canvas ?? canvasSource, videoWidth, videoHeight, subtitles)
   }
   let fitWidth = false
   loadWithDefaults({
