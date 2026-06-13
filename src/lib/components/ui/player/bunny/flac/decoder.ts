@@ -4,6 +4,11 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ *
+ * The WASM binary embedded in the generated .js file is derived from FFmpeg
+ * (https://ffmpeg.org) and is licensed under the GNU Lesser General Public
+ * License v2.1 or later. Source and build instructions:
+ * https://github.com/ThaUnknown/mediabunny/tree/main/packages
  */
 
 import {

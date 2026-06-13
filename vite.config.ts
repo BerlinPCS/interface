@@ -1,3 +1,4 @@
+import { existsSync, copyFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { sveltekit } from '@sveltejs/kit/vite'
@@ -24,11 +25,23 @@ export default defineConfig({
     viteServerConfig(),
     license({
       thirdParty: {
-        allow: '(MIT OR Apache-2.0 OR ISC OR BSD-3-Clause OR BSD-2-Clause)',
-        output: resolve(import.meta.dirname, './build/LICENSE.txt'),
+        allow: '(MIT OR Apache-2.0 OR ISC OR BSD-3-Clause OR BSD-2-Clause OR MPL-2.0 OR LGPL-2.1 OR LGPL-2.1+)',
+        // written early in generateBundle, sveltekit adapter recreates build/ after, so copy in closeBundle
+        output: resolve(import.meta.dirname, '.svelte-kit/license-deps.txt'),
         includeSelf: true
       }
     }),
+    // sveltekit adapter recreates build/ during closeBundle, so copy license after
+    {
+      name: 'finalize-license',
+      closeBundle: () => {
+        const src = resolve(import.meta.dirname, '.svelte-kit/license-deps.txt')
+        const dst = resolve(import.meta.dirname, 'build/LICENSE.txt')
+        if (existsSync(src)) {
+          copyFileSync(src, dst)
+        }
+      }
+    },
     viteStaticCopy({
       targets: [
         { // VITE IS DOG AND DOESNT SUPPORT DYNAMIC JSON IMPORTS
@@ -47,12 +60,6 @@ export default defineConfig({
       // no exports :/
       'bittorrent-tracker/lib/client/websocket-tracker.js': resolve(import.meta.dirname, 'node_modules/bittorrent-tracker/lib/client/websocket-tracker.js'),
       debug: resolve(import.meta.dirname, 'src/patches/debug.ts')
-      // thank you bottleneck for importing useless modules
-      // './RedisConnection': resolve(import.meta.dirname, 'src/patches/empty.cjs'),
-      // './RedisConnection.js': resolve(import.meta.dirname, 'src/patches/empty.cjs'),
-      // './RedisDatastore': resolve(import.meta.dirname, 'src/patches/empty.cjs'),
-      // './IORedisConnection': resolve(import.meta.dirname, 'src/patches/empty.cjs'),
-      // './Scripts': resolve(import.meta.dirname, 'src/patches/empty.cjs'),
     }
   },
   server: { port: 7344 },

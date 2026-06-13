@@ -8,14 +8,20 @@
   let loadPromise: Promise<void> | null = null
 
   async function loadCodecs () {
-    const [ac3, flac] = await Promise.all([
+    const [ac3, flac, dts, truehd] = await Promise.all([
       canDecodeAudio('ac3'),
-      canDecodeAudio('flac')
+      canDecodeAudio('flac'),
+      canDecodeAudio('dts'),
+      canDecodeAudio('truehd')
     // canDecodeAudio('aac'),
     ])
 
-    if (!ac3) await import('@mediabunny/ac3').then(({ registerAc3Decoder }) => registerAc3Decoder())
-    if (!flac || SUPPORTS.isIOS) await import('./flac').then(({ registerFlacDecoder }) => registerFlacDecoder())
+    await Promise.allSettled([
+      !ac3 && import('@mediabunny/ac3').then(({ registerAc3Decoder }) => registerAc3Decoder()),
+      (!flac || SUPPORTS.isIOS) && import('./flac').then(({ registerFlacDecoder }) => registerFlacDecoder()),
+      !dts && import('./dts').then(({ registerDtsDecoder }) => registerDtsDecoder()),
+      !truehd && import('./truehd').then(({ registerTrueHDDecoder }) => registerTrueHDDecoder())
+    ])
   }
 </script>
 

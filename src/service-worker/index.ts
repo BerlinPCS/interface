@@ -3,11 +3,18 @@ import { cleanupOutdatedCaches, matchPrecache, precacheAndRoute, PrecacheFallbac
 import { registerRoute, Route } from 'workbox-routing'
 import { NetworkOnly } from 'workbox-strategies'
 
+import SUPPORTS from '$lib/modules/settings/supports'
 import { build, files, prerendered, version } from '$service-worker'
 
 const fallbackURL = '/offline.html'
 
-precacheAndRoute(['JASSUB-WORKER-URLS', fallbackURL, ...prerendered, ...build, ...files].map(url => ({ url, revision: version })))
+const filterOutWorkers = (url: string) => {
+  if (SUPPORTS.isAndroid || SUPPORTS.isIOS) return true
+
+  return !(url.includes('codec.worker') || url.includes('audioWorklet'))
+}
+
+precacheAndRoute(['JASSUB-WORKER-URLS', fallbackURL, ...prerendered, ...build, ...files].filter(filterOutWorkers).map(url => ({ url, revision: version })))
 cleanupOutdatedCaches()
 clientsClaim()
 skipWaiting()

@@ -84,6 +84,7 @@
         {:else}
           <div>Could not obtain device version</div>
         {/if}
+        <a href='/#/app/license' class='text-foreground underline'>License Information</a>
       </div>
     </aside>
 

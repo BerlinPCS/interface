@@ -19,6 +19,7 @@ export type WorkerCommand = {
   data: {
     ctx: number
     encodedData: ArrayBuffer
+    timestamp: number
   }
 } | {
   type: 'flush-decoder'
@@ -38,9 +39,11 @@ export type WorkerResponseData = {
 } | {
   type: 'decode'
   pcmData: ArrayBuffer
+  format: AudioSampleFormat
   channels: number
   sampleRate: number
-  bitsPerSample: number
+  sampleCount: number
+  pts: number
 } | {
   type: 'flush-decoder'
 } | {
