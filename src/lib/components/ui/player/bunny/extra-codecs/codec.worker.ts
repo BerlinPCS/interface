@@ -39,9 +39,7 @@ const codecToId = (codec: string) => {
     case 'truehd': return 1
     case 'ac3': return 2
     case 'eac3': return 3
-    case 'flac': return 4
-    case 'vorbis': return 5
-    case 'opus': return 6
+    case 'opus': return 4
     default: throw new Error(`Unsupported codec: ${codec}`)
   }
 }
