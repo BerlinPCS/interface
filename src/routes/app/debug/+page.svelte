@@ -109,7 +109,7 @@
 
   const RESOLUTIONS = [
     { width: 426, height: 240, label: '240p' },
-    { width: 640, height: 360, label: 'QHD' },
+    { width: 640, height: 360, label: '360p' },
     { width: 854, height: 480, label: 'SD' },
     { width: 1280, height: 720, label: 'HD' },
     { width: 1920, height: 1080, label: 'FHD' },
