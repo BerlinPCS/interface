@@ -21,18 +21,21 @@ import {
 
 import { sendCommand, refWorker, unrefWorker } from './worker-client'
 
+import SUPPORTS from '$lib/modules/settings/supports'
+
 class CombinedDecoder extends CustomAudioDecoder {
   private ctx = 0
 
   static override supports (codec: AudioCodec, config: AudioDecoderConfig): boolean {
     if (codec === 'opus') {
-      return config.numberOfChannels > 2
+      return config.numberOfChannels > 2 && SUPPORTS.isIOS
     }
 
     return codec === 'dts' ||
       codec === 'truehd' ||
       codec === 'ac3' ||
-      codec === 'eac3'
+      codec === 'eac3' ||
+      (codec === 'flac' && SUPPORTS.isIOS)
   }
 
   async init () {
@@ -40,11 +43,11 @@ class CombinedDecoder extends CustomAudioDecoder {
 
     const desc = this.config.description
     let extradata: ArrayBuffer | undefined
-    if (desc) {
+    if (desc && (this.codec === 'flac' || this.codec === 'opus')) {
       const view = ArrayBuffer.isView(desc)
         ? new Uint8Array(desc.buffer, desc.byteOffset, desc.byteLength)
         : new Uint8Array(desc)
-      extradata = view.buffer as ArrayBuffer
+      extradata = view.slice().buffer
     }
 
     const result = await sendCommand({
@@ -63,6 +66,8 @@ class CombinedDecoder extends CustomAudioDecoder {
       type: 'decode',
       data: { ctx: this.ctx, encodedData, timestamp }
     }, [encodedData])
+
+    if ('needsMoreData' in result) return
 
     const sample = new AudioSample({
       data: result.pcmData,

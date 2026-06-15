@@ -48,6 +48,9 @@ export type WorkerResponseData = {
   sampleCount: number
   pts: number
 } | {
+  type: 'decode'
+  needsMoreData: true
+} | {
   type: 'flush-decoder'
 } | {
   type: 'close-decoder'

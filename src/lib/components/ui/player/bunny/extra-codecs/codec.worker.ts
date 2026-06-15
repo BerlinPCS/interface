@@ -39,7 +39,8 @@ const codecToId = (codec: string) => {
     case 'truehd': return 1
     case 'ac3': return 2
     case 'eac3': return 3
-    case 'opus': return 4
+    case 'flac': return 4
+    case 'opus': return 5
     default: throw new Error(`Unsupported codec: ${codec}`)
   }
 }
@@ -118,6 +119,11 @@ const decode = (ctx: number, encodedData: ArrayBuffer, timestamp: number) => {
     throw new Error(`Decode failed with error code ${ret}.`)
   }
 
+  if (ret > 0) {
+    // No frame yet (decoder needs more data, e.g. TrueHD sync frame)
+    return { needsMoreData: true }
+  }
+
   const avFormat = getDecodedFormat(ctx)
   const info = AV_FORMAT_MAP[avFormat]
   if (!info) {
@@ -165,16 +171,20 @@ const onMessage = (data: { id: number, command: WorkerCommand }) => {
 
         case 'decode': {
           const decoded = decode(command.data.ctx, command.data.encodedData, command.data.timestamp)
-          result = {
-            type: command.type,
-            pcmData: decoded.pcmData,
-            format: decoded.format,
-            channels: decoded.channels,
-            sampleRate: decoded.sampleRate,
-            sampleCount: decoded.sampleCount,
-            pts: decoded.pts
+          if ('needsMoreData' in decoded) {
+            result = { type: command.type, needsMoreData: true }
+          } else {
+            result = {
+              type: command.type,
+              pcmData: decoded.pcmData,
+              format: decoded.format,
+              channels: decoded.channels,
+              sampleRate: decoded.sampleRate,
+              sampleCount: decoded.sampleCount,
+              pts: decoded.pts
+            }
+            transferables.push(decoded.pcmData)
           }
-          transferables.push(decoded.pcmData)
         } break
 
         case 'flush-decoder':
