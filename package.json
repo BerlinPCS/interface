@@ -1,6 +1,6 @@
 {
 	"name": "ui",
-	"version": "6.4.473",
+	"version": "6.4.475",
 	"license": "BUSL-1.1",
 	"private": true,
 	"packageManager": "pnpm@10.28.0",
@@ -21,7 +21,7 @@
 	"devDependencies": {
 		"@gql.tada/svelte-support": "^1.0.3",
 		"@sveltejs/adapter-static": "^3.0.9",
-		"@sveltejs/kit": "^2.65.0",
+		"@sveltejs/kit": "^2.66.0",
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
 		"@types/audioworklet": "^0.0.100",
 		"@types/debug": "^4.1.13",
@@ -82,7 +82,7 @@
 		"js-levenshtein": "^1.1.6",
 		"lucide-svelte": "^1.0.1",
 		"marked": "^18.0.5",
-		"mediabunny": "npm:@thaunknown/mediabunny@^1.47.1",
+		"mediabunny": "npm:@thaunknown/mediabunny@^1.49.1",
 		"overtype": "^2.3.10",
 		"p2pt": "github:ThaUnknown/p2pt#modernise",
 		"parse-torrent": "^11.0.19",

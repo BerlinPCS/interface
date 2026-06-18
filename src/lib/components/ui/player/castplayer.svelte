@@ -89,7 +89,8 @@
     customData: {
       hash: mediaInfo.file.hash,
       id: mediaInfo.file.id,
-      audioLanguage: $settings.audioLanguage
+      audioLanguage: $settings.audioLanguage,
+      subtitleLanguage: $settings.subtitleLanguage
     },
     // @ts-expect-error enum
     streamType: 'BUFFERED',
