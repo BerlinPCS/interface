@@ -134,6 +134,7 @@
     timeupdate: undefined
     fallback: Error
     dblclick: MouseEvent
+    click: MouseEvent
   }>()
 
   let lastSyncPaused = paused
@@ -669,12 +670,10 @@
 
 <canvas
   use:holdToFF={'pointer'}
-  use:customDoubleClick={{ condition: SUPPORTS.isIOS, cb: e => dispatch('dblclick', e) }}
+  use:customDoubleClick={{ double: e => dispatch('dblclick', e), single: e => dispatch('click', e) }}
   bind:this={canvas}
   bind:clientWidth
   bind:clientHeight
-  on:click
-  on:dblclick
   on:pointermove
   on:contextmenu
   use:setupBackend={src}

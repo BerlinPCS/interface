@@ -177,6 +177,10 @@
     playAnimation(paused ? 'play' : 'pause')
     return paused ? Promise.allSettled([video.play(), pip.element.value?.play()]) : [video.pause(), pip.element.value?.pause()]
   }
+  function mobilePlayPause () {
+    if (!SUPPORTS.isMobile || !immersed) return playPause()
+    return resetMove(2000)
+  }
   async function fullscreen () {
     const target = document.getElementById('episodeListTarget')!
     if (SUPPORTS.isAndroid) target.classList.remove('custom-fullscreen')
@@ -837,7 +841,7 @@
         bind:playbackRate={$playbackRate}
         bind:volume={exponentialVolume}
         on:fallback={handleMediaBunnyFallback}
-        on:click={() => isMiniplayer ? goto('/#/app/player') : playPause()}
+        on:click={() => isMiniplayer ? goto('/#/app/player') : mobilePlayPause()}
         on:dblclick={fullscreen}
         on:loadeddata={checkAudio}
         on:loadedmetadata={loadAnimeProgress}
@@ -846,7 +850,7 @@
         on:loadedmetadata={autoPlay}
         on:pointermove={() => resetMove()}
         on:contextmenu={openSettings}
-        class={cn('size-full touch-none object-contain',
+        class={cn('size-full touch-none object-contain min-h-40',
           immersed && 'cursor-none',
           isMiniplayer && 'cursor-pointer',
           fitWidth && 'object-cover'
@@ -873,9 +877,9 @@
       bind:playbackRate={$playbackRate}
       bind:volume={exponentialVolume}
       bind:this={video}
-      on:click={() => isMiniplayer ? goto('/#/app/player') : playPause()}
+      on:click={() => { if (!isMiniplayer) goto('/#/app/player') }}
       on:dblclick={fullscreen}
-      use:customDoubleClick={{ condition: SUPPORTS.isIOS, cb: fullscreen }}
+      use:customDoubleClick={{ single: mobilePlayPause, double: fullscreen }}
       on:loadeddata={checkAudio}
       on:loadedmetadata={loadAnimeProgress}
       on:timeupdate={checkSkippableChapters}
@@ -933,8 +937,8 @@
           </Button>
         </div>
         <div class='size-full mobile:flex hidden justify-between absolute'>
-          <div class='h-full w-1/4 pointer-events-auto' on:dblclick|stopPropagation={() => seek(-Number($settings.playerSeek))} use:holdToFF={'pointer'} use:customDoubleClick={{ condition: SUPPORTS.isIOS, cb: () => seek(-Number($settings.playerSeek)) }} />
-          <div class='h-full w-1/4 pointer-events-auto' on:dblclick|stopPropagation={() => seek(Number($settings.playerSeek))} use:holdToFF={'pointer'} use:customDoubleClick={{ condition: SUPPORTS.isIOS, cb: () => seek(Number($settings.playerSeek)) }} />
+          <div class='h-full w-1/4 pointer-events-auto' use:holdToFF={'pointer'} use:customDoubleClick={{ double: () => seek(-Number($settings.playerSeek)), single: mobilePlayPause }} />
+          <div class='h-full w-1/4 pointer-events-auto' use:holdToFF={'pointer'} use:customDoubleClick={{ double: () => seek(Number($settings.playerSeek)), single: mobilePlayPause }} />
         </div>
       {/if}
       {#if buffering}

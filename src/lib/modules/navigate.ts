@@ -378,22 +378,30 @@ export function dragScroll (node: HTMLElement) {
   return { destroy: () => ctrl.abort() }
 }
 
-export function customDoubleClick (node: HTMLElement, { cb, condition }: { condition: boolean, cb: (_: MouseEvent) => unknown }) {
+export function customDoubleClick (node: HTMLElement, { double, single = _ => {}, condition = true, delay = 250 }: { condition?: boolean, double: (_: PointerEvent) => unknown, single?: (_: PointerEvent) => unknown, delay?: number }) {
   const ctrl = new AbortController()
   let _condition = condition
-  let lastDbl = 0
+  let dblTimer: ReturnType<typeof setTimeout> | null = null
 
-  node.addEventListener('click', e => {
+  node.addEventListener('pointerdown', e => {
     if (!_condition) return
-    const now = Date.now()
-    if (now - lastDbl < 500) {
-      cb(e)
+    if (dblTimer) {
+      clearTimeout(dblTimer)
+      dblTimer = null
+      double(e)
+    } else {
+      dblTimer = setTimeout(() => {
+        dblTimer = null
+        single(e)
+      }, delay)
     }
-    lastDbl = now
   }, ctrl)
 
   return {
-    destroy: () => ctrl.abort(),
-    update: ({ condition: newCondition }: { condition: boolean, cb: (_: MouseEvent) => unknown }) => { _condition = newCondition }
+    destroy: () => {
+      dblTimer && clearTimeout(dblTimer)
+      ctrl.abort()
+    },
+    update: ({ condition: newCondition = true }: { condition?: boolean, cb: (_: PointerEvent) => unknown, single?: (_: PointerEvent) => unknown, delay?: number }) => { _condition = newCondition }
   }
 }

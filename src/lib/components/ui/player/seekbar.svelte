@@ -136,7 +136,7 @@
   data-down='#player-play-pause-button'
   data-up='#episode-list-button'
   on:keydown
-  use:customDoubleClick={{ condition: SUPPORTS.isAndroidTV, cb: e => dispatch('dblclick', e) }}
+  use:customDoubleClick={{ condition: SUPPORTS.isAndroidTV, double: e => dispatch('dblclick', e), delay: 500 }}
   bind:this={seekbar}
   on:pointerdown={startSeeking}
   on:pointerup={endSeeking}
