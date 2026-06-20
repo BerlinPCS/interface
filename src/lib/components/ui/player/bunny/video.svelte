@@ -666,11 +666,13 @@
       }
     }
   }
+
+  export let isMiniplayer = false
 </script>
 
 <canvas
   use:holdToFF={'pointer'}
-  use:customDoubleClick={{ double: e => dispatch('dblclick', e), single: e => dispatch('click', e) }}
+  use:customDoubleClick={{ double: e => dispatch('dblclick', e), single: e => dispatch('click', e), condition: !isMiniplayer }}
   bind:this={canvas}
   bind:clientWidth
   bind:clientHeight

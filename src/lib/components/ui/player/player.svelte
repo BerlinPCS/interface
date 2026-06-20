@@ -841,7 +841,7 @@
         bind:playbackRate={$playbackRate}
         bind:volume={exponentialVolume}
         on:fallback={handleMediaBunnyFallback}
-        on:click={() => isMiniplayer ? goto('/#/app/player') : mobilePlayPause()}
+        on:click={mobilePlayPause}
         on:dblclick={fullscreen}
         on:loadeddata={checkAudio}
         on:loadedmetadata={loadAnimeProgress}
@@ -877,8 +877,7 @@
       bind:playbackRate={$playbackRate}
       bind:volume={exponentialVolume}
       bind:this={video}
-      on:click={() => { if (!isMiniplayer) goto('/#/app/player') }}
-      use:customDoubleClick={{ single: mobilePlayPause, double: fullscreen }}
+      use:customDoubleClick={{ single: mobilePlayPause, double: fullscreen, condition: !isMiniplayer }}
       on:loadeddata={checkAudio}
       on:loadedmetadata={loadAnimeProgress}
       on:timeupdate={checkSkippableChapters}
