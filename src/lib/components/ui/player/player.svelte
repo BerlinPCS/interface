@@ -115,7 +115,7 @@
     }
   }
 
-  let useMediaBunnyPlayback = SUPPORTS.isMobile || dev
+  let useMediaBunnyPlayback = SUPPORTS.isMobile
 
   let subtitles: Subs | undefined
   let deband: VideoDeband | undefined
@@ -878,7 +878,6 @@
       bind:volume={exponentialVolume}
       bind:this={video}
       on:click={() => { if (!isMiniplayer) goto('/#/app/player') }}
-      on:dblclick={fullscreen}
       use:customDoubleClick={{ single: mobilePlayPause, double: fullscreen }}
       on:loadeddata={checkAudio}
       on:loadedmetadata={loadAnimeProgress}

@@ -124,7 +124,7 @@ export default new class ChromeCast {
   }
 
   castClose: Native['castClose'] = async (host) => {
-    if (host !== 'PresentationRequest' || !this._connection) return
+    if (host !== 'PresentationRequest' || !this._connection || this._connection.state === 'terminated') return
     this._connection.terminate()
     await once(this._connection, 'terminate')
   }
