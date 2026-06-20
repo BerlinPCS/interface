@@ -115,7 +115,7 @@
     }
   }
 
-  let useMediaBunnyPlayback = SUPPORTS.isMobile
+  let useMediaBunnyPlayback = SUPPORTS.isMobile || dev
 
   let subtitles: Subs | undefined
   let deband: VideoDeband | undefined
