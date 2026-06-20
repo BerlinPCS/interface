@@ -182,28 +182,33 @@
     gain.gain.value = muted ? 0 : clamp(volume, 0, 1)
   }
 
-  function srcObject (video: HTMLVideoElement) {
+  function srcObject (video: HTMLVideoElement, _size: { videoWidth: number, videoHeight: number }) {
     const dummy = document.createElement('canvas')
     dummy.width = 1
     dummy.height = 1
-    dummy.getContext('2d')!.fillRect(0, 0, 1, 1)
-    const stream = dummy.captureStream(1)
-    const ctx = new AudioContext()
-    const dst = ctx.createMediaStreamDestination()
-    const osc = ctx.createOscillator()
-    osc.frequency.value = 0
-    osc.connect(dst)
-    osc.start()
-    const track = dst.stream.getAudioTracks()[0]
-    if (track) stream.addTrack(track)
-    video.srcObject = stream
-    video.play()
+    // const ctx = new AudioContext()
+    // const dst = ctx.createMediaStreamDestination()
+    // const osc = ctx.createOscillator()
+    // osc.frequency.value = 0
+    // osc.connect(dst)
+    // osc.start()
+    // const track = dst.stream.getAudioTracks()[0]
+    // if (track) stream.addTrack(track)
+
     video.volume = 0.001
     pip._setElements(video)
     return {
       destroy () {
         video.srcObject = null
-        ctx.close()
+      // ctx.close()
+      },
+      update ({ videoWidth, videoHeight }: { videoWidth: number, videoHeight: number }) {
+        if (!videoHeight || !videoWidth) return
+        dummy.width = videoWidth
+        dummy.height = videoHeight
+        dummy.getContext('2d')!.fillRect(0, 0, dummy.width, dummy.height)
+        video.srcObject = dummy.captureStream(1)
+        video.play()
       }
     }
   }
@@ -679,9 +684,9 @@
 />
 <canvas class='size-full object-contain pointer-events-none absolute inset-0' use:createSubs />
 <video
-  use:srcObject
+  use:srcObject={{ videoWidth, videoHeight }}
   loop={true}
   bind:paused
   tabindex='-1'
-  class='size-full absolute inset-0 pointer-events-none -z-10'
+  class='size-0.5 absolute inset-0 pointer-events-none -z-10'
 />
