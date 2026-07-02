@@ -208,6 +208,8 @@
     }
   })
 
+  if (SUPPORTS.isMobile && !SUPPORTS.isIPad && !fullscreenElement) fullscreen()
+
   // exiting fullscreen on mobile navigates back since its a "back" gesture
   function checkMobileFullscreen () {
     if (!document.fullscreenElement && SUPPORTS.isAndroid && !isMiniplayer) history.back()
