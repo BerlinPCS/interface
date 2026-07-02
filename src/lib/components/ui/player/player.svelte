@@ -157,7 +157,7 @@
 
   $: $isPlaying = !paused
 
-  $: buffering = readyState < 3
+  $: buffering = readyState < 3 && !paused
   $: immersed = (!buffering && !paused && !ended && !pictureInPictureElement && !pointerMoving) || fastForwarding
   $: isMiniplayer = $page.route.id !== '/app/player'
 
