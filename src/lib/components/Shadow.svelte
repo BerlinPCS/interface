@@ -6,6 +6,22 @@
     gfm: true,
     breaks: true,
     pedantic: false
+
+  })
+
+  marked.use({
+    renderer: {
+      link ({ href, title, text }) {
+        const titleAttr = title ? ` title="${title}"` : ''
+
+        const animeURL = 'https://anilist.co/anime/'
+        if (href.startsWith(animeURL)) {
+          return `<a href="/#/app/anime/${href.slice(animeURL.length, href.indexOf('/', animeURL.length))}" ${titleAttr}>${text}</a>`
+        }
+
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer" ${titleAttr}>${text}</a>`
+      }
+    }
   })
 
   export let html = ''
@@ -36,17 +52,18 @@
 `)
 
   function sanitize (html: string) {
-    return dompurify.sanitize(html, { ALLOWED_TAGS: ['a', 'b', 'blockquote', 'br', 'center', 'del', 'div', 'em', 'font', 'h1', 'h2', 'h3', 'h4', 'h5', 'hr', 'i', 'img', 'li', 'ol', 'p', 'pre', 'code', 'span', 'strike', 'strong', 'ul', 'details', 'summary'], ALLOWED_ATTR: ['align', 'height', 'href', 'src', 'target', 'width', 'rel'] })
+    return dompurify.sanitize(html, { ALLOWED_TAGS: ['a', 'b', 'blockquote', 'br', 'center', 'del', 'div', 'em', 'font', 'h1', 'h2', 'h3', 'h4', 'h5', 'hr', 'i', 'img', 'li', 'ol', 'p', 'pre', 'code', 'span', 'strike', 'strong', 'ul', 'details', 'summary'], ALLOWED_ATTR: ['align', 'height', 'href', 'src', 'target', 'width', 'rel', 'target'] })
   }
 
   // i mean holy shit anilist, could you have made it any harder on yourself
   function shadow (node: HTMLDivElement, html: string) {
-    root ??= node.attachShadow({ mode: 'closed' })
+    root ??= node.attachShadow({ mode: 'open' })
     root.adoptedStyleSheets = [style]
     // eslint-disable-next-line no-useless-escape
     html = html.replace(/(http)(:([\/|.|\w|\s|-])*\.(?:jpg|.jpeg|gif|png|mp4|webm))/gi, '$1s$2')
       .replace(/img\s?(\d+%?)?\s?\((.[\S]+)\)/gi, "<img width='$1' src='$2'>")
-      .replace(/(^|>| )@([A-Za-z0-9]+)/gm, "$1<a href='#'>@$2</a>")
+      // TODO: this is for user profiles
+      .replace(/(^|>| )@([A-Za-z0-9]+)/gm, "$1<a href='#' target='_blank' rel='noopener noreferrer'>@$2</a>")
       .replace(/youtube\s?\([^]*?([-_0-9A-Za-z]{10,15})[^]*?\)/gi, 'youtube ($1)')
       // eslint-disable-next-line no-useless-escape
       .replace(/webm\s?\(h?([A-Za-z0-9-._~:\/?#\[\]@!$&()*+,;=%]+)\)/gi, 'webmv(`$1`)')
@@ -58,7 +75,7 @@
     src='https://www.youtube-nocookie.com/embed/$1?enablejsapi=1&autoplay=0&controls=1&mute=0&disablekb=1&loop=1&playlist=$1&cc_lang_pref=ja' />`)
       // eslint-disable-next-line no-useless-escape
       .replace(/webmv\s?\(<code>([A-Za-z0-9-._~:\/?#\[\]@!$&()*+,;=%]+)<\/code>\)/gi, "<video muted loop controls><source src='h$1' type='video/webm'>Your browser does not support the video tag.</video>")
-    // t = t.replace(/(?:<a href="https?:\/\/anilist.co\/(anime|manga)\/)([0-9]+).*?>(?:https?:\/\/anilist.co\/(?:anime|manga)\/[0-9]+).*?<\/a>/gm, '<span class="media-embed" data-media-type="$1" data-media-id="$2"></span>')
+    // .replace(/(?:<a href="https?:\/\/anilist.co\/(anime|manga)\/)([0-9]+).*?>(?:https?:\/\/anilist.co\/(?:anime|manga)\/[0-9]+).*?<\/a>/gm, '<span class="media-embed" data-media-type="$1" data-media-id="$2"></span>')
 
     root.innerHTML = html
   }
