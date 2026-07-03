@@ -15,14 +15,11 @@
   export let size: NonNullable<$$Props['size']> = 'icon-sm'
   export let variant: NonNullable<$$Props['variant']> = 'ghost'
 
-  let key = 1
-
   async function toggleFav () {
     await authAggregator.toggleFav(media.id)
-    ++key
   }
 </script>
 
-<Button {size} {variant} class={cn(className, 'animated-icon')} on:click={clickwrap(toggleFav)} on:keydown={keywrap(toggleFav)} on:click={() => ++key}>
-  <Heart fill={key && fav(media) ? 'currentColor' : 'transparent'} size={iconSizes[size]} />
+<Button {size} {variant} class={cn(className, 'animated-icon')} on:click={clickwrap(toggleFav)} on:keydown={keywrap(toggleFav)}>
+  <Heart fill={fav(media) ? 'currentColor' : 'transparent'} size={iconSizes[size]} />
 </Button>

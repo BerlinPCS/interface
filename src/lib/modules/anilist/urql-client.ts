@@ -14,7 +14,7 @@ import { cacheOnErrorExchange } from './exchanges/error.ts'
 import { offlineExchange } from './exchanges/offline.ts'
 import { retryExchange } from './exchanges/retry.ts'
 import gql from './gql'
-import { CommentFrag, UpdateUser, type Entry, FullMedia, FullMediaList, ThreadFrag, type ToggleFavourite, UserLists, Viewer } from './queries'
+import { CommentFrag, UpdateUser, type Entry, FullMedia, ThreadFrag, type ToggleFavourite, UserLists, Viewer, MediaListMedia, UserListMedia } from './queries'
 import schema from './schema.json' with { type: 'json' }
 
 import type { CombinedError } from '@urql/core'
@@ -110,15 +110,14 @@ export default new class URQLClient extends Client {
 
                 cache.writeFragment(gql('fragment Med on Media {id, isFavourite}'), { id, isFavourite: !!exists })
               },
-              DeleteMediaListEntry: (_, { id }, cache) => {
-                debug('cache update DeleteMediaListEntry', id)
-                cache.writeFragment(FullMediaList, { id: id as number, progress: null, repeat: null, status: null, customLists: null, score: null })
+              DeleteMediaListEntry: (_, { id }, cache, info) => {
+                const mediaId = info.variables.mediaId as number
+                debug('cache update DeleteMediaListEntry', id, mediaId)
+                cache.writeFragment(MediaListMedia, { id: mediaId, mediaListEntry: null })
                 cache.updateQuery({ query: UserLists, variables: { id: this.viewer.value?.viewer?.id } }, data => {
                   debug('cache update DeleteMediaListEntry, UserLists', data)
                   if (!data?.MediaListCollection?.lists) return data
-                  const oldLists = data.MediaListCollection.lists
-
-                  data.MediaListCollection.lists = oldLists.map(list => {
+                  data.MediaListCollection.lists = data.MediaListCollection.lists.map(list => {
                     if (!list?.entries) return list
                     return {
                       ...list,
@@ -131,13 +130,9 @@ export default new class URQLClient extends Client {
               },
               SaveMediaListEntry: (result: ResultOf<typeof Entry>, { mediaId }, cache) => {
                 debug('cache update SaveMediaListEntry', result, mediaId)
-                const media = gql('fragment Med on Media {id, mediaListEntry {status, progress, repeat, score, customLists }}')
-
                 const entry = result.SaveMediaListEntry
-
-                if (entry?.customLists) entry.customLists = (entry.customLists as string[]).map(name => ({ enabled: true, name }))
                 debug('SaveMediaListEntry entry', entry)
-                cache.writeFragment(media, {
+                cache.writeFragment(MediaListMedia, {
                   id: mediaId as number,
                   mediaListEntry: entry ?? null
                 })
@@ -145,7 +140,7 @@ export default new class URQLClient extends Client {
                   debug('cache update SaveMediaListEntry, UserLists', data)
                   if (!data?.MediaListCollection?.lists) return data
                   const oldLists = data.MediaListCollection.lists
-                  const oldEntry = oldLists.flatMap(list => list?.entries).find(entry => entry?.media?.id === mediaId) ?? { id: -1, media: cache.readFragment(FullMedia, { id: mediaId as number, __typename: 'Media' }) }
+                  const oldEntry = oldLists.flatMap(list => list?.entries).find(entry => entry?.media?.id === mediaId) ?? { __typename: 'MediaList', id: entry?.id ?? Math.random() * -1e9 | 0, media: cache.readFragment(UserListMedia, { id: mediaId as number, __typename: 'Media' }) }
                   if (!oldEntry.media) return data
                   debug('oldEntry', oldEntry)
 
@@ -159,16 +154,13 @@ export default new class URQLClient extends Client {
                   debug('lists', lists)
 
                   const status = result.SaveMediaListEntry?.status ?? oldEntry.media.mediaListEntry?.status ?? 'PLANNING' as const
-
-                  const fallback: NonNullable<typeof oldLists[0]> = { status, entries: [] }
                   let targetList = lists.find(list => list?.status === status)
                   if (!targetList) {
-                    lists.push(fallback)
-                    targetList = fallback
+                    lists.push(targetList = { status, entries: [] })
                   }
                   debug('targetList', targetList)
                   targetList.entries ??= []
-                  targetList.entries.push(oldEntry)
+                  targetList.entries.unshift(oldEntry)
                   return { ...data, MediaListCollection: { ...data.MediaListCollection, lists } }
                 })
               },
@@ -223,7 +215,7 @@ export default new class URQLClient extends Client {
             SaveMediaListEntry (args, cache, info) {
               debug('optimistic SaveMediaListEntry', args)
               const id = args.mediaId as number
-              const media = cache.readFragment(FullMedia, { id, __typename: 'Media' })
+              const media = cache.readFragment(MediaListMedia, { id, __typename: 'Media' })
               if (!media) return null
               info.partial = true
               debug('optimistic SaveMediaListEntry media', media)
@@ -233,11 +225,12 @@ export default new class URQLClient extends Client {
                 progress: 0,
                 repeat: 0,
                 score: 0,
-                id: -1,
+                id: Math.random() * -1e9 | 0,
                 ...media.mediaListEntry,
+                // TODO: I think customlists are wrong
                 customLists: (args.customLists as string[]).map(name => ({ enabled: true, name })),
                 ...args,
-                media,
+                media: { id, __typename: 'Media' },
                 __typename: 'MediaList'
               }
             },

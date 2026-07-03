@@ -11,6 +11,39 @@ export const FullMediaList = gql(`
   }
 `)
 
+export const MediaListMedia = gql(`
+  fragment MediaListMedia on Media @_unmask {
+    id,
+    mediaListEntry {
+      ...FullMediaList
+    }
+  }
+`, [FullMediaList])
+
+export const UserListMedia = gql(`
+  fragment UserListMedia on Media @_unmask {
+    title {
+      userPreferred
+    },
+    id,
+    status,
+    mediaListEntry {
+      ...FullMediaList
+    },
+    nextAiringEpisode {
+      episode
+    },
+    relations {
+      edges {
+        relationType(version:2)
+        node {
+          id
+        }
+      }
+    }
+  }
+`, [FullMediaList])
+
 // cant include mediaListEntry in here, because AL API doesn't return data for it on the 3rd edge of relations
 const RelationMedia = gql(`
   fragment RelationMedia on Media @_unmask {
@@ -233,31 +266,13 @@ export const UserLists = gql(`
         entries {
           id,
           media {
-            title {
-              userPreferred
-            },
-            id,
-            status,
-            mediaListEntry {
-              ...FullMediaList
-            },
-            nextAiringEpisode {
-              episode
-            },
-            relations {
-              edges {
-                relationType(version:2)
-                node {
-                  id
-                }
-              }
-            }
+            ...UserListMedia
           }
         }
       }
     }
   }
-`, [FullMediaList])
+`, [UserListMedia])
 
 export const UpdateUser = gql(`
   mutation UpdateUser($lists: [String], $adult: Boolean, $language: UserTitleLanguage) {

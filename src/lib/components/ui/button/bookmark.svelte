@@ -22,11 +22,9 @@
     } else {
       await authAggregator.delete(media)
     }
-    ++key
   }
-  let key = 1
 </script>
 
 <Button {size} {variant} class={cn(className, 'animated-icon')} on:click={clickwrap(toggleBookmark)} on:keydown={keywrap(toggleBookmark)}>
-  <Bookmark fill={key && list(media) ? 'currentColor' : 'transparent'} size={iconSizes[size]} />
+  <Bookmark fill={list(media) ? 'currentColor' : 'transparent'} size={iconSizes[size]} />
 </Button>
