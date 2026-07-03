@@ -11,6 +11,8 @@ import type { TransitionConfig } from 'svelte/transition'
 
 export function anitomyscript (input: string[]) {
   const fixed = input.map(name => {
+    // add space between S01E01 and v2
+    name.replace(/s(\d{2})e(\d{2})(v\d{1})/i, 'S$1E$2 $3')
     if (!name.includes(' ')) {
       // replace s01e01.A.wish.made with S01E01 A.wish.made, there's some bug in anitomyscript where it doesn't parse the episode number if there's a single character after the sxxexx
       return name.replace(/s(\d{2})e(\d{2})\.([A-z])\./i, 'S$1E$2 $3 ')
