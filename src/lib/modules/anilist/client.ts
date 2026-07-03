@@ -49,17 +49,18 @@ class AnilistClient {
 
   continueIDs = derivedArray(this.userlists, $userLists => {
     debug('continueIDs: checking for IDs')
-    const mediaList = $userLists?.data?.MediaListCollection?.lists?.reduce<NonNullable<NonNullable<NonNullable<NonNullable<ResultOf<typeof UserLists>['MediaListCollection']>['lists']>[0]>['entries']>>((filtered, list) => {
-      return (list?.status === 'CURRENT' || list?.status === 'REPEATING') ? filtered.concat(list.entries) : filtered
+    const mediaList = $userLists?.data?.MediaListCollection?.lists?.reduce((filtered: NonNullable<typeof list>['entries'], list) => {
+      return (list?.status === 'CURRENT' || list?.status === 'REPEATING') ? filtered!.concat(list.entries) : filtered
     }, [])
     if (!mediaList?.length) return []
 
     const ids = mediaList.filter(entry => {
-      if (entry?.media?.status === 'FINISHED') return true
-      const progress = entry?.media?.mediaListEntry?.progress ?? 0
+      if (!entry?.media?.id) return false
+      if (entry.media.status === 'FINISHED') return true
+      const progress = entry.media.mediaListEntry?.progress ?? 0
       // +2 is for series that don't have the next airing episode scheduled, but are still some-how airing, AL likes to fuck this up a lot, -1 is because we care about the latest aired available episode, not the next aired episode
-      return progress < (entry?.media?.nextAiringEpisode?.episode ?? (progress + 2)) - 1
-    }).map(entry => entry?.media?.id) as number[]
+      return progress < (entry.media.nextAiringEpisode?.episode ?? (progress + 2)) - 1
+    }).map(entry => entry!.media!.id)
 
     debug('continueIDs: found IDs', ids)
 
