@@ -804,12 +804,12 @@
 </script>
 
 <svelte:document bind:fullscreenElement bind:visibilityState use:holdToFF={'key'} on:fullscreenchange={checkMobileFullscreen} />
+<svelte:window on:keydown|capture={stopAnimation} />
 
 <div class='size-full relative content-center bg-background overflow-clip text-left touch-none'
   class:fitWidth class:seeking class:pip={pictureInPictureElement} bind:this={wrapper}
   on:navigate={() => resetMove(2000)}
   on:wheel={handleWheel}
-  on:keydown={stopAnimation}
   on:focusin={stopAnimation}
   on:pointerenter={stopAnimation}
   on:pointermove={stopAnimation}
