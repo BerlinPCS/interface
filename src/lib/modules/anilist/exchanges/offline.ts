@@ -100,8 +100,6 @@ export const offlineExchange =
             for (const operation of failedQueue) {
               if (operation.kind === 'mutation') {
                 requests.push({
-                  // TODO: fix typedefs
-                  // @ts-expect-error idk
                   query: stringifyDocument(operation.query),
                   variables: operation.variables,
                   extensions: operation.extensions

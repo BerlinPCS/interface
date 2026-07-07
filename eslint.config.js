@@ -31,7 +31,8 @@ export default tseslint.config(
           ignoreMixedLogicalExpressions: false,
           ignorePrimitives: true
         }
-      ]
+      ],
+      'svelte/no-navigation-without-resolve': ['off']
     }
   }
 )

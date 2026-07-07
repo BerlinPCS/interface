@@ -219,9 +219,10 @@ class AnilistClient {
 
   async deleteEntry (media: Media) {
     debug('deleteEntry: deleting entry for media', media)
-    if (!media.mediaListEntry?.id) return
+    const id = media.mediaListEntry?.id
+    if (!id || (id <= 0 && navigator.onLine)) return
     // mediaId is non-standard, but passed to cache for cleaner predictive queries
-    return await this.client.mutation(DeleteEntry, { id: media.mediaListEntry.id, mediaId: media.id })
+    return await this.client.mutation(DeleteEntry, { id, mediaId: media.id })
   }
 
   async entry (variables: VariablesOf<typeof Entry>) {

@@ -95,6 +95,16 @@ export default new class URQLClient extends Client {
       exchanges: [
         refocusExchange({ minimumTime: 60_000 }),
         cacheOnErrorExchange(),
+        retryExchange({
+          initialDelayMs: 100,
+          maxDelayMs: 60_000,
+          randomDelay: false,
+          maxNumberAttempts: Infinity,
+          retryIf: e => {
+            if (e.graphQLErrors[0]?.originalError?.message === 'validation') return false
+            return true
+          }
+        }),
         offlineExchange({
           schema,
           storage,
@@ -294,13 +304,6 @@ export default new class URQLClient extends Client {
               return parseInt(this.viewer.value.expires) < Date.now()
             }
           }
-        }),
-        retryExchange({
-          initialDelayMs: 100,
-          maxDelayMs: 60_000,
-          randomDelay: false,
-          maxNumberAttempts: Infinity,
-          retryIf: _ => true
         }),
         ({ forward }) => ops$ => pipe(
           ops$,
