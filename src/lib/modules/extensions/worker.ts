@@ -3,7 +3,7 @@ import { expose } from 'abslink/w3c'
 
 import SUPPORTS from '../settings/supports'
 
-import type { NZBQuery, SearchOptions, AnimeQuery, TorrentResult, TorrentSource, NZBSource, SubtitleSource, Accuracy } from './types'
+import type { NZBQuery, WebSeedQuery, WebSeedResult, SearchOptions, AnimeQuery, TorrentResult, TorrentSource, NZBSource, SubtitleSource, Accuracy, WebSeedSource } from './types'
 
 const _fetch = SUPPORTS.isIOS
   ? (input: RequestInfo | URL, init?: RequestInit) => {
@@ -22,7 +22,7 @@ interface AccuracyRule {
   setTo: Accuracy
   maxAllowed: Accuracy
 }
-type TSource = { url: string } & (TorrentSource | NZBSource | SubtitleSource)
+type TSource = { url: string } & (TorrentSource | NZBSource | SubtitleSource | WebSeedSource)
 
 const ACCURACIES = ['high', 'medium', 'low'] as const
 const ACCURACY_RANK: Record<Accuracy, number> = { high: 0, medium: 1, low: 2 }
@@ -108,16 +108,17 @@ type WorkerState =
   | { type: 'torrent', mod: TorrentSource & { url: string } }
   | { type: 'nzb', mod: NZBSource & { url: string } }
   | { type: 'subtitle', mod: SubtitleSource & { url: string } }
+  | { type: 'http', mod: WebSeedSource & { url: string } }
 
 export class ExtensionWorker {
   private _state: WorkerState | null = null
   mod!: Promise<{ url: string } & { test: () => Promise<boolean> }>
 
-  construct (code: string, type: 'torrent' | 'nzb' | 'subtitle') {
+  construct (code: string, type: 'torrent' | 'nzb' | 'subtitle' | 'http') {
     this.mod = this.load(code, type)
   }
 
-  async load (code: string, type: 'torrent' | 'nzb' | 'subtitle'): Promise<TSource> {
+  async load (code: string, type: 'torrent' | 'nzb' | 'subtitle' | 'http'): Promise<TSource> {
     // WARN: unsafe eval
     const url = URL.createObjectURL(new Blob([code], { type: 'application/javascript' }))
     const module = await import(/* @vite-ignore */url)
@@ -144,9 +145,9 @@ export class ExtensionWorker {
   }
 
   async single (
-    query: AnimeQuery | NZBQuery<{ file: string }> | Omit<AnimeQuery, 'resolution' | 'exclusions'>,
+    query: AnimeQuery | NZBQuery<{ file: string }> | WebSeedQuery<{ file: string }> | Omit<AnimeQuery, 'resolution' | 'exclusions'>,
     options?: SearchOptions
-  ): Promise<TorrentResult[] | string | undefined | Array<{url: string, language: string}>> {
+  ): Promise<TorrentResult[] | string | undefined | WebSeedResult | Array<{url: string, language: string}>> {
     const state = this._state!
 
     switch (state.type) {
@@ -157,6 +158,9 @@ export class ExtensionWorker {
       case 'nzb': {
         return await state.mod.single({ ...query as NZBQuery<{ file: string }>, fetch: _fetch }, options)
       }
+      case 'http': {
+        return await state.mod.single({ ...query as WebSeedQuery<{ file: string }>, fetch: _fetch }, options)
+      }
       case 'subtitle': {
         return await state.mod.single({ ...query as Omit<AnimeQuery, 'resolution' | 'exclusions'>, fetch: _fetch }, options)
       }
@@ -164,9 +168,9 @@ export class ExtensionWorker {
   }
 
   async batch (
-    query: AnimeQuery | NZBQuery<{ files: string[], name: string }>,
+    query: AnimeQuery | NZBQuery<{ files: string[], name: string }> | WebSeedQuery<{ files: string[], name: string }>,
     options?: SearchOptions
-  ): Promise<TorrentResult[] | string | undefined> {
+  ): Promise<TorrentResult[] | string | undefined | WebSeedResult[]> {
     const state = this._state!
 
     switch (state.type) {
@@ -176,6 +180,9 @@ export class ExtensionWorker {
       }
       case 'nzb': {
         return await state.mod.batch({ ...query as NZBQuery<{ files: string[], name: string }>, fetch: _fetch }, options)
+      }
+      case 'http': {
+        return await state.mod.batch({ ...query as WebSeedQuery<{ files: string[], name: string }>, fetch: _fetch }, options)
       }
       case 'subtitle':
         throw new Error('batch not supported for subtitle sources')

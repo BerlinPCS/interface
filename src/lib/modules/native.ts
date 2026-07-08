@@ -143,6 +143,7 @@ export default Object.assign<Native, Partial<Native>>({
   downloadProgress: async () => undefined,
   updateProgress: async () => undefined,
   createNZB: async () => undefined,
+  createHTTPWebSeed: async () => undefined,
   getDisplays: ChromeCast.getDisplays,
   castPlay: ChromeCast.castPlay,
   castClose: ChromeCast.castClose,

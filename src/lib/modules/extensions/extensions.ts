@@ -9,7 +9,7 @@ import { settings, type videoResolutions } from '../settings'
 
 import { storage } from './storage'
 
-import type { TorrentResult } from './types'
+import type { TorrentResult, WebSeedResult } from './types'
 import type { EpisodesResponse, Titles, Episode } from '../anizip/types'
 import type { AnitomyResult } from 'anitomyscript'
 
@@ -326,6 +326,37 @@ export const extensions = new class Extensions {
     }
 
     return settled.filter((nzb): nzb is string => !!nzb)
+  }
+
+  async webSeedQuery (hash: string, media: Media, episode: number, fileInfo: string | string[], name: string) {
+    await storage.ready
+
+    const extopts = get(extensionOptions)
+    const configs = get(savedConfigs)
+
+    const extensions = storage.codeManager.extensions
+
+    const options = await this._getQueryOptions(media, episode)
+
+    const { settled, errors } = await toSettled<ExtensionError, WebSeedResult | WebSeedResult[] | undefined>(extensions.entries().map(async ([id, worker]) => {
+      if (!extopts[id]?.enabled || configs[id]?.type !== 'http') return
+      try {
+        const promise: Promise<WebSeedResult | WebSeedResult[] | undefined> = Array.isArray(fileInfo)
+          ? (worker.batch({ ...options, hash, files: fileInfo, name }, extopts[id].options) as Promise<WebSeedResult[] | undefined>)
+          : (worker.single({ ...options, hash, file: fileInfo, name }, extopts[id].options) as Promise<WebSeedResult | undefined>)
+        return await raceTimeout(promise, 10_000)
+      } catch (error) {
+        throw new ExtensionError(error as Error, id)
+      }
+    }))
+
+    if (errors.length) {
+      for (const { error, extension } of errors) {
+        toast.error(`Error fetching webseed from ${configs[extension]?.name ?? extension}`, { description: error.message, duration: 15_000 })
+      }
+    }
+
+    return settled.filter((ws): ws is WebSeedResult => ws !== undefined).flat()
   }
 
   async subtitlesQuery (media: Media, episode: number) {

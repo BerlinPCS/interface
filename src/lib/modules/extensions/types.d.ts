@@ -17,7 +17,7 @@ export interface ExtensionConfig {
   version: string
   description: string
   id: string
-  type: 'torrent' | 'nzb' | 'subtitle'
+  type: 'torrent' | 'nzb' | 'subtitle' | 'http'
   accuracy: Accuracy
   ratio?: 'perma' | number
   icon: string // URL to the icon
@@ -73,6 +73,18 @@ export type NZBQueryWithFetch<T> = NZBQuery<T> & { fetch: typeof fetch }
 export type SearchFunction = (query: AnimeQueryWithFetch, options?: SearchOptions) => Promise<TorrentResult[]>
 export type NZBFunction<T> = (query: NZBQueryWithFetch<T>, options?: SearchOptions) => Promise<string | undefined>
 
+export interface WebSeedResult {
+  url: string
+  authorization?: string
+}
+
+export type WebSeedQuery<T> = {
+  hash: string
+  name: string
+} & Omit<AnimeQuery, 'resolution' | 'exclusions'> & T
+
+export type WebSeedQueryWithFetch<T> = WebSeedQuery<T> & { fetch: typeof fetch }
+
 export class TorrentSource {
   test: () => Promise<boolean>
   single: SearchFunction
@@ -84,6 +96,12 @@ export class NZBSource {
   test: () => Promise<boolean>
   single: NZBFunction<{file: string}>
   batch: NZBFunction<{files: string[]}>
+}
+
+export class WebSeedSource {
+  test: () => Promise<boolean>
+  single: (query: WebSeedQueryWithFetch<{file: string}>, options?: SearchOptions) => Promise<WebSeedResult | undefined>
+  batch: (query: WebSeedQueryWithFetch<{files: string[]}>, options?: SearchOptions) => Promise<WebSeedResult[] | undefined>
 }
 
 export class SubtitleSource {

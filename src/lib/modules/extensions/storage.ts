@@ -164,7 +164,7 @@ class CodeManager {
     return invalidIDs
   }
 
-  async _loadWorker (code: string, id: string, type: 'torrent' | 'nzb' | 'subtitle') {
+  async _loadWorker (code: string, id: string, type: 'torrent' | 'nzb' | 'subtitle' | 'http') {
     debug('Creating worker for', id)
     const Loader = wrap<typeof extensionLoader>(new Worker({ name: id })) as unknown as Remote<typeof extensionLoader>
 

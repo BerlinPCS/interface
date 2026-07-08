@@ -72,6 +72,7 @@
   export let next: (() => void) | undefined = undefined
 
   server._addNZBs(mediaInfo.file.hash, mediaInfo.media, mediaInfo.episode, mediaInfo.file.name)
+  server._addHTTPWebSeeds(mediaInfo.file.hash, mediaInfo.media, mediaInfo.episode, mediaInfo.file.name, mediaInfo.file.id)
   // bindings
   // values
   let videoHeight = 0

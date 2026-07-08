@@ -121,6 +121,7 @@ export const server = new class ServerClient {
     this.downloaded.value.add(infoHash)
 
     this._addNZBs(infoHash, media, episode, result.files.map(({ name }) => name))
+    // this._addHTTPWebSeeds(infoHash, media, episode, result.files.map(({ name }) => name))
 
     native.checkAvailableSpace().then(space => {
       if (space < 1e9) {
@@ -144,6 +145,20 @@ export const server = new class ServerClient {
         await native.createNZB(hash, nzb)
       } catch (e) {
         toast.error('Failed to add NZB', { description: (e as Error).message, duration: 15_000 })
+      }
+    }
+  }
+
+  async _addHTTPWebSeeds (hash: string, media: Media, episode: number, fileInfo: string | string[], fileIndex?: number) {
+    const { name, progress } = await native.torrentInfo(hash)
+
+    if (progress === 1) return
+
+    for (const webseed of await extensions.webSeedQuery(hash, media, episode, fileInfo, name)) {
+      try {
+        await native.createHTTPWebSeed(hash, webseed.url, webseed.authorization, fileIndex)
+      } catch (e) {
+        toast.error('Failed to add HTTP webseed', { description: (e as Error).message, duration: 15_000 })
       }
     }
   }
