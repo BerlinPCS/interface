@@ -9,7 +9,8 @@
   const typeMap: Record<string, string> = {
     nzb: 'NZB',
     torrent: 'Torrent',
-    subtitle: 'Subtitle'
+    subtitle: 'Subtitle',
+    http: 'HTTP'
   }
 </script>
 
