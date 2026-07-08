@@ -26,6 +26,9 @@
 
   let currentIndex = 0
   $: current = shuffled[currentIndex]
+  $: currentId = current?.id
+
+  $: ofStore = of(current!)
 
   $: if (current) bannerSrc.value = current
 
@@ -53,7 +56,7 @@
   $: usersForCurrent = filtered.filter((f): f is NonNullable<typeof f> => f?.media?.id === current?.id && !!f?.user).map(({ user }) => user!)
 </script>
 
-{#if current}
+{#if current && currentId}
   {#if usersForCurrent.length}
     <div class='md:pt-14 md:pl-10 p-4 flex space-x-2'>
       <Avatars users={usersForCurrent} let:user>
@@ -69,10 +72,10 @@
       </div>
     </div>
   {/if}
-  <div class='lg:pl-5 pb-2 grid grid-cols-1 lg:grid-cols-2 mt-auto w-full max-h-full' style:--custom={current.coverImage?.color ?? '#fff'} style:--red={r} style:--green={g} style:--blue={b}>
+  <div class='lg:pl-4 pb-2 grid grid-cols-1 lg:grid-cols-2 mt-auto w-full max-h-full' style:--custom={current.coverImage?.color ?? '#fff'} style:--red={r} style:--green={g} style:--blue={b}>
     <div class='w-full flex flex-col items-center text-center lg:items-start lg:text-left justify-end gap-4'>
       <a class='text-foreground font-black text-3xl lg:text-4xl line-clamp-2 w-[900px] max-w-[85%] leading-tight text-balance fade-in hover:text-muted-foreground hover:underline cursor-pointer text-shadow-lg' href='/#/app/anime/{current.id}'>
-        {#await episodesCached(current.id) then metadata}
+        {#await episodesCached(currentId) then metadata}
           {@const src = metadata?.logos?.sort((a, b) => b.vote_average - a.vote_average).find(i => i.iso_639_1 === 'en' && i.aspect_ratio > 1.2)?.file_path}
           {#if src}
             <div class='w-full flex justify-center lg:justify-start'>
@@ -87,7 +90,7 @@
       </a>
       <div class='hidden sm:flex gap-2 items-center lg:self-start flex-nowrap max-w-full lg:place-content-start font-bold'>
         <div class='rounded px-3.5 !text-custom h-7 text-nowrap bg-primary/10 text-sm inline-flex items-center'>
-          {of(current) ?? duration(current) ?? 'N/A'}
+          {$ofStore ?? duration(current) ?? 'N/A'}
         </div>
         <Button class='!text-custom select:!text-foreground h-7 text-nowrap bg-primary/10 select:!bg-primary/15 font-bold' on:click={() => goto('/#/app/search', { state: { search: { format: [current?.format ?? null] } } })}>
           {format(current)}

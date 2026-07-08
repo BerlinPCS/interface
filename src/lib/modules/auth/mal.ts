@@ -107,22 +107,21 @@ const ENDPOINTS = {
 export default new class MALSync {
   auth = persisted<MALOAuth | undefined>('malAuth', undefined)
   viewer = persisted<ResultOf<typeof UserFrag> | undefined>('malViewer', undefined)
-  userlist = writable<Record<string, ResultOf<typeof FullMediaList>>>({}) // al id to al mapped mal entry
+  userlist = writable(new Map<number, ResultOf<typeof FullMediaList>>()) // al id to al mapped mal entry
   malToAL = persisted<Record<number, number>>('malToAL', {})
   ALToMal: Record<number, number> = {}
 
   continueIDs = readable<number[]>([], set => {
     let oldvalue: number[] = []
-    const sub = this.userlist.subscribe(values => {
+    const sub = this.userlist.subscribe(entries => {
       debug('continueIDs: checking for IDs')
-      const entries = Object.entries(values)
-      if (!entries.length) return []
+      if (!entries.size) return []
 
       const ids: number[] = []
 
       for (const [alId, entry] of entries) {
         if (entry.status === 'REPEATING' || entry.status === 'CURRENT') {
-          ids.push(Number(alId))
+          ids.push(alId)
         }
       }
 
@@ -137,16 +136,15 @@ export default new class MALSync {
 
   planningIDs = readable<number[]>([], set => {
     let oldvalue: number[] = []
-    const sub = this.userlist.subscribe(values => {
+    const sub = this.userlist.subscribe(entries => {
       debug('planningIDs: checking for IDs')
-      const entries = Object.entries(values)
-      if (!entries.length) return []
+      if (!entries.size) return []
 
       const ids: number[] = []
 
       for (const [alId, entry] of entries) {
         if (entry.status === 'PLANNING') {
-          ids.push(Number(alId))
+          ids.push(alId)
         }
       }
 
@@ -345,7 +343,7 @@ export default new class MALSync {
 
   async _loadUserList () {
     debug('Loading MAL user list')
-    const entryMap: Record<string, ResultOf<typeof FullMediaList>> = {}
+    const entryMap = new Map<number, ResultOf<typeof FullMediaList>>()
 
     let hasNextPage = true
     let page = 0
@@ -387,19 +385,20 @@ export default new class MALSync {
 
       cached[malId] = alId
       this.ALToMal[alId] = malId
-      entryMap[alId] = this._malEntryToAl(item.node.my_list_status, item.node.id)
+      entryMap.set(alId, this._malEntryToAl(item.node.my_list_status, item.node.id, alId))
     }
 
     this.malToAL.set(cached)
 
-    debug('MAL user list entries mapped to AL IDs:', Object.keys(entryMap))
+    debug('MAL user list entries mapped to AL IDs:', entryMap.size)
 
     this.userlist.set(entryMap)
   }
 
-  _malEntryToAl (item: MALStatus, id: number): ResultOf<typeof FullMediaList> {
+  _malEntryToAl (item: MALStatus, id: number, mediaId: number): ResultOf<typeof FullMediaList> {
     return {
       id,
+      mediaId,
       status: item.is_rewatching ? 'REPEATING' : MAL_TO_AL_STATUS[item.status],
       progress: item.num_episodes_watched,
       score: item.score,
@@ -450,7 +449,7 @@ export default new class MALSync {
   // QUERIES/MUTATIONS
 
   schedule (onList: boolean | null = true) {
-    const ids = Object.keys(this.userlist.value).map(id => parseInt(id))
+    const ids = [...this.userlist.value.keys()]
     debug('Fetching MAL schedule with IDs:', ids)
     return client.schedule(onList && ids.length ? ids : undefined)
   }
@@ -468,8 +467,10 @@ export default new class MALSync {
 
     if (res && 'error' in res) return
 
-    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-    delete this.userlist.value[media.id]
+    this.userlist.update(map => {
+      map.delete(media.id)
+      return map
+    })
   }
 
   following (id: number) {
@@ -507,6 +508,9 @@ export default new class MALSync {
 
     if ('error' in res) return
 
-    this.userlist.value[targetMediaId] = this._malEntryToAl(res, targetMediaId)
+    this.userlist.update(map => {
+      map.set(targetMediaId, this._malEntryToAl(res, targetMediaId, targetMediaId))
+      return map
+    })
   }
 }()

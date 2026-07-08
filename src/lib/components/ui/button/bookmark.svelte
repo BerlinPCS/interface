@@ -3,7 +3,7 @@
 
   import { Bookmark } from '$lib/components/icons/animated'
   import { Button, iconSizes, type Props } from '$lib/components/ui/button'
-  import { list, authAggregator, lists } from '$lib/modules/auth'
+  import { list, authAggregator } from '$lib/modules/auth'
   import { clickwrap, keywrap } from '$lib/modules/navigate'
   import { cn } from '$lib/utils'
 
@@ -16,9 +16,11 @@
   export let size: NonNullable<$$Props['size']> = 'icon-sm'
   export let variant: NonNullable<$$Props['variant']> = 'ghost'
 
+  $: status = list(media)
+
   async function toggleBookmark () {
-    if (!list(media)) {
-      await authAggregator.entry({ id: media.id, status: 'PLANNING', lists: lists(media)?.filter(({ enabled }) => enabled).map(({ name }) => name) })
+    if (!$status) {
+      await authAggregator.entry({ id: media.id, status: 'PLANNING' })
     } else {
       await authAggregator.delete(media)
     }
@@ -26,5 +28,5 @@
 </script>
 
 <Button {size} {variant} class={cn(className, 'animated-icon')} on:click={clickwrap(toggleBookmark)} on:keydown={keywrap(toggleBookmark)}>
-  <Bookmark fill={list(media) ? 'currentColor' : 'transparent'} size={iconSizes[size]} />
+  <Bookmark fill={$status ? 'currentColor' : 'transparent'} size={iconSizes[size]} />
 </Button>

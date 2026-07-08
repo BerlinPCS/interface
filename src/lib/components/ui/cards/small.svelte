@@ -41,8 +41,8 @@
       <Load src={coverMedium(media)} alt='cover' class='object-cover size-full rounded' color={media.coverImage?.color} />
     </div>
     <div class='pt-3 font-black text-[.8rem] line-clamp-2'>
-      {#if status}
-        <StatusDot variant={status} />
+      {#if $status}
+        <StatusDot variant={$status} />
       {/if}
       {title(media)}
     </div>

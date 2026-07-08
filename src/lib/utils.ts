@@ -12,7 +12,7 @@ import type { TransitionConfig } from 'svelte/transition'
 export function anitomyscript (input: string[]) {
   const fixed = input.map(name => {
     // add space between S01E01 and v2
-    name.replace(/s(\d{2})e(\d{2})(v\d{1})/i, 'S$1E$2 $3')
+    name = name.replace(/s(\d{2})e(\d{2})(v\d{1})/i, 'S$1E$2 $3')
     if (!name.includes(' ')) {
       // replace s01e01.A.wish.made with S01E01 A.wish.made, there's some bug in anitomyscript where it doesn't parse the episode number if there's a single character after the sxxexx
       return name.replace(/s(\d{2})e(\d{2})\.([A-z])\./i, 'S$1E$2 $3 ')
@@ -455,6 +455,73 @@ export function derivedDeep<T, U> (store: Readable<T>, fn: (value: T) => U) {
     if (previousValue !== stringified) {
       previousValue = stringified
       set(newValue)
+    }
+  })
+}
+
+export function derivedTeardown<S extends Stores, T>(
+  stores: S,
+  fn: (values: StoresValues<S>, set: (value: T) => void, update: (fn: Updater<T>) => void) => ((cleanup: boolean) => void) | undefined,
+  initialValue?: T
+): Readable<T>
+export function derivedTeardown<S extends Stores, T>(
+  stores: S,
+  fn: (values: StoresValues<S>) => T,
+  initialValue?: T
+): Readable<T>
+export function derivedTeardown<S extends Stores, T> (
+  stores: S,
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+  fn: Function,
+  initialValue?: T
+): Readable<T> {
+  const single = !Array.isArray(stores)
+  const storesArray: Array<Readable<unknown>> = single ? [stores as Readable<unknown>] : (stores as Array<Readable<unknown>>)
+
+  if (!storesArray.every(Boolean)) {
+    throw new Error('derived() expects stores as input, got a falsy value')
+  }
+
+  const auto = fn.length < 2
+  const noop = () => {}
+
+  return readable<T>(initialValue, (set, update) => {
+    let started = false
+    const values: unknown[] = []
+    let pending = 0
+    let cleanup: ((teardown: boolean) => void) = noop
+
+    const sync = () => {
+      if (pending) return
+      cleanup(false)
+      const result = fn(single ? values[0] : values, set, update)
+      if (auto) {
+        set(result as T)
+      } else {
+        cleanup = typeof result === 'function' ? result : noop
+      }
+    }
+
+    const unsubscribers = storesArray.map((store, i) =>
+      store.subscribe(
+        (value: unknown) => {
+          values[i] = value
+          pending &= ~(1 << i)
+          if (started) sync()
+        },
+        () => {
+          pending |= 1 << i
+        }
+      )
+    )
+
+    started = true
+    sync()
+
+    return () => {
+      for (const unsub of unsubscribers) unsub()
+      cleanup(true)
+      started = false
     }
   })
 }

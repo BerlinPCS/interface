@@ -26,7 +26,7 @@
   export let eps: EpisodesResponse | null
   export let media: Media
 
-  $: episodeCount = _episodes(media) ?? eps?.episodeCount ?? 0
+  $: episodeCount = _episodes(media) || eps?.episodeCount || 0
 
   $: episodeList = media && makeEpisodeList(media, eps)
 
@@ -36,9 +36,12 @@
     return list.slice((page - 1) * perPage, page * perPage)
   }
 
-  $: completed = list(media) === 'COMPLETED'
-  $: rewatching = list(media) === 'REPEATING'
-  $: _progress = completed ? 0 : progress(media) ?? 0
+  $: status = list(media)
+  $: progressStore = progress(media)
+
+  $: completed = $status === 'COMPLETED'
+  $: rewatching = $status === 'REPEATING'
+  $: _progress = completed ? 0 : $progressStore ?? 0
 
   $: currentPage = Math.floor((!completed ? _progress : 0) / perPage) + 1
 

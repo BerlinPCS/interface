@@ -6,7 +6,7 @@
   import Cross2 from 'svelte-radix/Cross2.svelte'
   import { tv } from 'tailwind-variants'
 
-  import type { Schedule, ScheduleMedia } from '$lib/modules/anilist/queries'
+  import type { FullMediaList, Schedule, ScheduleMedia } from '$lib/modules/anilist/queries'
   import type { ResultOf } from 'gql.tada'
 
   import StatusDot from '$lib/components/StatusDot.svelte'
@@ -18,7 +18,7 @@
   import { Switch } from '$lib/components/ui/switch'
   import * as Tooltip from '$lib/components/ui/tooltip'
   import { dedupeAiring } from '$lib/modules/anilist'
-  import { authAggregator, list, progress } from '$lib/modules/auth'
+  import { authAggregator } from '$lib/modules/auth'
   import { dragScroll } from '$lib/modules/navigate'
   import { cn, breakpoints } from '$lib/utils'
 
@@ -52,10 +52,10 @@
 
   interface DayAirTimes { day: { date: Date, number: number }, episodes: Array<ResultOf<typeof ScheduleMedia> & { episode: number, airTime: Date }> }
 
-  function aggregate (data: ResultOf<typeof Schedule>, dayList: Array<{ date: Date, number: number }>) {
+  function aggregate (data: ResultOf<typeof Schedule>, dayList: Array<{ date: Date, number: number }>, $entries: Map<number, ResultOf<typeof FullMediaList>>) {
     // join media from all queries into single list, de-duplicate it, and make sure it's not dropped
     const mediaList = [...data.curr1?.media ?? [], ...data.curr2?.media ?? [], ...data.curr3?.media ?? [], ...data.residue?.media ?? [], ...data.next1?.media ?? [], ...data.next2?.media ?? []]
-      .filter((v, i, a) => v != null && a.findIndex(s => s?.id === v.id) === i && list(v) !== 'DROPPED') as Array<ResultOf<typeof ScheduleMedia>>
+      .filter((v, i, a) => v != null && a.findIndex(s => s?.id === v.id) === i && $entries.get(v.id)?.status !== 'DROPPED') as Array<ResultOf<typeof ScheduleMedia>>
 
     const dayMap: Record<string, DayAirTimes | undefined> = Object.fromEntries(dayList.map(day => [+day.date, { day, episodes: [] }]))
 
@@ -77,9 +77,7 @@
     return Object.values(dayMap) as DayAirTimes[]
   }
 
-  // very stupid fix, for a very stupid bug
-  const _list = list
-  const _progress = progress
+  const entries = authAggregator.medialists
 
   const checkvariants = tv({
     base: 'inline-flex size-[0.55rem] me-1 rounded-full',
@@ -156,7 +154,7 @@
         </div>
       </div>
     {:else if $query.data?.curr1?.media}
-      {#each aggregate($query.data, dayList) as { day, episodes } (day.date)}
+      {#each aggregate($query.data, dayList, $entries) as { day, episodes } (day.date)}
         {@const sameMonth = isSameMonth(now, day.date)}
         <div>
           <div class='flex flex-col text-xs py-3 h-24 lg:h-48' class:opacity-30={!sameMonth}>
@@ -181,12 +179,11 @@
                   </Drawer.Header>
                   <Drawer.Footer>
                     {#each episodes as episode, i (i)}
-                      {@const status = _list(episode)}
-                      {@const progress = _progress(episode) ?? 0}
+                      {@const { status, progress } = $entries.get(episode.id) ?? {}}
                       <ButtonPrimitive.Root class={cn('flex items-center h-4 w-full group mt-1.5 px-3', +episode.airTime < Date.now() && 'opacity-30')} href='/#/app/anime/{episode.id}'>
                         <div class='font-medium text-nowrap text-ellipsis overflow-hidden pr-2' title={episode.title?.userPreferred}>
                           {#if status}
-                            {#if progress >= episode.episode}
+                            {#if (progress ?? 0) >= episode.episode}
                               <Check class={cn(checkvariants({ variant: status }))} strokeWidth={5} />
                             {:else}
                               <StatusDot variant={status} class='hidden xl:inline-flex justify-center items-center' />
@@ -207,14 +204,13 @@
               </div>
               <div class='mt-auto'>
                 {#each episodes.length > 6 ? episodes.slice(0, 5) : episodes as episode, i (i)}
-                  {@const status = _list(episode)}
-                  {@const progress = _progress(episode) ?? 0}
+                  {@const { status, progress } = $entries.get(episode.id) ?? {}}
                   <Tooltip.Root openDelay={100}>
                     <Tooltip.Trigger class='text-muted-foreground w-full text-left px-3 mt-1.5' let:builder asChild>
                       <ButtonPrimitive.Root builders={[builder]} class={cn('flex items-center h-4 w-full group mt-1.5 px-3', +episode.airTime < Date.now() && 'opacity-30')} href='/#/app/anime/{episode.id}'>
                         <div class='font-medium text-nowrap text-ellipsis overflow-hidden pr-2' title={episode.title?.userPreferred}>
                           {#if status}
-                            {#if progress >= episode.episode}
+                            {#if (progress ?? 0) >= episode.episode}
                               <Check class={cn(checkvariants({ variant: status }))} strokeWidth={5} />
                             {:else}
                               <StatusDot variant={status} class='hidden xl:inline-flex justify-center items-center' />
@@ -238,12 +234,11 @@
                     </Tooltip.Trigger>
                     <Tooltip.Content sameWidth={true} class='text-center gap-1.5'>
                       {#each episodes.slice(5) as episode, i (i)}
-                        {@const status = _list(episode)}
-                        {@const progress = _progress(episode) ?? 0}
+                        {@const { status, progress } = $entries.get(episode.id) ?? {}}
                         <ButtonPrimitive.Root class={cn('flex items-center h-4 w-full group', +episode.airTime < Date.now() && 'text-muted-foreground')} href='/#/app/anime/{episode.id}'>
                           <div class='font-medium text-nowrap text-ellipsis overflow-hidden pr-2' title={episode.title?.userPreferred}>
                             {#if status}
-                              {#if progress >= episode.episode}
+                              {#if (progress ?? 0) >= episode.episode}
                                 <Check class={cn(checkvariants({ variant: status }))} strokeWidth={5} />
                               {:else}
                                 <StatusDot variant={status} class='hidden xl:inline-flex justify-center items-center' />

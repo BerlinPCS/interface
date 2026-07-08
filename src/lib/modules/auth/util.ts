@@ -1,43 +1,44 @@
+import { derived } from 'svelte/store'
+
 import { episodes, type Media } from '../anilist'
 
 import { authAggregator } from '.'
 
-export function progress (media: { id: Media['id'], mediaListEntry: Pick<Media['mediaListEntry'] & {}, 'progress' | 'id'> | null}): number | undefined {
-  // HACK: this is unsafe, but it shouldnt be a problem
-  return authAggregator.mediaListEntry(media as Media)?.progress ?? undefined
+export function progress (media: { id: number }) {
+  return derived(authAggregator.mediaListEntry(media.id), $e => $e?.progress)
 }
 
 export function fav (media: Pick<Media, 'isFavourite' | 'id'>): boolean {
   return !!authAggregator.isFavourite(media)
 }
 
-export function list (media: { id: Media['id'], mediaListEntry: Pick<Media['mediaListEntry'] & {}, 'status' | 'id'> | null}): 'CURRENT' | 'PLANNING' | 'COMPLETED' | 'DROPPED' | 'PAUSED' | 'REPEATING' | null | undefined {
-  // HACK: this is unsafe, but it shouldnt be a problem
-  return authAggregator.mediaListEntry(media as Media)?.status
+export function list (media: { id: number }) {
+  return derived(authAggregator.mediaListEntry(media.id), $e => $e?.status)
 }
 
-export function lists (media: Pick<Media, 'mediaListEntry' | 'id'>): Array<{ enabled: boolean, name: string }> | undefined {
-  return authAggregator.mediaListEntry(media)?.customLists as Array<{ enabled: boolean, name: string }> | undefined
+export function lists (media: { id: number }) {
+  return derived(authAggregator.mediaListEntry(media.id), $e => $e?.customLists as Array<{ enabled: boolean, name: string }> | undefined)
 }
 
-export function repeat (media: Pick<Media, 'mediaListEntry' | 'id'>): number | null | undefined {
-  return authAggregator.mediaListEntry(media)?.repeat
+export function repeat (media: { id: number }) {
+  return derived(authAggregator.mediaListEntry(media.id), $e => $e?.repeat)
 }
 
-export function score (media: Pick<Media, 'mediaListEntry' | 'id'>): number | null | undefined {
-  return authAggregator.mediaListEntry(media)?.score
+export function score (media: { id: number }) {
+  return derived(authAggregator.mediaListEntry(media.id), $e => $e?.score)
 }
 
-export function entry (media: Pick<Media, 'mediaListEntry' | 'id'>): Media['mediaListEntry'] {
-  return authAggregator.mediaListEntry(media) ?? null
+export function entry (media: { id: number }) {
+  return derived(authAggregator.mediaListEntry(media.id), $e => $e)
 }
 
-export function of (media: Pick<Media, 'aired' | 'notaired' | 'episodes' | 'mediaListEntry' | 'id'>): string | undefined {
-  const count = episodes(media)
-  if (count === 1 || !count) return
+export function of (media: Pick<Media, 'aired' | 'notaired' | 'episodes' | 'id'>) {
+  return derived(progress(media), $prog => {
+    const count = episodes(media)
+    if (count === 1 || !count) return
 
-  const prog = progress(media)
-  if (!prog || prog === count) return `${count} Episodes`
+    if (!$prog || $prog === count) return `${count} Episodes`
 
-  return `${prog} / ${count} Episodes`
+    return `${$prog} / ${count} Episodes`
+  })
 }

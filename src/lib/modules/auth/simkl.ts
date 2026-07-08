@@ -89,21 +89,20 @@ const ENDPOINTS = {
 export default new class SimklSync {
   auth = persisted<SimklOAuth | undefined>('simklAuth', undefined)
   viewer = persisted<ResultOf<typeof UserFrag> | undefined>('simklViewer', undefined)
-  userlist = writable<Record<string, ResultOf<typeof FullMediaList>>>({})
+  userlist = writable(new Map<number, ResultOf<typeof FullMediaList>>())
   simklToAL: Record<string, string> = {}
   ALToSimkl: Record<string, string> = {}
 
   continueIDs = readable<number[]>([], set => {
     let oldvalue: number[] = []
-    const sub = this.userlist.subscribe(values => {
-      const entries = Object.entries(values)
-      if (!entries.length) return
+    const sub = this.userlist.subscribe(entries => {
+      if (!entries.size) return
 
       const ids: number[] = []
 
       for (const [alId, entry] of entries) {
         if (entry.status === 'REPEATING' || entry.status === 'CURRENT') {
-          ids.push(Number(alId))
+          ids.push(alId)
         }
       }
 
@@ -116,15 +115,14 @@ export default new class SimklSync {
 
   planningIDs = readable<number[]>([], set => {
     let oldvalue: number[] = []
-    const sub = this.userlist.subscribe(values => {
-      const entries = Object.entries(values)
-      if (!entries.length) return
+    const sub = this.userlist.subscribe(entries => {
+      if (!entries.size) return
 
       const ids: number[] = []
 
       for (const [alId, entry] of entries) {
         if (entry.status === 'PLANNING') {
-          ids.push(Number(alId))
+          ids.push(alId)
         }
       }
 
@@ -312,7 +310,7 @@ export default new class SimklSync {
 
     if (!list || 'error' in list || !list.anime) return
 
-    const entryMap: Record<string, ResultOf<typeof FullMediaList>> = {}
+    const entryMap = new Map<number, ResultOf<typeof FullMediaList>>()
 
     for (const item of list.anime) {
       const anilistId = item.show.ids.anilist
@@ -325,14 +323,15 @@ export default new class SimklSync {
       this.simklToAL[simklIdNum] = anilistId
       this.ALToSimkl[anilistId] = simklIdNum.toString()
 
-      entryMap[anilistId] = {
+      entryMap.set(alIdNum, {
         id: alIdNum,
+        mediaId: alIdNum,
         status: item.status ? SIMKL_TO_AL_STATUS[item.status] : null,
         progress: item.watched_episodes_count ?? 0,
         score: item.user_rating ?? 0,
         repeat: 0,
         customLists: null
-      }
+      })
     }
     this.userlist.set(entryMap)
   }
@@ -352,7 +351,7 @@ export default new class SimklSync {
   // QUERIES/MUTATIONS
 
   schedule (onList: boolean | null = true) {
-    const ids = Object.keys(this.userlist.value).map(id => parseInt(id))
+    const ids = [...this.userlist.value.keys()]
 
     return client.schedule(onList && ids.length ? ids : undefined)
   }
@@ -377,7 +376,7 @@ export default new class SimklSync {
 
   async deleteEntry (media: Media) {
     const alId = media.id
-    const simklEntry = this.userlist.value[alId]
+    const simklEntry = this.userlist.value.get(alId)
 
     if (!simklEntry) return
 
@@ -387,8 +386,10 @@ export default new class SimklSync {
 
     if (res && 'error' in res) return
 
-    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-    delete this.userlist.value[alId]
+    this.userlist.update(map => {
+      map.delete(alId)
+      return map
+    })
   }
 
   async entry (variables: VariablesOf<typeof Entry>) {
@@ -404,15 +405,19 @@ export default new class SimklSync {
 
     if (!res || 'error' in res) return
 
-    const existing = this.userlist.value[targetMediaId]
+    const existing = this.userlist.value.get(targetMediaId)
 
-    this.userlist.value[targetMediaId] = {
-      id: targetMediaId,
-      status: variables.status ?? existing?.status ?? null,
-      progress: variables.progress ?? existing?.progress ?? 0,
-      score: variables.score ?? existing?.score ?? 0,
-      repeat: variables.repeat ?? existing?.repeat ?? 0,
-      customLists: null
-    }
+    this.userlist.update(map => {
+      map.set(targetMediaId, {
+        id: targetMediaId,
+        mediaId: targetMediaId,
+        status: variables.status ?? existing?.status ?? null,
+        progress: variables.progress ?? existing?.progress ?? 0,
+        score: variables.score ?? existing?.score ?? 0,
+        repeat: variables.repeat ?? existing?.repeat ?? 0,
+        customLists: null
+      })
+      return map
+    })
   }
 }()

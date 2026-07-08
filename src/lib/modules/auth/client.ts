@@ -1,5 +1,5 @@
 import { readable } from 'simple-store-svelte'
-import { derived, get } from 'svelte/store'
+import { derived, get, type Readable } from 'svelte/store'
 import { persisted } from 'svelte-persisted-store'
 
 import { client, episodes, type Media } from '../anilist'
@@ -9,10 +9,10 @@ import local from './local'
 import mal from './mal'
 import simkl from './simkl'
 
-import type { Entry, UserFrag } from '../anilist/queries'
+import type { Entry, FullMediaList, UserFrag } from '../anilist/queries'
 import type { ResultOf, VariablesOf } from 'gql.tada'
 
-import { derivedArray } from '$lib/utils'
+import { derivedArray, derivedTeardown } from '$lib/utils'
 
 export default new class AuthAggregator {
   hasAuth = readable(this.checkAuth(), set => {
@@ -72,13 +72,35 @@ export default new class AuthAggregator {
     if (this.simkl()) return simkl.profile()
   }
 
-  mediaListEntry (media: Pick<Media, 'mediaListEntry' | 'id'>) {
-    if (this.anilist()) return media.mediaListEntry
-    if (this.kitsu()) return kitsu.userlist.value[media.id]
-    if (this.mal()) return mal.userlist.value[media.id]
-    if (this.simkl()) return simkl.userlist.value[media.id]
+  medialists = derived(
+    [client.medialists, kitsu.userlist, mal.userlist, simkl.userlist, local.userlist],
+    ([$client, $kitsu, $mal, $simkl, $local]) => {
+      if (this.anilist()) return $client
+      if (this.kitsu()) return $kitsu
+      if (this.mal()) return $mal
+      if (this.simkl()) return $simkl
+      return $local
+    }
+  )
 
-    return local.get(media.id)?.mediaListEntry
+  _entryCache = new Map<number, Readable<ResultOf<typeof FullMediaList> | null>>()
+  mediaListEntry (mediaId: number) {
+    const cached = this._entryCache.get(mediaId)
+    if (cached) return cached
+
+    const base = derivedTeardown(
+      [client.medialists, kitsu.userlist, mal.userlist, simkl.userlist],
+      ([$alMap, $kitsuList, $malList, $simklList], set: (v: ResultOf<typeof FullMediaList> | null) => void) => {
+        set($alMap.get(mediaId) ?? $kitsuList.get(mediaId) ?? $malList.get(mediaId) ?? $simklList.get(mediaId) ?? local.get(mediaId)?.mediaListEntry ?? null)
+
+        return (teardown) => {
+          if (teardown) this._entryCache.delete(mediaId)
+        }
+      }
+    )
+
+    this._entryCache.set(mediaId, base)
+    return base
   }
 
   isFavourite (media: Pick<Media, 'isFavourite' | 'id'>) {
@@ -133,10 +155,10 @@ export default new class AuthAggregator {
   async watch (outdated: Media, progress: number) {
     if (!isFinite(progress) || progress < 0) return
     const media = (await client.single(outdated.id, navigator.onLine ? 'network-only' : 'cache-first')).data?.Media ?? outdated
-    const totalEps = episodes(media) ?? 1 // episodes or movie which is single episode
+    const totalEps = episodes(media) || 1 // episodes or movie which is single episode
     if (totalEps < progress) return // woah, bad data from resolver?!
 
-    const mediaList = this.mediaListEntry(media)
+    const mediaList = get(this.mediaListEntry(media.id))
 
     const currentProgress = mediaList?.progress ?? 0
     if (currentProgress >= progress) return
@@ -159,7 +181,7 @@ export default new class AuthAggregator {
     const sync = get(this.syncSettings)
 
     return Promise.allSettled([
-      sync.al && this.anilist() && client.deleteEntry(media),
+      sync.al && this.anilist() && client.deleteEntry(get(this.mediaListEntry(media.id))?.id),
       sync.kitsu && this.kitsu() && kitsu.deleteEntry(media),
       sync.mal && this.mal() && mal.deleteEntry(media),
       sync.simkl && this.simkl() && simkl.deleteEntry(media),
@@ -188,7 +210,7 @@ export default new class AuthAggregator {
     // media is sourced from last torrent cache from local storage, which LIKELY is outdated as it doesn't use urql cache
     // so we fetch the media again to get the latest mediaListEntry
     const updatedMedia = (await client.single(media.id, 'cache-first')).data?.Media ?? media
-    const mediaList = this.mediaListEntry(updatedMedia)
+    const mediaList = get(this.mediaListEntry(updatedMedia.id))
 
     if (!mediaList) return await this.entry({ id: media.id, progress: 0, status: 'CURRENT' })
 

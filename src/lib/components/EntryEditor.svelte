@@ -21,18 +21,24 @@
     REPEATING: 'Re-Watching'
   }
 
-  let status = { value: list(media) ?? 'CURRENT', label: STATUS_LABELS[list(media) ?? 'CURRENT'] }
-  let score = { value: Number(_score(media) ?? 0), label: '' + (_score(media) ?? 0) }
+  const listStore = list(media)
+  const listsStore = lists(media)
+  const scoreStore = _score(media)
+  const progressStore = _progress(media)
+  const repeatStore = _repeat(media)
 
-  let progress = _progress(media) ?? 0
-  let repeat = _repeat(media) ?? 0
+  let status = { value: $listStore ?? 'CURRENT', label: STATUS_LABELS[$listStore ?? 'CURRENT'] }
+  let score = { value: Number($scoreStore ?? 0), label: '' + ($scoreStore ?? 0) }
+
+  let progress = $progressStore ?? 0
+  let repeat = $repeatStore ?? 0
 
   function deleteEntry () {
     authAggregator.delete(media)
   }
 
   function saveEntry () {
-    authAggregator.entry({ id: media.id, score: Number(score.value) * 10, repeat: Number(repeat), progress: Number(progress), status: status.value, lists: lists(media)?.filter(({ enabled }) => enabled).map(({ name }) => name) })
+    authAggregator.entry({ id: media.id, score: Number(score.value) * 10, repeat: Number(repeat), progress: Number(progress), status: status.value, lists: $listsStore?.filter(({ enabled }) => enabled).map(({ name }) => name) })
   }
 </script>
 

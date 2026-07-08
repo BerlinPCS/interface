@@ -3,6 +3,7 @@ import gql from './gql'
 export const FullMediaList = gql(`
   fragment FullMediaList on MediaList @_unmask {
     id,
+    mediaId,
     status,
     progress,
     repeat,
@@ -11,15 +12,6 @@ export const FullMediaList = gql(`
   }
 `)
 
-export const MediaListMedia = gql(`
-  fragment MediaListMedia on Media @_unmask {
-    id,
-    mediaListEntry {
-      ...FullMediaList
-    }
-  }
-`, [FullMediaList])
-
 export const UserListMedia = gql(`
   fragment UserListMedia on Media @_unmask {
     title {
@@ -27,9 +19,6 @@ export const UserListMedia = gql(`
     },
     id,
     status,
-    mediaListEntry {
-      ...FullMediaList
-    },
     nextAiringEpisode {
       episode
     },
@@ -42,7 +31,7 @@ export const UserListMedia = gql(`
       }
     }
   }
-`, [FullMediaList])
+`)
 
 // cant include mediaListEntry in here, because AL API doesn't return data for it on the 3rd edge of relations
 const RelationMedia = gql(`
@@ -148,9 +137,6 @@ tags {
   rank,
   isAdult
 },
-mediaListEntry {
-  ...FullMediaList
-},
 studios(isMain: true) {
   nodes {
     id,
@@ -174,7 +160,7 @@ relations {
     ...MediaEdgeFrag
   }
 }
-}`, [FullMediaList, MediaEdgeFrag])
+}`, [MediaEdgeFrag])
 
 export const UserFrag = gql(`
   fragment UserFrag on User @_unmask {
@@ -265,6 +251,7 @@ export const UserLists = gql(`
         status,
         entries {
           id,
+          ...FullMediaList,
           media {
             ...UserListMedia
           }
@@ -272,7 +259,7 @@ export const UserLists = gql(`
       }
     }
   }
-`, [UserListMedia])
+`, [UserListMedia, FullMediaList])
 
 export const UpdateUser = gql(`
   mutation UpdateUser($lists: [String], $adult: Boolean, $language: UserTitleLanguage) {
@@ -297,11 +284,6 @@ export const ScheduleMedia = gql(`
     coverImage { extraLarge, color },
     title {
       userPreferred
-    }
-    mediaListEntry {
-      status,
-      progress,
-      id
     }
     aired: airingSchedule(page: 1, perPage: 50, notYetAired: false) {
       n: nodes {
@@ -595,9 +577,6 @@ export const AnimePage = gql(`
           id,
           rating,
           mediaRecommendation {
-            mediaListEntry {
-              ...FullMediaList
-            },
             ...EdgeMedia
           }
         }
@@ -624,4 +603,4 @@ export const AnimePage = gql(`
       }
     }
   }
-`, [FullMedia, ThreadFrag, UserFrag, EdgeMedia, FullMediaList])
+`, [FullMedia, ThreadFrag, UserFrag, EdgeMedia])

@@ -14,7 +14,7 @@ import { cacheOnErrorExchange } from './exchanges/error.ts'
 import { offlineExchange } from './exchanges/offline.ts'
 import { retryExchange } from './exchanges/retry.ts'
 import gql from './gql'
-import { CommentFrag, UpdateUser, type Entry, FullMedia, ThreadFrag, type ToggleFavourite, UserLists, Viewer, MediaListMedia, UserListMedia } from './queries'
+import { CommentFrag, UpdateUser, type Entry, FullMedia, ThreadFrag, type ToggleFavourite, UserLists, Viewer } from './queries'
 import schema from './schema.json' with { type: 'json' }
 
 import type { CombinedError } from '@urql/core'
@@ -120,10 +120,8 @@ export default new class URQLClient extends Client {
 
                 cache.writeFragment(gql('fragment Med on Media {id, isFavourite}'), { id, isFavourite: !!exists })
               },
-              DeleteMediaListEntry: (_, { id }, cache, info) => {
-                const mediaId = info.variables.mediaId as number
-                debug('cache update DeleteMediaListEntry', id, mediaId)
-                cache.writeFragment(MediaListMedia, { id: mediaId, mediaListEntry: null })
+              DeleteMediaListEntry: (_, { id }, cache) => {
+                debug('cache update DeleteMediaListEntry', id)
                 cache.updateQuery({ query: UserLists, variables: { id: this.viewer.value?.viewer?.id } }, data => {
                   debug('cache update DeleteMediaListEntry, UserLists', data)
                   if (!data?.MediaListCollection?.lists) return data
@@ -131,46 +129,40 @@ export default new class URQLClient extends Client {
                     if (!list?.entries) return list
                     return {
                       ...list,
-                      entries: list.entries.filter(entry => entry?.media?.mediaListEntry?.id !== id)
+                      entries: list.entries.filter(entry => entry?.id !== id)
                     }
                   })
-
                   return data
                 })
               },
-              SaveMediaListEntry: (result: ResultOf<typeof Entry>, { mediaId }, cache) => {
-                debug('cache update SaveMediaListEntry', result, mediaId)
+              SaveMediaListEntry: (result: ResultOf<typeof Entry>, _args, cache) => {
+                debug('cache update SaveMediaListEntry', result)
                 const entry = result.SaveMediaListEntry
                 debug('SaveMediaListEntry entry', entry)
-                cache.writeFragment(MediaListMedia, {
-                  id: mediaId as number,
-                  mediaListEntry: entry ?? null
-                })
+                const mediaId = entry?.mediaId ?? _args.mediaId as number
+                if (!mediaId || !entry) return
                 cache.updateQuery({ query: UserLists, variables: { id: this.viewer.value?.viewer?.id } }, data => {
                   debug('cache update SaveMediaListEntry, UserLists', data)
                   if (!data?.MediaListCollection?.lists) return data
-                  const oldLists = data.MediaListCollection.lists
-                  const oldEntry = oldLists.flatMap(list => list?.entries).find(entry => entry?.media?.id === mediaId) ?? { __typename: 'MediaList', id: entry?.id ?? Math.random() * -1e9 | 0, media: cache.readFragment(UserListMedia, { id: mediaId as number, __typename: 'Media' }) }
-                  if (!oldEntry.media) return data
-                  debug('oldEntry', oldEntry)
 
-                  const lists = oldLists.map(list => {
-                    if (!list?.entries) return list
-                    return {
-                      ...list,
-                      entries: list.entries.filter(entry => entry?.media?.id !== mediaId)
-                    }
-                  })
+                  const status =
+                    result.SaveMediaListEntry?.status ??
+                    data.MediaListCollection.lists.find(l => l?.status && l.entries?.find(e => e?.media?.id === mediaId))?.status ??
+                    'PLANNING'
+                  debug('status', status)
+
+                  const lists = data.MediaListCollection.lists
+                  if (!lists.some(l => l?.status === status)) lists.push({ status, entries: [] })
+
+                  for (const list of lists) {
+                    if (!list) continue
+                    // remove old
+                    list.entries = list.entries?.filter(entry => entry?.mediaId !== mediaId) ?? []
+                    // @ts-expect-error gql infer types, add new
+                    if (list.status === status) list.entries.unshift({ ...entry, __typename: 'MediaList', media: { id: mediaId, __typename: 'Media' } })
+                  }
                   debug('lists', lists)
 
-                  const status = result.SaveMediaListEntry?.status ?? oldEntry.media.mediaListEntry?.status ?? 'PLANNING' as const
-                  let targetList = lists.find(list => list?.status === status)
-                  if (!targetList) {
-                    lists.push(targetList = { status, entries: [] })
-                  }
-                  debug('targetList', targetList)
-                  targetList.entries ??= []
-                  targetList.entries.unshift(oldEntry)
                   return { ...data, MediaListCollection: { ...data.MediaListCollection, lists } }
                 })
               },
@@ -199,7 +191,9 @@ export default new class URQLClient extends Client {
           resolvers: {
             Query: {
               Media: (parent, { id }) => ({ __typename: 'Media', id }),
-              Thread: (parent, { id }) => ({ __typename: 'Thread', id })
+              MediaList: (parent, { id }) => ({ __typename: 'MediaList', id }),
+              Thread: (parent, { id }) => ({ __typename: 'Thread', id }),
+              ThreadComment: (parent, { id }) => ({ __typename: 'ThreadComment', id })
             }
           },
           optimistic: {
@@ -222,25 +216,16 @@ export default new class URQLClient extends Client {
               debug('optimistic DeleteMediaListEntry')
               return { deleted: true, __typename: 'Deleted' }
             },
-            SaveMediaListEntry (args, cache, info) {
+            SaveMediaListEntry (args, _cache, info) {
               debug('optimistic SaveMediaListEntry', args)
-              const id = args.mediaId as number
-              const media = cache.readFragment(MediaListMedia, { id, __typename: 'Media' })
-              if (!media) return null
               info.partial = true
-              debug('optimistic SaveMediaListEntry media', media)
 
               return {
-                status: 'PLANNING' as const,
-                progress: 0,
-                repeat: 0,
-                score: 0,
                 id: Math.random() * -1e9 | 0,
-                ...media.mediaListEntry,
                 // TODO: I think customlists are wrong
-                customLists: (args.customLists as string[]).map(name => ({ enabled: true, name })),
                 ...args,
-                media: { id, __typename: 'Media' },
+                customLists: (args.customLists as string[])?.map(name => ({ enabled: true, name })),
+                media: { id: args.mediaId, __typename: 'Media' },
                 __typename: 'MediaList'
               }
             },
@@ -255,6 +240,8 @@ export default new class URQLClient extends Client {
 
               if (!likableUnion) return null
               debug('optimistic ToggleLikeV2 likableUnion', likableUnion)
+
+              info.partial = true
 
               return {
                 id: threadOrCommentId,

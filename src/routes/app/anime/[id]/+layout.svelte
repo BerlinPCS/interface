@@ -64,7 +64,9 @@
 
   $: ({ r, g, b } = colors(media.coverImage?.color ?? undefined))
 
-  $: spoiler = $settings.hideSpoilers && ['CURRENT', 'PLANNING'].includes(list(media)!)
+  $: listStore = list(media)
+  $: ofStore = of(media)
+  $: spoiler = $settings.hideSpoilers && ['CURRENT', 'PLANNING'].includes($listStore!)
   $: underPoweredSpoiler = spoiler && SUPPORTS.isUnderPowered
 
   interface Tag {
@@ -98,7 +100,7 @@
           <h1 class='font-black text-3xl md:text-4xl line-clamp-2 text-foreground select-all'>{title(media)}</h1>
           <div class='flex-wrap w-full justify-start md:pt-1 gap-2 hidden md:flex'>
             <div class='rounded px-3.5 font-bold bg-custom text-contrast'>
-              {of(media) ?? duration(media) ?? 'N/A'}
+              {$ofStore ?? duration(media) ?? 'N/A'}
             </div>
             <Button class='rounded px-3.5 font-bold bg-custom select:!bg-custom-600 text-contrast h-6 py-0 text-base' on:click={() => goto('/#/app/search', { state: { search: { format: [media.format] } } })}>
               {format(media)}

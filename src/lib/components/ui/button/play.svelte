@@ -16,18 +16,21 @@
   export { className as class }
   export let media: Media
   export let size: NonNullable<$$Props['size']> = 'xs'
+
+  $: status = list(media)
+  $: progressStore = progress(media)
+
   function play () {
-    const episode = list(media) === 'COMPLETED' ? 1 : (progress(media) ?? 0) + 1
+    const episode = $status === 'COMPLETED' ? 1 : ($progressStore ?? 0) + 1
     $playEp(media, episode)
   }
 </script>
 
 <Button class={cn(className, 'font-bold flex items-center justify-center')} {size} on:click={clickwrap(play)} on:keydown={keywrap(play)}>
   <Play fill='currentColor' class='mr-2' size={iconSizes[size]} />
-  {@const status = list(media)}
-  {#if status === 'COMPLETED'}
+  {#if $status === 'COMPLETED'}
     Rewatch
-  {:else if status === 'CURRENT' || status === 'REPEATING' || status === 'PAUSED'}
+  {:else if $status === 'CURRENT' || $status === 'REPEATING' || $status === 'PAUSED'}
     Continue
   {:else}
     Watch Now

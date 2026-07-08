@@ -45,23 +45,22 @@ const AL_TO_KITSU_STATUS: Record<ALMediaStatus, KitsuMediaStatus> = {
 export default new class KitsuSync {
   auth = persisted<OAuth | undefined>('kitsuAuth', undefined)
   viewer = persisted<ResultOf<typeof UserFrag> | undefined>('kitsuViewer', undefined)
-  userlist = writable<Record<string, ResultOf<typeof FullMediaList>>>({}) // al id to al mapped kitsu entry
+  userlist = writable(new Map<number, ResultOf<typeof FullMediaList>>()) // al id to al mapped kitsu entry
   favorites = writable<Record<string, string>>({}) // kitsu anime id to kitsu fav id
   kitsuToAL: Record<string, string> = {}
   ALToKitsu: Record<string, string> = {}
 
   continueIDs = readable<number[]>([], set => {
     let oldvalue: number[] = []
-    const sub = this.userlist.subscribe(values => {
+    const sub = this.userlist.subscribe(entries => {
       debug('continueIDs: checking for IDs')
-      const entries = Object.entries(values)
-      if (!entries.length) return []
+      if (!entries.size) return []
 
       const ids: number[] = []
 
       for (const [alId, entry] of entries) {
         if (entry.status === 'REPEATING' || entry.status === 'CURRENT') {
-          ids.push(Number(alId))
+          ids.push(alId)
         }
       }
 
@@ -76,16 +75,15 @@ export default new class KitsuSync {
 
   planningIDs = readable<number[]>([], set => {
     let oldvalue: number[] = []
-    const sub = this.userlist.subscribe(values => {
+    const sub = this.userlist.subscribe(entries => {
       debug('planningIDs: checking for IDs')
-      const entries = Object.entries(values)
-      if (!entries.length) return []
+      if (!entries.size) return []
 
       const ids: number[] = []
 
       for (const [alId, entry] of entries) {
         if (entry.status === 'PLANNING') {
-          ids.push(Number(alId))
+          ids.push(alId)
         }
       }
 
@@ -257,9 +255,10 @@ export default new class KitsuSync {
     })
   }
 
-  _kitsuEntryToAl (entry: Resource<KEntry>): ResultOf<typeof FullMediaList> {
+  _kitsuEntryToAl (entry: Resource<KEntry>, mediaId: number): ResultOf<typeof FullMediaList> {
     return {
       id: Number(entry.id),
+      mediaId,
       status: entry.attributes.reconsuming ? 'REPEATING' : entry.attributes.status ? KITSU_TO_AL_STATUS[entry.attributes.status] : null,
       progress: entry.attributes.progress ?? 0,
       score: Number(entry.attributes.rating) || 0,
@@ -310,10 +309,10 @@ export default new class KitsuSync {
       if (!anilistId || !animeRes) continue
       this.kitsuToAL[animeRes.id] = anilistId
       this.ALToKitsu[anilistId] = animeRes.id
-      entryMap[anilistId] = this._kitsuEntryToAl(entry)
+      entryMap.set(Number(anilistId), this._kitsuEntryToAl(entry, Number(anilistId)))
     }
 
-    debug('Kitsu entries to MediaList conversion finished, found', Object.keys(entryMap).length, 'entries')
+    debug('Kitsu entries to MediaList conversion finished, found', entryMap.size, 'entries')
 
     for (const [id, fav] of relations.favorites.entries()) {
       const data = fav.relationships!.item!.data as { id: string }
@@ -373,7 +372,10 @@ export default new class KitsuSync {
 
     if (!('data' in data)) return
 
-    this.userlist.value[alId] = this._kitsuEntryToAl(data.data)
+    this.userlist.update(map => {
+      map.set(alId, this._kitsuEntryToAl(data.data, alId))
+      return map
+    })
   }
 
   async _updateEntry (id: number, attributes: Omit<KEntry, 'createdAt' | 'updatedAt'>, alId: number) {
@@ -387,7 +389,10 @@ export default new class KitsuSync {
 
     if (!('data' in data)) return
 
-    this.userlist.value[alId] = this._kitsuEntryToAl(data.data)
+    this.userlist.update(map => {
+      map.set(alId, this._kitsuEntryToAl(data.data, alId))
+      return map
+    })
   }
 
   // TODO: use kitsu's own API for this instead?
@@ -424,7 +429,7 @@ export default new class KitsuSync {
   // QUERIES/MUTATIONS
 
   schedule (onList: boolean | null = true) {
-    const ids = Object.keys(this.userlist.value).map(id => parseInt(id))
+    const ids = [...this.userlist.value.keys()]
     debug('Kitsu schedule called with onList:', onList, 'and ids:', ids)
     return client.schedule(onList && ids.length ? ids : undefined)
   }
@@ -454,13 +459,15 @@ export default new class KitsuSync {
 
   async deleteEntry (media: Media) {
     debug('deleting Kitsu entry for media ID', media.id)
-    const id = this.userlist.value[media.id]?.id
+    const id = this.userlist.value.get(media.id)?.id
     if (!id) return
     const res = await this._delete<undefined>(`${ENDPOINTS.API_USER_LIBRARY}/${id}`)
     if (res && 'error' in res) return
 
-    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-    delete this.userlist.value[media.id]
+    this.userlist.update(map => {
+      map.delete(media.id)
+      return map
+    })
   }
 
   following (id: number) {
@@ -486,7 +493,7 @@ export default new class KitsuSync {
     debug('updating Kitsu entry for media ID', variables.id, 'with variables', variables)
     const targetMediaId = variables.id
 
-    const kitsuEntry = this.userlist.value[targetMediaId]
+    const kitsuEntry = this.userlist.value.get(targetMediaId)
 
     const kitsuEntryVariables: Partial<KEntry> = {
       status: AL_TO_KITSU_STATUS[variables.status!],

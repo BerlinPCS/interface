@@ -5,7 +5,7 @@ import { derived, get, writable, type Writable } from 'svelte/store'
 
 import { nsfw } from '../settings/settings'
 
-import { AnimePage, Comments, DeleteEntry, DeleteThreadComment, Entry, Following, FollowingMany, type FullMedia, IDMedia, IDTitle, RecrusiveRelations, SaveThreadComment, Schedule, Search, Threads, ToggleFavourite, ToggleLike, UpdateUser, UserLists } from './queries'
+import { AnimePage, Comments, DeleteEntry, DeleteThreadComment, Entry, Following, FollowingMany, type FullMedia, type FullMediaList, IDMedia, IDTitle, RecrusiveRelations, SaveThreadComment, Schedule, Search, Threads, ToggleFavourite, ToggleLike, UpdateUser, UserLists } from './queries'
 import urqlClient from './urql-client'
 import { currentSeason, currentYear, lastSeason, lastYear, nextSeason, nextYear } from './util'
 
@@ -47,6 +47,16 @@ class AnilistClient {
     return queryStore({ client: this.client, query: UserLists, variables: { id }, context: { requestPolicy: 'cache-and-network' } }).subscribe(set)
   })
 
+  medialists = derived(this.userlists, $userlists => {
+    const map = new Map<number, ResultOf<typeof FullMediaList>>()
+    for (const list of $userlists?.data?.MediaListCollection?.lists ?? []) {
+      for (const entry of list?.entries ?? []) {
+        if (entry?.mediaId) map.set(entry.mediaId, entry)
+      }
+    }
+    return map
+  })
+
   continueIDs = derivedArray(this.userlists, $userLists => {
     debug('continueIDs: checking for IDs')
     const mediaList = $userLists?.data?.MediaListCollection?.lists?.reduce((filtered: NonNullable<typeof list>['entries'], list) => {
@@ -55,12 +65,12 @@ class AnilistClient {
     if (!mediaList?.length) return []
 
     const ids = mediaList.filter(entry => {
-      if (!entry?.media?.id) return false
-      if (entry.media.status === 'FINISHED') return true
-      const progress = entry.media.mediaListEntry?.progress ?? 0
+      if (!entry?.mediaId) return false
+      if (entry.media?.status === 'FINISHED') return true
+      const progress = entry.progress ?? 0
       // +2 is for series that don't have the next airing episode scheduled, but are still some-how airing, AL likes to fuck this up a lot, -1 is because we care about the latest aired available episode, not the next aired episode
-      return progress < (entry.media.nextAiringEpisode?.episode ?? (progress + 2)) - 1
-    }).map(entry => entry!.media!.id)
+      return progress < (entry.media?.nextAiringEpisode?.episode ?? (progress + 2)) - 1
+    }).map(entry => entry!.mediaId)
 
     debug('continueIDs: found IDs', ids)
 
@@ -84,7 +94,7 @@ class AnilistClient {
     debug('planningIDs: checking for IDs')
     const mediaList = $userLists?.data?.MediaListCollection?.lists?.find(list => list?.status === 'PLANNING')?.entries
     if (!mediaList) return []
-    const ids = mediaList.map(entry => entry?.media?.id).filter((id): id is number => !!id)
+    const ids = mediaList.map(entry => entry?.mediaId).filter((id): id is number => !!id)
     debug('planningIDs: found IDs', ids)
     return ids
   })
@@ -217,12 +227,10 @@ class AnilistClient {
     return await this.client.mutation(ToggleFavourite, { id })
   }
 
-  async deleteEntry (media: Media) {
-    debug('deleteEntry: deleting entry for media', media)
-    const id = media.mediaListEntry?.id
+  async deleteEntry (id?: number) {
+    debug('deleteEntry: deleting entry with ID', id)
     if (!id || (id <= 0 && navigator.onLine)) return
-    // mediaId is non-standard, but passed to cache for cleaner predictive queries
-    return await this.client.mutation(DeleteEntry, { id, mediaId: media.id })
+    return await this.client.mutation(DeleteEntry, { id })
   }
 
   async entry (variables: VariablesOf<typeof Entry>) {

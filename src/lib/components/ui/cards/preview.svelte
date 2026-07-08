@@ -20,7 +20,9 @@
     hideFrame = e.detail
   }
 
-  $: spoiler = $settings.hideSpoilers && ['CURRENT', 'PLANNING'].includes(list(media)!)
+  $: status = list(media)
+  $: ofStore = of(media)
+  $: spoiler = $settings.hideSpoilers && ['CURRENT', 'PLANNING'].includes($status!)
 </script>
 
 <div class='!absolute w-[17.5rem] h-80 left-1/2 right-1/2 top-0 bottom-0 m-auto bg-muted z-30 rounded cursor-pointer absolute-container'>
@@ -55,7 +57,7 @@
         {format(media)}
       </span>
       <span class='text-nowrap flex items-center'>
-        {of(media) ?? duration(media) ?? 'N/A' }
+        {$ofStore ?? duration(media) ?? 'N/A' }
       </span>
       <span class='text-nowrap flex items-center'>
         {season(media)}

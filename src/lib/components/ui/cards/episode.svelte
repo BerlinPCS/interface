@@ -41,8 +41,8 @@
     </div>
     <div class='flex justify-between pt-3 gap-2'>
       <div class='font-black text-[.8rem] line-clamp-2'>
-        {#if status}
-          <StatusDot variant={status} />
+        {#if $status}
+          <StatusDot variant={$status} />
         {/if}
         {title(media)}
       </div>
