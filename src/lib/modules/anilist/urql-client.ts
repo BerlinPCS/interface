@@ -30,12 +30,12 @@ interface ViewerData { viewer: ResultOf<typeof Viewer>['Viewer'], token: string,
 // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
 export const storagePromise = Promise.withResolvers<void>()
 export const storage = makeDefaultStorage({
-  idbName: 'anilist-cache-v1',
+  idbName: 'anilist-cache-v2',
   onCacheHydrated: () => storagePromise.resolve(),
   maxAge: 21 // The maximum age of the persisted data in days
 })
 
-indexedDB.deleteDatabase('graphcache-v3') // old version
+indexedDB.deleteDatabase('anilist-cache-v1') // old version
 
 debug('Loading urql client')
 storagePromise.promise.finally(() => debug('Graphcache storage initialized'))
