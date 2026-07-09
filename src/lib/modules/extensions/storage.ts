@@ -117,7 +117,7 @@ class CodeManager {
     const workerPromises = configIDs.map((id, index) => {
       const code = codeList[index]!
       debug('Loading worker for', id)
-      return this._loadWorker(code, id, configs[index]!.type)
+      return this._loadWorker(code, id, configs[index]!.type, false)
     })
 
     await Promise.allSettled(workerPromises)
@@ -164,7 +164,7 @@ class CodeManager {
     return invalidIDs
   }
 
-  async _loadWorker (code: string, id: string, type: 'torrent' | 'nzb' | 'subtitle' | 'http') {
+  async _loadWorker (code: string, id: string, type: 'torrent' | 'nzb' | 'subtitle' | 'http', showErrors = true) {
     debug('Creating worker for', id)
     const Loader = wrap<typeof extensionLoader>(new Worker({ name: id })) as unknown as Remote<typeof extensionLoader>
 
@@ -182,7 +182,7 @@ class CodeManager {
         debug('Worker test passed for', id, testResult)
       } catch (e) {
         debug('Worker test failed for', id, e)
-        if (get(savedOptions)[id]?.enabled) {
+        if (showErrors && get(savedOptions)[id]?.enabled) {
           toast.error(`Extension ${id} Failed to load!`, { description: (e as Error).message, duration: 15_000 })
         }
       }
