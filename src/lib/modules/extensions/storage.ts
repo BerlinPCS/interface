@@ -296,6 +296,14 @@ export const storage = new class ConfigManager {
     debug('Extension deleted from storage', id)
   }
 
+  async deleteRepository (updateUrl: string) {
+    debug('Deleting repository', updateUrl)
+    const configs = this.configs()
+    const ids = Object.entries(configs).filter(([, c]) => c.update === updateUrl).map(([id]) => id)
+    await Promise.all(ids.map(id => this.delete(id)))
+    debug('Repository deleted', updateUrl, ids)
+  }
+
   async update () {
     await this.ready
     debug('Updating extensions')

@@ -18,11 +18,12 @@
   import CaretSort from 'svelte-radix/CaretSort.svelte'
   import Check from 'svelte-radix/Check.svelte'
 
+  import ComboboxShell from './ComboboxShell.svelte'
+
   import { Button } from '$lib/components/ui/button'
   import * as Command from '$lib/components/ui/command'
-  import * as Popover from '$lib/components/ui/popover'
   import { inputType, navigate } from '$lib/modules/navigate'
-  import { cn } from '$lib/utils.js'
+  import { breakpoints, cn } from '$lib/utils.js'
 
   export let items: readonly value[] = []
 
@@ -71,8 +72,8 @@
   export { className as class }
 </script>
 
-<Popover.Root bind:open let:ids {portal}>
-  <Popover.Trigger asChild let:builder>
+<ComboboxShell bind:open {portal}>
+  <svelte:fragment slot='trigger' let:builder>
     <Button
       builders={[builder]}
       variant='outline'
@@ -87,22 +88,21 @@
       </div>
       <CaretSort class='ml-2 h-4 w-4 shrink-0 opacity-50' />
     </Button>
-  </Popover.Trigger>
-  <Popover.Content class={cn('p-0 border-0 z-[1000]')} sameWidth={true}>
-    <Command.Root onKeydown={navigate}>
-      <!-- this hacky thing is required for dialog root focus trap... pitiful -->
-      <div class='h-0 w-full' tabindex='0' />
+  </svelte:fragment>
+  <svelte:fragment slot='content' let:triggerId>
+    <Command.Root class={!$breakpoints.md ? 'max-h-none' : ''} onKeydown={navigate}>
+      {#if !$breakpoints.md}
+        <div class='h-0 w-full' tabindex='0' />
+      {/if}
       <Command.Input {placeholder} autofocus={false} class='h-9 placeholder:opacity-50' />
-      <Command.List>
+      <Command.List class={!$breakpoints.md ? 'max-h-none flex-1' : ''}>
         <Command.Empty>No results found.</Command.Empty>
         {#if $inputType === 'dpad'}
           <Command.Group class='shrink-0' alwaysRender={true}>
             <Command.Item
               alwaysRender={true}
               class='cursor-pointer'
-              onSelect={() => {
-                closeAndFocusTrigger(ids.trigger)
-              }}
+              onSelect={() => closeAndFocusTrigger(triggerId)}
               value='close'>
               <X class='mr-2 h-4 w-4' />
               Close
@@ -117,7 +117,7 @@
                 <Command.Item
                   class={cn('cursor-pointer', !multiple && 'flex-row-reverse justify-between')}
                   value={item.value}
-                  onSelect={() => handleSelect(item, ids.trigger)}>
+                  onSelect={() => handleSelect(item, triggerId)}>
                   <div
                     class={cn(
                       'flex h-4 w-4 items-center justify-center rounded-sm border-primary',
@@ -139,7 +139,7 @@
               <Command.Item
                 class={cn('cursor-pointer', !multiple && 'flex-row-reverse justify-between')}
                 value={item.value}
-                onSelect={() => handleSelect(item, ids.trigger)}>
+                onSelect={() => handleSelect(item, triggerId)}>
                 <div
                   class={cn(
                     'flex h-4 w-4 items-center justify-center rounded-sm border-primary',
@@ -157,5 +157,5 @@
         {/if}
       </Command.List>
     </Command.Root>
-  </Popover.Content>
-</Popover.Root>
+  </svelte:fragment>
+</ComboboxShell>

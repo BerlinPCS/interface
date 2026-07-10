@@ -2,6 +2,7 @@
   import GitBranch from 'lucide-svelte/icons/git-branch'
   import Globe from 'lucide-svelte/icons/globe'
   import Plus from 'lucide-svelte/icons/plus'
+  import Trash from 'lucide-svelte/icons/trash-2'
   import { toast } from 'svelte-sonner'
 
   import { Button, iconSizes } from '../button'
@@ -33,6 +34,20 @@
 
   export async function test (id: string) {
     return await storage.codeManager.extensions.get(id)?.test()
+  }
+
+  let deletingRepo: string | null = null
+
+  async function deleteRepository (updateUrl: string) {
+    deletingRepo = updateUrl
+    try {
+      await storage.deleteRepository(updateUrl)
+    } catch (err) {
+      const error = err as Error
+      toast.error(error.cause as string, { description: error.message, duration: 15_000 })
+    } finally {
+      deletingRepo = null
+    }
   }
 // TODO: import files
 </script>
@@ -140,8 +155,13 @@
               {url.protocol.startsWith('http') ? url.hostname : url.href}
             </div>
           </div>
-          <div class='text-xs text-muted-foreground'>
-            {extensions?.length ?? 0} Extensions
+          <div class='flex items-center gap-3'>
+            <div class='text-xs text-muted-foreground'>
+              {extensions?.length ?? 0} Extensions
+            </div>
+            <Button variant='ghost' size='icon-sm' class='animated-icon' disabled={deletingRepo === id} on:click={() => deleteRepository(id)}>
+              <Trash size={16} />
+            </Button>
           </div>
         </div>
       {:else}

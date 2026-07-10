@@ -4,20 +4,16 @@
 
   import type { ExtensionConfig } from '$lib/modules/extensions/types'
 
-  import { Bolt, Trash, Code } from '$lib/components/icons/animated'
+  import { Bolt, Code } from '$lib/components/icons/animated'
   import { Button } from '$lib/components/ui/button'
   import * as Dialog from '$lib/components/ui/dialog'
   import { Input } from '$lib/components/ui/input'
   import { Label } from '$lib/components/ui/label'
   import * as Select from '$lib/components/ui/select'
   import { Switch } from '$lib/components/ui/switch'
-  import { storage, savedOptions as exopts } from '$lib/modules/extensions'
+  import { savedOptions as exopts } from '$lib/modules/extensions'
 
   export let config: ExtensionConfig
-
-  function deleteExtension () {
-    storage.delete(config.id)
-  }
 </script>
 
 <div class='flex justify-between flex-col items-end pb-1.5'>
@@ -39,9 +35,6 @@
           </Dialog.Close>
         </Dialog.Content>
       </Dialog.Root>
-      <Button variant='ghost' size='icon-sm' class='animated-icon select:text-red-600' on:click={deleteExtension}>
-        <Trash size={16} />
-      </Button>
       {#if Object.keys(config.options ?? {}).length}
         <Dialog.Root portal='#root'>
           <Dialog.Trigger let:builder asChild>
