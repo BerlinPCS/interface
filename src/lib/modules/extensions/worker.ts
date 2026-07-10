@@ -3,7 +3,7 @@ import { expose } from 'abslink/w3c'
 
 import SUPPORTS from '../settings/supports'
 
-import type { NZBQuery, WebSeedQuery, WebSeedResult, SearchOptions, AnimeQuery, TorrentResult, TorrentSource, NZBSource, SubtitleSource, Accuracy, WebSeedSource } from './types'
+import type { NZBQuery, WebSeedQuery, WebSeedResult, WebSeedFile, SearchOptions, AnimeQuery, TorrentResult, TorrentSource, NZBSource, SubtitleSource, Accuracy, WebSeedSource } from './types'
 
 const _fetch = SUPPORTS.isIOS
   ? (input: RequestInfo | URL, init?: RequestInit) => {
@@ -145,7 +145,7 @@ export class ExtensionWorker {
   }
 
   async single (
-    query: AnimeQuery | NZBQuery<{ file: string }> | WebSeedQuery<{ file: string }> | Omit<AnimeQuery, 'resolution' | 'exclusions'>,
+    query: AnimeQuery | NZBQuery<{ file: string }> | WebSeedQuery<{ file: WebSeedFile }> | Omit<AnimeQuery, 'resolution' | 'exclusions'>,
     options?: SearchOptions
   ): Promise<TorrentResult[] | string | undefined | WebSeedResult | Array<{url: string, language: string}>> {
     const state = this._state!
@@ -159,7 +159,10 @@ export class ExtensionWorker {
         return await state.mod.single({ ...query as NZBQuery<{ file: string }>, fetch: _fetch }, options)
       }
       case 'http': {
-        return await state.mod.single({ ...query as WebSeedQuery<{ file: string }>, fetch: _fetch }, options)
+        const q = query as WebSeedQuery<{ file: WebSeedFile }>
+        const res = await state.mod.single({ ...q, fetch: _fetch }, options)
+        if (res) res.index ??= q.file.index
+        return res
       }
       case 'subtitle': {
         return await state.mod.single({ ...query as Omit<AnimeQuery, 'resolution' | 'exclusions'>, fetch: _fetch }, options)
@@ -168,7 +171,7 @@ export class ExtensionWorker {
   }
 
   async batch (
-    query: AnimeQuery | NZBQuery<{ files: string[], name: string }> | WebSeedQuery<{ files: string[], name: string }>,
+    query: AnimeQuery | NZBQuery<{ files: string[], name: string }> | WebSeedQuery<{ files: WebSeedFile[], name: string }>,
     options?: SearchOptions
   ): Promise<TorrentResult[] | string | undefined | WebSeedResult[]> {
     const state = this._state!
@@ -182,7 +185,7 @@ export class ExtensionWorker {
         return await state.mod.batch({ ...query as NZBQuery<{ files: string[], name: string }>, fetch: _fetch }, options)
       }
       case 'http': {
-        return await state.mod.batch({ ...query as WebSeedQuery<{ files: string[], name: string }>, fetch: _fetch }, options)
+        return await state.mod.batch({ ...query as WebSeedQuery<{ files: WebSeedFile[], name: string }>, fetch: _fetch }, options)
       }
       case 'subtitle':
         throw new Error('batch not supported for subtitle sources')

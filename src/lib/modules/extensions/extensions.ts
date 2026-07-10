@@ -9,7 +9,7 @@ import { settings, type videoResolutions } from '../settings'
 
 import { storage } from './storage'
 
-import type { TorrentResult, WebSeedResult } from './types'
+import type { TorrentResult, WebSeedResult, WebSeedFile } from './types'
 import type { EpisodesResponse, Titles, Episode } from '../anizip/types'
 import type { AnitomyResult } from 'anitomyscript'
 
@@ -328,7 +328,7 @@ export const extensions = new class Extensions {
     return settled.filter((nzb): nzb is string => !!nzb)
   }
 
-  async webSeedQuery (hash: string, media: Media, episode: number, fileInfo: string | string[], name: string) {
+  async webSeedQuery (hash: string, media: Media, episode: number, files: WebSeedFile | WebSeedFile[], name: string) {
     await storage.ready
 
     const extopts = get(extensionOptions)
@@ -340,11 +340,17 @@ export const extensions = new class Extensions {
 
     const { settled, errors } = await toSettled<ExtensionError, WebSeedResult | WebSeedResult[] | undefined>(extensions.entries().map(async ([id, worker]) => {
       if (!extopts[id]?.enabled || configs[id]?.type !== 'http') return
+      const rateLimit = configs[id]?.rateLimit
       try {
-        const promise: Promise<WebSeedResult | WebSeedResult[] | undefined> = Array.isArray(fileInfo)
-          ? (worker.batch({ ...options, hash, files: fileInfo, name }, extopts[id].options) as Promise<WebSeedResult[] | undefined>)
-          : (worker.single({ ...options, hash, file: fileInfo, name }, extopts[id].options) as Promise<WebSeedResult | undefined>)
-        return await raceTimeout(promise, 10_000)
+        const promise: Promise<WebSeedResult | WebSeedResult[] | undefined> = Array.isArray(files)
+          ? (worker.batch({ ...options, hash, files, name }, extopts[id].options) as Promise<WebSeedResult[] | undefined>)
+          : (worker.single({ ...options, hash, file: files, name }, extopts[id].options) as Promise<WebSeedResult | undefined>)
+        const result = await raceTimeout(promise, 10_000)
+        if (result == null) return
+        if (Array.isArray(result)) {
+          return result.map(r => ({ ...r, rateLimit }))
+        }
+        return { ...result, rateLimit }
       } catch (error) {
         throw new ExtensionError(error as Error, id)
       }

@@ -6,7 +6,7 @@ import { persisted } from 'svelte-persisted-store'
 import { toast } from 'svelte-sonner'
 
 import client from '../auth/client'
-import { extensions } from '../extensions'
+import { extensions, type WebSeedFile } from '../extensions'
 import native from '../native'
 import { settings, SUPPORTS } from '../settings'
 import { w2globby } from '../w2g/lobby'
@@ -121,7 +121,7 @@ export const server = new class ServerClient {
     this.downloaded.value.add(infoHash)
 
     this._addNZBs(infoHash, media, episode, result.files.map(({ name }) => name))
-    this._addHTTPWebSeeds(infoHash, media, episode, result.files.map(({ name }) => name))
+    this._addHTTPWebSeeds(infoHash, media, episode, result.files.map(({ name, id }) => ({ name, index: id })))
 
     native.checkAvailableSpace().then(space => {
       if (space < 1e9) {
@@ -149,14 +149,14 @@ export const server = new class ServerClient {
     }
   }
 
-  async _addHTTPWebSeeds (hash: string, media: Media, episode: number, fileInfo: string | string[], fileIndex?: number) {
+  async _addHTTPWebSeeds (hash: string, media: Media, episode: number, files: WebSeedFile | WebSeedFile[]) {
     const { name, progress } = await native.torrentInfo(hash)
 
     if (progress === 1) return
 
-    for (const webseed of await extensions.webSeedQuery(hash, media, episode, fileInfo, name)) {
+    for (const webseed of await extensions.webSeedQuery(hash, media, episode, files, name)) {
       try {
-        await native.createHTTPWebSeed(hash, webseed.url, webseed.authorization, fileIndex)
+        await native.createHTTPWebSeed(hash, webseed.url, webseed.authorization, webseed.index, webseed.rateLimit)
       } catch (e) {
         toast.error('Failed to add HTTP webseed', { description: (e as Error).message, duration: 15_000 })
       }

@@ -28,6 +28,7 @@ export interface ExtensionConfig {
   code: string // URL to the extension code, can be prefixed with 'gh:' to fetch from GitHub, e.g. 'gh:username/repo' or 'npm:' to fetch from npm, e.g. 'npm:package-name', a straight url, or file: for inline code
   options?: SearchOptions
   updatePeers?: false // whether to update the peer counts for torrents returned by this extension, this is only applicable for torrent sources and will be ignored for nzb and url sources
+  rateLimit?: number
 }
 
 export interface TorrentResult {
@@ -73,9 +74,16 @@ export type NZBQueryWithFetch<T> = NZBQuery<T> & { fetch: typeof fetch }
 export type SearchFunction = (query: AnimeQueryWithFetch, options?: SearchOptions) => Promise<TorrentResult[]>
 export type NZBFunction<T> = (query: NZBQueryWithFetch<T>, options?: SearchOptions) => Promise<string | undefined>
 
+export interface WebSeedFile {
+  name: string
+  index?: number
+}
+
 export interface WebSeedResult {
   url: string
   authorization?: string
+  index?: number
+  rateLimit?: number
 }
 
 export type WebSeedQuery<T> = {
@@ -100,8 +108,8 @@ export class NZBSource {
 
 export class WebSeedSource {
   test: () => Promise<boolean>
-  single: (query: WebSeedQueryWithFetch<{file: string}>, options?: SearchOptions) => Promise<WebSeedResult | undefined>
-  batch: (query: WebSeedQueryWithFetch<{files: string[]}>, options?: SearchOptions) => Promise<WebSeedResult[] | undefined>
+  single: (query: WebSeedQueryWithFetch<{file: WebSeedFile}>, options?: SearchOptions) => Promise<WebSeedResult | undefined>
+  batch: (query: WebSeedQueryWithFetch<{files: WebSeedFile[]}>, options?: SearchOptions) => Promise<WebSeedResult[] | undefined>
 }
 
 export class SubtitleSource {
