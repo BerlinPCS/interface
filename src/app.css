@@ -96,7 +96,7 @@
     --custom: #fff;
   }
 
-  .dark {
+  .dark-mode {
     --background: hsl(0 0% 0%);
     --foreground: hsl(0 0% 98%);
 
