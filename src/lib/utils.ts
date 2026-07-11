@@ -145,12 +145,12 @@ export const debounce = <T extends (...args: any[]) => unknown>(
   waitFor: number
 ) => {
   let timeout: ReturnType<typeof setTimeout>
-  return (...args: Parameters<T>) => {
+  const fn = (...args: Parameters<T>) => {
     clearTimeout(timeout)
-    timeout = setTimeout(() => {
-      callback(...args)
-    }, waitFor)
+    timeout = setTimeout(() => callback(...args), waitFor)
   }
+  fn.cancel = () => clearTimeout(timeout)
+  return fn
 }
 
 const formatter = new Intl.RelativeTimeFormat('en')

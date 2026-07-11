@@ -158,14 +158,24 @@
     return client.search(search)
   }
 
-  const updateText = debounce((e: FormInputEvent) => {
+  const debouncedSearch = debounce(updateName, 500)
+
+  function handleInput (e: FormInputEvent) {
     inputText = (e.target as HTMLInputElement).value
-    search.name = inputText
-  }, 200)
+
+    if (inputText.endsWith(' ')) {
+      updateName()
+    } else {
+      debouncedSearch()
+    }
+  }
+
+  function updateName () {
+    debouncedSearch.cancel()
+    search.name = inputText.trim()
+  }
 
   $: searchChanged(search)
-
-  // TODO: selects should turn into modals on mobile! like anilist
 
   $: lastestQuery = media[media.length - 1]
   $: hasNextPage = $lastestQuery?.data?.Page?.pageInfo?.hasNextPage
@@ -241,15 +251,16 @@
           <div class='text-xl font-bold mb-1 ml-1'>
             Title
           </div>
-          <div class='flex items-center scale-parent relative'>
+          <div class='flex items-center scale-parent relative group'>
             <Input
               class='pl-9 border-0 select:bg-accent select:text-accent-foreground shadow-sm no-scale placeholder:opacity-50 capitalize'
               placeholder='Any'
               id='animeName' type='text'
-              autocomplete='on'
-              on:input={updateText}
+              autocomplete='off'
+              on:input={handleInput}
+              on:blur={updateName}
               bind:value={inputText} />
-            <MagnifyingGlass class='h-4 w-4 shrink-0 opacity-50 absolute left-3 text-muted-foreground z-10 pointer-events-none' />
+            <MagnifyingGlass class='h-4 w-4 shrink-0 opacity-50 absolute left-3 group-focus-within:text-accent-foreground text-muted-foreground z-10 pointer-events-none' />
           </div>
         </div>
         <div class='w-auto p-2 gap-4 flex items-end'>
@@ -273,15 +284,16 @@
             <div class='text-xl font-bold mb-1 ml-1'>
               Title
             </div>
-            <div class='flex items-center scale-parent relative'>
+            <div class='flex items-center scale-parent relative group'>
               <Input
                 class='pl-9 border-0 select:bg-accent select:text-accent-foreground shadow-sm no-scale placeholder:opacity-50 capitalize'
                 placeholder='Any'
                 id='animeName' type='text'
                 autocomplete='on'
-                on:input={updateText}
+                on:input={handleInput}
+                on:blur={updateName}
                 bind:value={inputText} />
-              <MagnifyingGlass class='h-4 w-4 shrink-0 opacity-50 absolute left-3 text-muted-foreground z-10 pointer-events-none' />
+              <MagnifyingGlass class='h-4 w-4 shrink-0 opacity-50 absolute left-3 group-focus-within:text-accent-foreground text-muted-foreground z-10 pointer-events-none' />
             </div>
           </div>
           <div class='grid items-center min-w-44 flex-1 md:basis-auto md:w-1/4 p-2'>
