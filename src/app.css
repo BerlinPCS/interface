@@ -6,6 +6,8 @@
   color-scheme: only dark;
   interpolate-size: allow-keywords;
   transition-behavior: allow-discrete;
+  /* https://www.bram.us/2025/01/29/view-transitions-page-interactivity/ */
+  view-transition-name: none !important;
 }
 
 @layer base {
@@ -541,19 +543,23 @@ details,
   transform: perspective(100vw) translate3d(0, 0, 0vw) rotateY(0deg) rotateX(0deg);
 }*/
 
-html::view-transition-old(root) {
+:root::view-transition {
+  pointer-events: none;
+}
+
+:root::view-transition-old(root) {
   animation-name: fade-out 0.2s ease-in-out forwards;
 }
 
-html::view-transition-new(root) {
+:root::view-transition-new(root) {
   animation-name: fade-in 0.2s ease-in-out forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
 
-  html::view-transition-group(*),
-  html::view-transition-old(*),
-  html::view-transition-new(*) {
+  :root::view-transition-group(*),
+  :root::view-transition-old(*),
+  :root::view-transition-new(*) {
     animation: none !important;
   }
 }

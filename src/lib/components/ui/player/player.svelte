@@ -206,9 +206,9 @@
     if (to?.route.id === '/app/player') {
       // force fullscreen on mobile
       if (SUPPORTS.isMobile && !SUPPORTS.isIPad) return fullscreen()
-    } else {
+    } else if (fullscreenElement) {
       // exit fullscreen when navigating away from player
-      if (fullscreenElement) return fullscreen()
+      return fullscreen()
     }
   })
 

@@ -26,17 +26,17 @@
   const displayThresholdMs = 150
 
   if (document.startViewTransition && !SUPPORTS.isUnderPowered) {
-    onNavigate(({ to, complete, delta }) => {
+    onNavigate(async ({ to, complete, delta }) => {
       if (
         (SUPPORTS.isIOS && delta != null) || // iOS has their own animations for back/forward navigation that conflict with view transitions, sasuga Apple
         fullscreenElement || // chrome can hang when trying to do view transitions while in fullscreen
         (to?.route.id === '/app/player' && SUPPORTS.isMobile) // same as above, but only on mobile since only it forces fullscreen
       ) return
 
-      return new Promise((resolve) => {
-        document.startViewTransition(() => {
+      return await new Promise((resolve) => {
+        document.startViewTransition(async () => {
           resolve()
-          return complete
+          await complete
         })
       })
     })

@@ -4,13 +4,13 @@
 
   import { Button } from '../button'
 
-  import { onNavigate } from '$app/navigation'
+  import { afterNavigate } from '$app/navigation'
   import { page } from '$app/stores'
   import { breakpoints } from '$lib/utils'
 
   let open = false // 152 x 140
 
-  onNavigate(() => {
+  afterNavigate(() => {
     open = false
   })
 
