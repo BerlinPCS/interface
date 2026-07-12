@@ -68,11 +68,13 @@
 
   export let disabled = false
 
+  export let forcePopover = false
+
   let className = ''
   export { className as class }
 </script>
 
-<ComboboxShell bind:open {portal}>
+<ComboboxShell bind:open {portal} {forcePopover}>
   <svelte:fragment slot='trigger' let:builder>
     <Button
       builders={[builder]}

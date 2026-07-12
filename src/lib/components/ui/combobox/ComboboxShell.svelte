@@ -7,9 +7,10 @@
 
   export let open = false
   export let portal = '#root'
+  export let forcePopover = false
 </script>
 
-{#if $breakpoints.md}
+{#if $breakpoints.md || forcePopover}
   <Popover.Root bind:open let:ids {portal}>
     <Popover.Trigger asChild let:builder>
       <slot name='trigger' {builder} />

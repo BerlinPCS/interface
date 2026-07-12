@@ -121,7 +121,7 @@
             <Dialog.Title class='font-weight-bold font-bold'>AniList Settings</Dialog.Title>
           </Dialog.Header>
           <SettingCard title='Title Language' description='What language should anime titles be displayed in.' let:id>
-            <SingleCombo value={$alViewer?.viewer?.options?.titleLanguage || 'ROMAJI'} items={titleTypes} class='w-60 shrink-0 border-input border' disabled={!$alViewer} onSelected={updateLanguage} />
+            <SingleCombo value={$alViewer?.viewer?.options?.titleLanguage || 'ROMAJI'} items={titleTypes} class='w-60 shrink-0 border-input border' disabled={!$alViewer} onSelected={updateLanguage} forcePopover={true} />
           </SettingCard>
           <SettingCard let:id title='18+ Content' description='Shows/Hides ALL 18+ content when logged into AniList. This includes lists, recommendations, search results, relations and more.'>
             <Switch {id} disabled={!$alViewer} checked={!!$alViewer?.viewer?.options?.displayAdultContent} onCheckedChange={updateAdult} />

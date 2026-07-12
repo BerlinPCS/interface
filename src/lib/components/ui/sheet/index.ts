@@ -7,9 +7,9 @@ import Footer from './sheet-footer.svelte'
 import Header from './sheet-header.svelte'
 import Overlay from './sheet-overlay.svelte'
 import Portal from './sheet-portal.svelte'
+import Root from './sheet-root.svelte'
 import Title from './sheet-title.svelte'
 
-const Root = SheetPrimitive.Root
 const Close = SheetPrimitive.Close
 const Trigger = SheetPrimitive.Trigger
 

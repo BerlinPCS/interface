@@ -1,6 +1,6 @@
 <script lang='ts'>
   import EllipsisVertical from 'lucide-svelte/icons/ellipsis-vertical'
-  import { getContext, tick } from 'svelte'
+  import { tick } from 'svelte'
 
   import { Input } from '../input'
 
@@ -15,7 +15,6 @@
   import type { Writable } from 'simple-store-svelte'
   import type { HTMLAttributes } from 'svelte/elements'
 
-  import { beforeNavigate } from '$app/navigation'
   import { Button } from '$lib/components/ui/button'
   import * as Dialog from '$lib/components/ui/dialog'
   import * as Tooltip from '$lib/components/ui/tooltip'
@@ -75,15 +74,6 @@
   export let id = ''
 
   let keybindDesc: unknown = null
-
-  const stopProgressBar = getContext<() => void>('stop-progress-bar')
-  beforeNavigate(({ cancel }) => {
-    if (open) {
-      open = false
-      cancel()
-      stopProgressBar()
-    }
-  })
   export let screenshot: () => void
 </script>
 

@@ -1,29 +1,17 @@
 <script lang='ts'>
-  import { getContext } from 'svelte'
-
   import type { MediaInfo } from './util'
 
-  import { beforeNavigate, goto } from '$app/navigation'
+  import { goto } from '$app/navigation'
   import EpisodesList from '$lib/components/EpisodesList.svelte'
   import * as Sheet from '$lib/components/ui/sheet'
   import { client } from '$lib/modules/anilist'
   import { episodes as eps } from '$lib/modules/anizip'
   import { click } from '$lib/modules/navigate'
-  import SUPPORTS from '$lib/modules/settings/supports'
 
   export let portal: HTMLElement
   let episodeListOpen = false
 
   export let mediaInfo: MediaInfo
-
-  const stopProgressBar = getContext<() => void>('stop-progress-bar')
-  beforeNavigate(({ cancel }) => {
-    if (episodeListOpen && (!SUPPORTS.isMobile || SUPPORTS.isIPad)) {
-      episodeListOpen = false
-      cancel()
-      stopProgressBar()
-    }
-  })
 </script>
 
 <div class='text-foreground text-lg font-normal leading-none line-clamp-1 hover:text-muted-foreground hover:underline cursor-pointer text-shadow-lg' use:click={() => goto(`/#/app/anime/${mediaInfo.media.id}`)}>{mediaInfo.session.title}</div>

@@ -4,7 +4,6 @@
   import '@fontsource/geist-mono'
   import '$lib/modules/gamepad'
   import { ProgressBar } from '@prgm/sveltekit-progress-bar'
-  import { setContext } from 'svelte'
   import { toast } from 'svelte-sonner'
 
   import { onNavigate } from '$app/navigation'
@@ -25,12 +24,6 @@
   })
 
   const displayThresholdMs = 150
-  let complete: ((settleTime: number | undefined) => void) | undefined
-  setContext('stop-progress-bar', () => {
-    setTimeout(() => {
-      complete?.(0)
-    }, displayThresholdMs)
-  })
 
   onNavigate(({ to, complete, delta }) => {
     if (
@@ -80,7 +73,7 @@
 <svelte:document bind:fullscreenElement />
 
 <div class={cn('size-full flex flex-col bg-background relative overflow-clip')} id='root' data-input={$inputType} on:contextmenu|preventDefault>
-  <ProgressBar zIndex={100} bind:complete {displayThresholdMs} />
+  <ProgressBar zIndex={100} {displayThresholdMs} />
   <Toaster position='top-right' expand={true} />
 
   <Menubar />

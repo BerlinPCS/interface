@@ -60,7 +60,6 @@
 
 <script lang='ts'>
   import Folder from 'lucide-svelte/icons/folder'
-  import { getContext } from 'svelte'
   import { flip } from 'svelte/animate'
   import { quartInOut } from 'svelte/easing'
 
@@ -69,7 +68,7 @@
 
   import type { TorrentResult } from '$lib/modules/extensions/types'
 
-  import { beforeNavigate, goto } from '$app/navigation'
+  import { goto } from '$app/navigation'
   import { searchStore } from '$lib'
   import { savedConfigs } from '$lib/modules/extensions'
   import { server } from '$lib/modules/torrent'
@@ -183,16 +182,6 @@
 
   $: searchResult && startAnimation(searchResult)
 
-  const stop = getContext<() => void>('stop-progress-bar')
-
-  beforeNavigate(({ cancel }) => {
-    if (open) {
-      cancel()
-      close()
-      stop()
-    }
-  })
-
   $: ({ r, g, b } = colors($searchStore?.media.coverImage?.color ?? undefined))
 
   async function handleTransfer (e: { dataTransfer?: DataTransfer | null, clipboardData?: DataTransfer | null } & Event) {
@@ -240,7 +229,7 @@
             </div>
             <div class='flex items-center space-x-2 grow'>
               <span>Resolution</span>
-              <SingleCombo bind:value={$settings.searchQuality} items={videoResolutions} portal='#episodeListTarget' class='w-32 shrink-0 grow border-border border' />
+              <SingleCombo bind:value={$settings.searchQuality} items={videoResolutions} forcePopover={true} portal='#episodeListTarget' class='w-32 shrink-0 grow border-border border' />
             </div>
           </div>
           <ProgressButton
