@@ -167,7 +167,7 @@ export function hover (node: HTMLElement, [cb = noop, hoverUpdate = noop]: [type
 
   return {
     destroy: () => {
-      unhoverLastElement()
+      cleanupTimer()
       ctrl.abort()
     }
   }
