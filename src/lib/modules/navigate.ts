@@ -70,7 +70,7 @@ export function click (node: HTMLElement, cb: (_: Event) => unknown = noop) {
   return { destroy: () => ctrl.abort() }
 }
 
-const HOVER_TIME = 70
+const HOVER_TIME = 30
 let lastHoverElement: ((_: boolean) => unknown) | null = null
 /**
  * Adds hover and click event listeners to the specified node.

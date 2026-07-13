@@ -227,7 +227,7 @@ export const extensions = new class Extensions {
     const extopts = get(extensionOptions)
     const configs = get(savedConfigs)
 
-    const checkMovie = !singleEp && movie
+    const checkMovie = !singleEp && movie // for those weird multi-episode "movie" anime, that might map weirdly, for example its a "3 episode" "movie", but in practice its a single video file
     const checkBatch = !singleEp && !movie
 
     debug(`Checking ${extensions.size} extensions for ${media.id}:${media.title?.userPreferred} ${episode} ${resolution} ${checkMovie ? 'movie' : ''} ${checkBatch ? 'batch' : ''}`)
