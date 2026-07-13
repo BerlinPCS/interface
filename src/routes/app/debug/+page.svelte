@@ -268,7 +268,6 @@
 
   async function media () {
     const video: string[] = []
-    const decoder: Array<VideoDecoderConfig | AudioDecoderConfig> = []
 
     const el = document.createElement('video')
 
@@ -288,7 +287,7 @@
 
     const [audioMatrix, videoMatrix] = await mediaPromise
 
-    await saveFile({ video, decoder, audioMatrix, videoMatrix }, 'hayase-media-capabilities')
+    await saveFile({ video, audioMatrix, videoMatrix }, 'hayase-media-capabilities')
   }
 </script>
 

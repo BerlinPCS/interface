@@ -70,18 +70,25 @@ export function click (node: HTMLElement, cb: (_: Event) => unknown = noop) {
   return { destroy: () => ctrl.abort() }
 }
 
+const HOVER_TIME = 70
 let lastHoverElement: ((_: boolean) => unknown) | null = null
 /**
  * Adds hover and click event listeners to the specified node.
  */
 export function hover (node: HTMLElement, [cb = noop, hoverUpdate = noop]: [typeof noop, (_: boolean) => void]) {
   const ctrl = new AbortController()
+  let hoverTimer: ReturnType<typeof setTimeout>
+  function cleanupTimer () {
+    clearTimeout(hoverTimer)
+    hoverTimer = 0
+  }
   function hoverElement () {
     unhoverLastElement()
     hoverUpdate(true)
     lastHoverElement = hoverUpdate
   }
   function unhoverLastElement () {
+    cleanupTimer()
     lastHoverElement?.(false)
     hoverUpdate(false)
     lastHoverElement = null
@@ -114,7 +121,12 @@ export function hover (node: HTMLElement, [cb = noop, hoverUpdate = noop]: [type
   node.role = 'button'
   node.addEventListener('pointerenter', () => {
     if (inputType.value === 'touch') return
-    hoverElement()
+    if (inputType.value === 'mouse') {
+      cleanupTimer()
+      hoverTimer = setTimeout(hoverElement, HOVER_TIME)
+    } else {
+      hoverElement()
+    }
   }, ctrl)
   node.addEventListener('click', e => {
     e.stopPropagation()
@@ -136,9 +148,13 @@ export function hover (node: HTMLElement, [cb = noop, hoverUpdate = noop]: [type
     unhoverLastElement()
   }, ctrl)
   node.addEventListener('pointermove', (e) => {
-    if (inputType.value !== 'touch') return
-    if (Math.abs(e.movementY) > 0) {
-      unhoverLastElement()
+    if (inputType.value === 'touch') {
+      if (Math.abs(e.movementY) > 0) {
+        unhoverLastElement()
+      }
+    } else if (inputType.value === 'mouse' && hoverTimer) {
+      cleanupTimer()
+      hoverTimer = setTimeout(hoverElement, HOVER_TIME)
     }
   }, ctrl)
   node.addEventListener('drag', () => {
@@ -149,7 +165,12 @@ export function hover (node: HTMLElement, [cb = noop, hoverUpdate = noop]: [type
     clickElement()
   }, ctrl)
 
-  return { destroy: () => ctrl.abort() }
+  return {
+    destroy: () => {
+      unhoverLastElement()
+      ctrl.abort()
+    }
+  }
 }
 
 interface ElementPosition { element: HTMLElement, x: number, y: number, inViewport: boolean }
