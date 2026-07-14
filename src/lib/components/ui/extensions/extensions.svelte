@@ -44,6 +44,7 @@
       await storage.deleteRepository(updateUrl)
     } catch (err) {
       const error = err as Error
+      console.error(error)
       toast.error(error.cause as string, { description: error.message, duration: 15_000 })
     } finally {
       deletingRepo = null

@@ -9,6 +9,7 @@
   import { activityState, idleState, lockedState } from '$lib/modules/idle'
   import native from '$lib/modules/native'
   import { dragScroll } from '$lib/modules/navigate'
+  import SUPPORTS from '$lib/modules/settings/supports'
   import { cn, highEntropyValues } from '$lib/utils'
 
   const items = [
@@ -28,6 +29,9 @@
       title: 'Extensions',
       href: '/#/app/settings/extensions'
     },
+    SUPPORTS.isMobile
+      ? undefined
+      : { title: 'Plugins', href: '/#/app/settings/plugins' },
     {
       title: 'Accounts',
       href: '/#/app/settings/accounts'
@@ -40,7 +44,7 @@
       title: 'Changelog',
       href: '/#/app/settings/changelog'
     }
-  ]
+  ].filter(e => !!e)
 
   let visibilityState: DocumentVisibilityState
 

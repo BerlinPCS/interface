@@ -175,6 +175,10 @@ export default Object.assign<Native, Partial<Native>>({
   debug: async () => undefined,
   profile: async () => undefined,
   updateToNewEndpoint: async () => undefined,
-  accentColor: async () => 'AccentColor'
+  accentColor: async () => 'AccentColor',
+  pluginDelete: async () => undefined,
+  pluginImport: async () => { throw new Error('Plugins are not supported in this version of Hayase!') },
+  pluginList: async () => [],
+  pluginPopup: async () => undefined
   // @ts-expect-error idk
 }, globalThis.native as Partial<Native>)
