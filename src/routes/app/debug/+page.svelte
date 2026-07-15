@@ -329,7 +329,7 @@
       if (el.canPlayType(format)) video.push(format)
     }
 
-    if (!('audioTracks' in HTMLVideoElement.prototype)) {
+    if ('audioTracks' in HTMLVideoElement.prototype) {
       video.push('audioTracks')
     }
 

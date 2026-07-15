@@ -264,10 +264,11 @@ function inInputEl (element: HTMLElement): element is HTMLInputElement {
  */
 function navigateDPad (direction = 'up', e: KeyboardEvent) {
   const keyboardFocusable = getFocusableElementPositions()
-  const nofocus = !document.activeElement || document.activeElement === document.body
-  const currentElement = nofocus ? keyboardFocusable[0]! : getElementPosition(document.activeElement as HTMLElement)
 
-  if (nofocus) return focusElement(currentElement.element)
+  if (!document.activeElement || document.activeElement === document.body) return focusElement((keyboardFocusable.find(({ element }) => element.checkVisibility()) ?? keyboardFocusable[0])?.element)
+
+  const currentElement = getElementPosition(document.activeElement as HTMLElement)
+
   if (inInputEl(currentElement.element)) {
     const input = currentElement.element
     if (direction === 'left' && input.selectionStart !== 0) return

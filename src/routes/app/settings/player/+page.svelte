@@ -1,4 +1,5 @@
 <script lang='ts'>
+  import { dev } from '$app/env'
   import SettingCard from '$lib/components/SettingCard.svelte'
   import { Button } from '$lib/components/ui/button'
   import { SingleCombo } from '$lib/components/ui/combobox'
@@ -57,6 +58,11 @@
 </SettingCard>
 
 <div class='font-weight-bold text-xl font-bold'>Playback Settings</div>
+{#if (SUPPORTS.isAndroidTV && SUPPORTS.isUnderPowered) || dev}
+  <SettingCard let:id title='Use Custom Video Player' description='Enables the custom video player. This allows you to switch audio and video tracks and has better codec support, at the cost of higher CPU usage.'>
+    <Switch {id} bind:checked={$settings.playerCustom} />
+  </SettingCard>
+{/if}
 <SettingCard let:id title='Auto-Play Next Episode' description='Automatically starts playing next episode when a video ends.'>
   <Switch {id} bind:checked={$settings.playerAutoplay} />
 </SettingCard>
