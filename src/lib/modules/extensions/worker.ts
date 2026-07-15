@@ -3,7 +3,7 @@ import { expose } from 'abslink/w3c'
 
 import SUPPORTS from '../settings/supports'
 
-import type { NZBQuery, WebSeedQuery, WebSeedResult, WebSeedFile, SearchOptions, AnimeQuery, TorrentResult, TorrentSource, NZBSource, SubtitleSource, Accuracy, WebSeedSource } from './types'
+import type { NZBQuery, WebSeedQuery, WebSeedResult, WebSeedFile, AnimeQuery, TorrentResult, TorrentSource, NZBSource, SubtitleSource, Accuracy, WebSeedSource } from './types'
 
 const _fetch = SUPPORTS.isIOS
   ? (input: RequestInfo | URL, init?: RequestInit) => {
@@ -146,7 +146,7 @@ export class ExtensionWorker {
 
   async single (
     query: AnimeQuery | NZBQuery<{ file: string }> | WebSeedQuery<{ file: WebSeedFile }> | Omit<AnimeQuery, 'resolution' | 'exclusions'>,
-    options?: SearchOptions
+    options?: Record<string, string | number | boolean>
   ): Promise<TorrentResult[] | string | undefined | WebSeedResult | Array<{url: string, language: string}>> {
     const state = this._state!
 
@@ -172,7 +172,7 @@ export class ExtensionWorker {
 
   async batch (
     query: AnimeQuery | NZBQuery<{ files: string[], name: string }> | WebSeedQuery<{ files: WebSeedFile[], name: string }>,
-    options?: SearchOptions
+    options?: Record<string, string | number | boolean>
   ): Promise<TorrentResult[] | string | undefined | WebSeedResult[]> {
     const state = this._state!
 
@@ -192,7 +192,7 @@ export class ExtensionWorker {
     }
   }
 
-  async movie (query: AnimeQuery, options?: SearchOptions): Promise<TorrentResult[]> {
+  async movie (query: AnimeQuery, options?: Record<string, string | number | boolean>): Promise<TorrentResult[]> {
     const state = this._state!
 
     if (state.type !== 'torrent') return []

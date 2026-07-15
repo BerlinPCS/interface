@@ -71,8 +71,8 @@ export type NZBQuery<T> = {
 
 export type NZBQueryWithFetch<T> = NZBQuery<T> & { fetch: typeof fetch }
 
-export type SearchFunction = (query: AnimeQueryWithFetch, options?: SearchOptions) => Promise<TorrentResult[]>
-export type NZBFunction<T> = (query: NZBQueryWithFetch<T>, options?: SearchOptions) => Promise<string | undefined>
+export type SearchFunction = (query: AnimeQueryWithFetch, options?: Record<string, number | string | boolean>) => Promise<TorrentResult[]>
+export type NZBFunction<T> = (query: NZBQueryWithFetch<T>, options?: Record<string, number | string | boolean>) => Promise<string | undefined>
 
 export interface WebSeedFile {
   name: string
@@ -108,11 +108,11 @@ export class NZBSource {
 
 export class WebSeedSource {
   test: () => Promise<boolean>
-  single: (query: WebSeedQueryWithFetch<{file: WebSeedFile}>, options?: SearchOptions) => Promise<WebSeedResult | undefined>
-  batch: (query: WebSeedQueryWithFetch<{files: WebSeedFile[]}>, options?: SearchOptions) => Promise<WebSeedResult[] | undefined>
+  single: (query: WebSeedQueryWithFetch<{file: WebSeedFile}>, options?: Record<string, number | string | boolean>) => Promise<WebSeedResult | undefined>
+  batch: (query: WebSeedQueryWithFetch<{files: WebSeedFile[]}>, options?: Record<string, number | string | boolean>) => Promise<WebSeedResult[] | undefined>
 }
 
 export class SubtitleSource {
   test: () => Promise<boolean>
-  single: (query: Omit<AnimeQueryWithFetch, 'resolution' | 'exclusions'>, options?: SearchOptions) => Promise<Array<{url: string, language: string}>>
+  single: (query: Omit<AnimeQueryWithFetch, 'resolution' | 'exclusions'>, options?: Record<string, number | string | boolean>) => Promise<Array<{url: string, language: string}>>
 }

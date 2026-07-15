@@ -173,20 +173,12 @@ export function hover (node: HTMLElement, [cb = noop, hoverUpdate = noop]: [type
   }
 }
 
-interface ElementPosition { element: HTMLElement, x: number, y: number, inViewport: boolean }
+interface ElementPosition { element: HTMLElement, x: number, y: number, inViewport: boolean, rect: DOMRect }
 
 type Direction = 'up' | 'right' | 'down' | 'left'
 
-const Directions: Record<Direction, number> = { up: 1, right: 2, down: 3, left: 4 }
 // const InverseDirections = { up: 'down', down: 'up', left: 'right', right: 'left' }
 const DirectionKeyMap: Record<'ArrowDown' | 'ArrowUp' |'ArrowLeft' | 'ArrowRight', Direction> = { ArrowDown: 'down', ArrowUp: 'up', ArrowLeft: 'left', ArrowRight: 'right' }
-
-/**
- * Calculates the direction between two points.
- */
-function getDirection (anchor: ElementPosition, relative: ElementPosition) {
-  return Math.round((Math.atan2(relative.y - anchor.y, relative.x - anchor.x) * 180 / Math.PI + 180) / 90) || 4
-}
 
 /**
  * Calculates the distance between two points.
@@ -208,9 +200,9 @@ function getKeyboardFocusableElements (element: Element = document.body) {
  * Gets the position of an element.
  */
 function getElementPosition (element: HTMLElement): ElementPosition {
-  const { x, y, width, height, top, left, bottom, right } = element.getBoundingClientRect()
-  const inViewport = isInViewport({ top, left, bottom, right, width, height })
-  return { element, x: x + width * 0.5, y: y + height * 0.5, inViewport }
+  const rect = element.getBoundingClientRect()
+  const inViewport = isInViewport(rect)
+  return { element, x: rect.x + rect.width * 0.5, y: rect.y + rect.height * 0.5, inViewport, rect }
 }
 
 /**
@@ -245,16 +237,20 @@ function isInViewport ({ top, left, bottom, right, width, height }: { top: numbe
 // }
 
 function getElementsInDesiredDirection (keyboardFocusable: ElementPosition[], currentElement: ElementPosition, direction: string): ElementPosition[] {
-  // first try finding visible elements in desired direction
+  const { rect: currentRect } = currentElement
   return keyboardFocusable.filter(position => {
-    // in order of computation cost
     if (position.element === currentElement.element) return false
-    if (getDirection(currentElement, position) !== Directions[direction as Direction]) return false
-
-    // filters out elements which are in the viewport, but are overlayed by other elements like a modal
     if (position.inViewport && !position.element.checkVisibility()) return false
-    if (!position.inViewport && direction === 'right') return false // HACK: prevent right navigation from going to offscreen elements, but allow vertical elements!
-    return true
+    if (!position.inViewport && direction === 'right') return false
+
+    const { rect: candidateRect } = position
+    switch (direction) {
+      case 'right': return candidateRect.right > currentRect.right
+      case 'left': return candidateRect.left < currentRect.left
+      case 'down': return candidateRect.bottom > currentRect.bottom
+      case 'up': return candidateRect.top < currentRect.top
+      default: return false
+    }
   })
 }
 
@@ -282,25 +278,51 @@ function navigateDPad (direction = 'up', e: KeyboardEvent) {
   e.stopPropagation()
 
   // allow overrides via data attributes ex: <div data-up="#id, #id2"?> but order them, as querySelectorAll returns them in order of appearance rather than order of selectors
-  for (const selector of currentElement.element.dataset[direction]?.split(',') ?? []) {
-    const element = document.querySelector<HTMLElement>(selector.trim())
-    if (!element) continue // skip if no element found
-    if (!element.checkVisibility()) continue // skip elements that are not visible
-    if (focusElement(element)) return
-  }
+  // TODO: re-enable after testing
+  // for (const selector of currentElement.element.dataset[direction]?.split(',') ?? []) {
+  //   const element = document.querySelector<HTMLElement>(selector.trim())
+  //   if (!element) continue // skip if no element found
+  //   if (!element.checkVisibility()) continue // skip elements that are not visible
+  //   if (focusElement(element)) return
+  // }
 
   const elementsInDesiredDirection = getElementsInDesiredDirection(keyboardFocusable, currentElement, direction)
 
-  // if there are elements in desired direction
   if (elementsInDesiredDirection.length) {
-    const closestElement = elementsInDesiredDirection.reduce<{ distance: number, element?: HTMLElement }>((reducer, position) => {
-      const distance = getDistance(currentElement, position)
-      if (distance < reducer.distance) return { distance, element: position.element }
-      return reducer
-    }, { distance: Infinity })
+    const { rect: currentRect } = currentElement
+    const isHorizontal = direction === 'left' || direction === 'right'
 
-    focusElement(closestElement.element)
-    // return
+    const scored = elementsInDesiredDirection.map(position => {
+      const { rect: candidateRect } = position
+
+      let overlap: number
+      let distance: number
+
+      if (isHorizontal) {
+        const overlapTop = Math.max(currentRect.top, candidateRect.top)
+        const overlapBottom = Math.min(currentRect.bottom, candidateRect.bottom)
+        overlap = Math.max(0, overlapBottom - overlapTop)
+        distance = direction === 'right'
+          ? candidateRect.left - currentRect.right
+          : currentRect.left - candidateRect.right
+      } else {
+        const overlapLeft = Math.max(currentRect.left, candidateRect.left)
+        const overlapRight = Math.min(currentRect.right, candidateRect.right)
+        overlap = Math.max(0, overlapRight - overlapLeft)
+        distance = direction === 'down'
+          ? candidateRect.top - currentRect.bottom
+          : currentRect.top - candidateRect.bottom
+      }
+
+      return { element: position.element, distance, overlap: overlap > 0, fallbackDistance: getDistance(currentElement, position) }
+    })
+
+    const overlapping = scored.filter(s => s.overlap)
+    const best = overlapping.length
+      ? overlapping.sort((a, b) => a.distance - b.distance)[0]!
+      : scored.sort((a, b) => a.fallbackDistance - b.fallbackDistance)[0]!
+
+    focusElement(best.element)
   }
 
   // no elements in desired direction, go to opposite end [wrap around] // this wasnt a good idea in the long run
