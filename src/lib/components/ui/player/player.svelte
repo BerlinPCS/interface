@@ -672,9 +672,9 @@
     let wasPaused = paused
     const startFF = () => {
       clearTimeout(timeout)
+      wasPaused = paused
       timeout = setTimeout(() => {
         if (fastForwarding) return
-        wasPaused = paused
         paused = false
         fastForwarding = true
         oldPlaybackRate = $playbackRate
@@ -697,11 +697,15 @@
         document.setPointerCapture(event.pointerId)
       }
       startFF()
-    }, ctrl)
+    }, { ...ctrl, capture: type === 'key' })
     document.addEventListener(type + 'up' as 'keyup' | 'pointerup', event => {
       if (isMiniplayer) return
-      if ('code' in event && event.code !== 'Space') return
+      if ('code' in event && event.code === 'Space') return endFF()
       if ('pointerId' in event) document.releasePointerCapture(event.pointerId)
+    }, ctrl)
+    document.addEventListener('click', e => {
+      if (isMiniplayer) return
+      if (fastForwarding) e.stopImmediatePropagation()
       endFF()
     }, ctrl)
 
