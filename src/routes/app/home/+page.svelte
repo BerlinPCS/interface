@@ -14,13 +14,13 @@
   }
 
   const sections: Section[] = [
-    { title: 'Popular This Season', variables: { sort: ['POPULARITY_DESC'], season: currentSeason, seasonYear: currentYear } },
-    { title: 'Trending Now', variables: { sort: ['TRENDING_DESC'] } },
-    { title: 'All Time Popular', variables: { sort: ['POPULARITY_DESC'] } },
-    { title: 'Romance', variables: { sort: ['TRENDING_DESC'], genre: ['Romance'] } },
-    { title: 'Action', variables: { sort: ['TRENDING_DESC'], genre: ['Action'] } },
-    { title: 'Adventure', variables: { sort: ['TRENDING_DESC'], genre: ['Adventure'] } },
-    { title: 'Fantasy', variables: { sort: ['TRENDING_DESC'], genre: ['Fantasy'] } }
+    { title: 'Popular This Season', variables: { sort: ['POPULARITY_DESC'], season: currentSeason, seasonYear: currentYear, perPage: 25 } },
+    { title: 'Trending Now', variables: { sort: ['TRENDING_DESC'], perPage: 25 } },
+    { title: 'All Time Popular', variables: { sort: ['POPULARITY_DESC'], perPage: 25 } },
+    { title: 'Romance', variables: { sort: ['TRENDING_DESC'], genre: ['Romance'], perPage: 25 } },
+    { title: 'Action', variables: { sort: ['TRENDING_DESC'], genre: ['Action'], perPage: 25 } },
+    { title: 'Adventure', variables: { sort: ['TRENDING_DESC'], genre: ['Adventure'], perPage: 25 } },
+    { title: 'Fantasy', variables: { sort: ['TRENDING_DESC'], genre: ['Fantasy'], perPage: 25 } }
   ]
 
   const sectionsQueries = sections.map(({ title, variables }) => {

@@ -29,7 +29,7 @@
   <div class='w-0 h-0' use:deferredLoad />
 {/if}
 {#if $query.fetching}
-  {#each Array.from({ length: 50 }) as _, i (i)}
+  {#each Array.from({ length: 20 }) as _, i (i)}
     <SkeletonCard />
   {/each}
 {:else if $query.error}
@@ -67,12 +67,12 @@
       </div>
     {/each}
   {:else}
-    {#each Array.from({ length: 50 }) as _, i (i)}
+    {#each Array.from({ length: 20 }) as _, i (i)}
       <SkeletonCard />
     {/each}
   {/if}
 {:else}
-  {#each Array.from({ length: 50 }) as _, i (i)}
+  {#each Array.from({ length: 20 }) as _, i (i)}
     <SkeletonCard animate={false} />
   {/each}
 {/if}
