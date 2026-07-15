@@ -1,4 +1,5 @@
 <script lang='ts'>
+  import { onMount } from 'svelte'
   import { get } from 'svelte/store'
   import { toast } from 'svelte-sonner'
 
@@ -266,6 +267,53 @@
     return result
   }
 
+  let events: Record<string, { time: string, type: string, target: string, x?: number, y?: number, button?: number, key?: string, code?: string, deltaY?: number, touches?: number, modifiers: string }> = {}
+
+  function handleEvent (e: Event) {
+    const ctor = e.constructor.name.replace('Event', '')
+    const ke = e as KeyboardEvent & MouseEvent & TouchEvent & WheelEvent
+    events = {
+      ...events,
+      [ctor]: {
+        time: new Date().toLocaleTimeString(),
+        type: e.type,
+        target: elTarget(e.target as HTMLElement | null),
+        x: 'clientX' in e ? ke.clientX : undefined,
+        y: 'clientY' in e ? ke.clientY : undefined,
+        button: 'button' in e ? ke.button : undefined,
+        key: 'key' in e ? ke.key : undefined,
+        code: 'code' in e ? ke.code : undefined,
+        deltaY: 'deltaY' in e ? ke.deltaY : undefined,
+        touches: 'touches' in e ? ke.touches.length : undefined,
+        modifiers: [(ke.ctrlKey && 'Ctrl'), (ke.altKey && 'Alt'), (ke.shiftKey && 'Shift')].filter(e => e).join('+') || 'none'
+      }
+    }
+  }
+
+  function elTarget (el: HTMLElement | null): string {
+    if (!el) return 'null'
+    let s = el.tagName.toLowerCase()
+    if (el.id) s += '#' + el.id
+    if (typeof el.className === 'string') s += '.' + el.className.trim().split(/\s+/).join('.')
+    return s
+  }
+
+  const COLORS: Record<string, string> = {
+    Mouse: 'bg-green-500/10 text-green-400',
+    Keyboard: 'bg-amber-500/10 text-amber-400',
+    Pointer: 'bg-purple-500/10 text-purple-400',
+    Wheel: 'bg-cyan-500/10 text-cyan-400',
+    Touch: 'bg-pink-500/10 text-pink-400'
+  }
+
+  const TYPES = ['mousedown', 'mouseup', 'mousemove', 'click', 'dblclick', 'contextmenu', 'keydown', 'keyup', 'pointerdown', 'pointerup', 'pointermove', 'wheel', 'touchstart', 'touchend', 'touchmove'] as const
+
+  onMount(() => {
+    const ac = new AbortController()
+    for (const t of TYPES) window.addEventListener(t, handleEvent, { capture: true, passive: true, signal: ac.signal })
+    return () => ac.abort()
+  })
+
   async function media () {
     const video: string[] = []
 
@@ -379,4 +427,45 @@
       <p class='text-destructive'>{error.message}</p>
     </div>
   {/await}
+
+  <SettingCard title='Input Events' description='Latest mouse, keyboard, pointer, touch, and wheel events per constructor.' />
+  <div class='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3'>
+    {#each ['Mouse', 'Keyboard', 'Pointer', 'Wheel', 'Touch'] as src (src)}
+      {@const ev = events[src]}
+      <div class='rounded-md border p-3 space-y-1.5' class:opacity-30={!ev}>
+        <div class='flex flex-wrap items-center gap-1.5'>
+          <span class='text-xs font-bold uppercase tracking-wider text-muted-foreground'>{src}</span>
+          {#if ev}
+            <span class='rounded px-1 py-0.5 text-[10px] font-bold {COLORS[src] ?? 'bg-gray-500/10 text-gray-400'}'>{src}</span>
+            <span class='rounded px-1 py-0.5 text-[10px] font-bold bg-blue-500/10 text-blue-400'>{ev.type}</span>
+          {:else}
+            <span class='text-[10px] text-muted-foreground/40'>awaiting event…</span>
+          {/if}
+        </div>
+        {#if ev}
+          <div class='text-xs text-muted-foreground space-y-0.5'>
+            <div class='flex justify-between'><span class='text-muted-foreground/50'>target</span><span class='truncate max-w-[180px] text-right' title={ev.target}>{ev.target}</span></div>
+            <div class='flex justify-between'><span class='text-muted-foreground/50'>time</span><span>{ev.time}</span></div>
+            {#if ev.x != null}
+              <div class='flex justify-between'><span class='text-muted-foreground/50'>position</span><span>{ev.x}, {ev.y}</span></div>
+            {/if}
+            {#if ev.key != null}
+              <div class='flex justify-between'><span class='text-muted-foreground/50'>key</span><span class='rounded px-1 bg-amber-500/10 text-amber-400 font-medium'>{ev.key}</span></div>
+              <div class='flex justify-between'><span class='text-muted-foreground/50'>code</span><span>{ev.code}</span></div>
+            {/if}
+            {#if ev.button != null}
+              <div class='flex justify-between'><span class='text-muted-foreground/50'>button</span><span>{ev.button}</span></div>
+            {/if}
+            {#if ev.deltaY != null}
+              <div class='flex justify-between'><span class='text-muted-foreground/50'>deltaY</span><span>{ev.deltaY > 0 ? '↓' : '↑'} {Math.abs(ev.deltaY)}</span></div>
+            {/if}
+            {#if ev.touches != null}
+              <div class='flex justify-between'><span class='text-muted-foreground/50'>touches</span><span>{ev.touches}</span></div>
+            {/if}
+            <div class='flex justify-between'><span class='text-muted-foreground/50'>modifiers</span><span>{ev.modifiers}</span></div>
+          </div>
+        {/if}
+      </div>
+    {/each}
+  </div>
 </div>
