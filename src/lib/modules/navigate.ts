@@ -357,8 +357,14 @@ function focusElement (element?: HTMLElement | null) {
 
 window.addEventListener('keydown', navigate)
 
+let repeatCount = 0
+
 export function navigate (e: KeyboardEvent) {
   if (e.key in DirectionKeyMap) {
+    // slow down, so its not as jarring
+    repeatCount = e.repeat ? ++repeatCount % 8 : 0
+    e.preventDefault()
+    if (repeatCount) return
     inputType.value = 'dpad'
     navigateDPad(DirectionKeyMap[e.key as 'ArrowDown' | 'ArrowUp' | 'ArrowLeft' | 'ArrowRight'], e)
   }
