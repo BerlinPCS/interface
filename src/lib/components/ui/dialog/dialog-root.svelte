@@ -56,14 +56,15 @@
     changing = false
   }
 
-  const api: DialogContext = {
+  let api: DialogContext
+  $: api = {
     portal,
     open: _open,
     openDialog: () => onOpenChange(true),
     closeDialog: () => onOpenChange(false)
   }
 
-  setContext(DIALOG_KEY, api)
+  $: setContext(DIALOG_KEY, api)
 </script>
 
 <slot />

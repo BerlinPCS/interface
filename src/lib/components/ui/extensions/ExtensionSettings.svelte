@@ -23,7 +23,7 @@
         <Dialog.Trigger let:builder asChild>
           <Button builders={[builder]} variant='ghost' size='icon-sm' class='animated-icon'><Code size={18} /></Button>
         </Dialog.Trigger>
-        <Dialog.Content class='flex max-h-[95%] max-w-[95%] overflow-auto flex-col !w-auto'>
+        <Dialog.Content class='flex max-h-[95%] max-w-[95%] overflow-auto flex-col w-[80vw] h-[70vh]'>
           <Dialog.Title class='font-weight-bold font-bold'>{config.name} Source Code</Dialog.Title>
           {#await get(config.id)}
             Loading...
