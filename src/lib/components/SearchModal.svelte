@@ -100,7 +100,6 @@
 
   function close (state = false) {
     if (!state) {
-      searchStore.set(undefined)
       open = false
       inputText = ''
     }
@@ -109,6 +108,7 @@
   let inputText = ''
 
   async function play ({ hash, link }: TorrentResult) {
+    if (!open) return
     server.playHash(hash, $searchStore!.media, $searchStore!.episode, link)
     close()
     await sleep(300)
@@ -172,6 +172,7 @@
   const torrentRx = /(^magnet:){1}|(^[A-F\d]{8,40}$){1}|(.*\.torrent$){1}/i
 
   async function findTorrentIdentifiers (identifier: string) {
+    if (!open) return
     if (torrentRx.test(identifier) && $searchStore) {
       server.playIdentifier(identifier, $searchStore.media, $searchStore.episode)
       close()
@@ -189,6 +190,7 @@
   async function handleTransfer (e: { dataTransfer?: DataTransfer | null, clipboardData?: DataTransfer | null } & Event) {
     if ($searchStore) {
       for (const file of await transferToFileList(e)) {
+        if (!open) return
         if (file instanceof Blob) {
           if (file.type === 'application/x-bittorrent' || file.name.endsWith('.torrent')) {
             server.playIdentifier(new Uint8Array(await file.arrayBuffer()), $searchStore.media, $searchStore.episode)
