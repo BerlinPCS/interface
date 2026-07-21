@@ -7,7 +7,7 @@ export const init = () => {
   if (location.pathname === '/' && location.search.startsWith('?code')) history.replaceState(null, '', '/#/authorize' + location.search)
 }
 
-if (SUPPORTS.isIOS) {
+if (SUPPORTS.isIOS || SUPPORTS.isAndroidTV) {
   let customFS: Element | undefined
 
   Object.defineProperty(document, 'fullscreenElement', {
