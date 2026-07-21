@@ -36,7 +36,7 @@ export async function encryptMessage (message: string) {
       iv: key
     },
     await derived,
-    text2arr(message).buffer as ArrayBuffer
+    text2arr(message).buffer
   ))))
 }
 
@@ -47,6 +47,6 @@ export async function decryptMessage (encryptedMessage: string) {
       iv: key
     },
     await derived,
-    hex2arr(bin2hex(encryptedMessage)).buffer as ArrayBuffer
+    hex2arr(bin2hex(encryptedMessage)).buffer
   ))
 }

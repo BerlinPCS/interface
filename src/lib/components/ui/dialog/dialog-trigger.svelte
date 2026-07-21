@@ -14,10 +14,10 @@
 
   function createBuilder () {
     const action = (node: HTMLElement) => {
-      const clickHandler = () => api.openDialog()
+      const clickHandler = () => $api.openDialog()
       node.addEventListener('click', clickHandler)
 
-      const unsub = api.open.subscribe(open => {
+      const unsub = api.subscribe(({ open }) => {
         node.setAttribute('aria-expanded', String(open))
         node.setAttribute('data-state', open ? 'open' : 'closed')
       })

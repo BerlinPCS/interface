@@ -14,7 +14,7 @@
 
   function createBuilder () {
     const action = (node: HTMLElement) => {
-      const clickHandler = () => api.closeDialog()
+      const clickHandler = () => $api.closeDialog()
       node.addEventListener('click', clickHandler)
 
       return {

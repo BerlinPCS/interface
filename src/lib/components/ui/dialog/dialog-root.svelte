@@ -12,7 +12,7 @@
   export let open = false
   export let portal: string | HTMLElement = '#root'
 
-  const _open = writable(open)
+  let _open = open
 
   let changing = false
   let lastHasState: boolean | undefined = undefined
@@ -24,19 +24,18 @@
   // Only fires when hasState changes, NOT when $_open changes
   $: if (hasState !== lastHasState) {
     lastHasState = hasState
-    if (hasState !== $_open) {
-      _open.set(hasState)
-      open = hasState
+    if (hasState !== _open) {
+      _open = open = hasState
     }
   }
 
   // Sync from parent prop changes (e.g. SearchModal's close() → bind:open)
-  $: if (open !== $_open) {
+  $: if (open !== _open) {
     onOpenChange(open)
   }
 
   function onOpenChange (value: boolean) {
-    if (value === $_open || changing) return
+    if (value === _open || changing) return
 
     changing = true
 
@@ -50,21 +49,27 @@
       }
     }
 
-    _open.set(value)
+    _open = value
     open = value
     $$restProps.onOpenChange?.(value)
     changing = false
   }
 
-  let api: DialogContext
-  $: api = {
+  const ctx: DialogContext = writable({
     portal,
     open: _open,
     openDialog: () => onOpenChange(true),
     closeDialog: () => onOpenChange(false)
-  }
+  })
 
-  $: setContext(DIALOG_KEY, api)
+  setContext(DIALOG_KEY, ctx)
+
+  $: ctx.set({
+    portal,
+    open: _open,
+    openDialog: () => onOpenChange(true),
+    closeDialog: () => onOpenChange(false)
+  })
 </script>
 
 <slot />

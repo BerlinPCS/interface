@@ -14,7 +14,7 @@
 
   function handlePointerDown (e: PointerEvent) {
     if (e.button !== 0) return
-    api.closeDialog()
+    $api.closeDialog()
   }
 </script>
 

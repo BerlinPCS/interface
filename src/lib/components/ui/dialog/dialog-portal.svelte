@@ -4,14 +4,13 @@
   import { DIALOG_KEY, type DialogContext } from './dialog-context.js'
 
   const api = getContext<DialogContext>(DIALOG_KEY)
-  const dialogOpen = api.open
 
   export let to: string | HTMLElement | undefined = undefined
 
   let className = ''
   export { className as class }
 
-  $: target = to ?? api.portal
+  $: target = to ?? $api.portal
 
   function portal (node: HTMLElement) {
     const el = typeof target === 'string' ? document.querySelector(target) : target
@@ -27,7 +26,7 @@
   }
 </script>
 
-{#if $dialogOpen}
+{#if $api.open}
   <div use:portal class={className} role='dialog'>
     <slot />
   </div>
