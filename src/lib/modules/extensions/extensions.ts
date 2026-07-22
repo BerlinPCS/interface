@@ -7,15 +7,18 @@ import { episodes as _episodes } from '../anizip'
 import native from '../native'
 import { settings, type videoResolutions } from '../settings'
 
+import { episodeAirDateMs, episodeByAirDate, type MappedEpisode } from './episode-mapping'
 import { storage } from './storage'
 
 import type { TorrentResult, WebSeedResult, WebSeedFile } from './types'
-import type { EpisodesResponse, Titles, Episode } from '../anizip/types'
+import type { EpisodesResponse, Titles } from '../anizip/types'
 import type { AnitomyResult } from 'anitomyscript'
 
 import { dev } from '$app/environment'
 import { savedOptions as extensionOptions, savedConfigs } from '$lib/modules/extensions'
 import { anitomyscript, toSettled } from '$lib/utils'
+
+export { episodeByAirDate } from './episode-mapping'
 
 const exclusions: string[] = []
 
@@ -69,31 +72,6 @@ export interface SingleEpisode {
   absoluteEpisodeNumber?: number
 }
 
-export function episodeByAirDate (alDate: Date | undefined, episodes: Map<string, Episode & { airdatems?: number }>, episode: number): Episode & { airdatems?: number } | undefined {
-  if (!alDate || !+alDate) return episodes.get('' + episode)
-  // 1 is key for episod 1, not index
-
-  // find closest episodes by air date, multiple episodes can have the same air date distance
-  const closestEpisodes: Episode[] = episodes.values().reduce<Episode[]>((prev, curr) => {
-    if (!prev[0]) return [curr]
-    const prevDate = Math.abs(+new Date(prev[0].airdate ?? 0) - +alDate)
-    const currDate = Math.abs(+new Date(curr.airdate ?? 0) - +alDate)
-    if (prevDate === currDate) {
-      prev.push(curr)
-      return prev
-    }
-    if (currDate < prevDate) return [curr]
-    return prev
-  }, [])
-
-  if (!closestEpisodes.length) return episodes.get('' + episode)
-
-  // if multiple episodes have the same air date, return the one closest to the requested episode number
-  return closestEpisodes.reduce((prev, curr) => {
-    return Math.abs(Number(curr.episode) - episode) < Math.abs(Number(prev.episode) - episode) ? curr : prev
-  })
-}
-
 export function makeEpisodeList (media: Media, episodesRes?: EpisodesResponse | null) {
   const count = episodes(media, episodesRes)
   const alSchedule: Record<number, Date | undefined> = {}
@@ -107,10 +85,10 @@ export function makeEpisodeList (media: Media, episodesRes?: EpisodesResponse | 
   }
 
   const episodeList: SingleEpisode[] = []
-  const filtered = new Map<string, Episode & { airdatems?: number }>()
+  const filtered = new Map<string, MappedEpisode>()
   const now = Date.now()
   for (const [key, value] of Object.entries(episodesRes?.episodes ?? {})) {
-    filtered.set(key, { ...value, airdatems: value.airdate ? +new Date(value.airdate) : undefined })
+    filtered.set(key, { ...value, airdatems: episodeAirDateMs(value) })
   }
 
   const hasSpecial = !!episodesRes?.specialCount

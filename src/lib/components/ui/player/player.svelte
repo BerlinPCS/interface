@@ -1,11 +1,13 @@
 <script lang='ts'>
   import Captions from 'lucide-svelte/icons/captions'
   import Cast from 'lucide-svelte/icons/cast'
+  import CircleCheck from 'lucide-svelte/icons/circle-check'
   import Contrast from 'lucide-svelte/icons/contrast'
   import DecimalsArrowLeft from 'lucide-svelte/icons/decimals-arrow-left'
   import DecimalsArrowRight from 'lucide-svelte/icons/decimals-arrow-right'
   import FastForward from 'lucide-svelte/icons/fast-forward'
   import List from 'lucide-svelte/icons/list'
+  import LoaderCircle from 'lucide-svelte/icons/loader-circle'
   import Pause from 'lucide-svelte/icons/pause'
   import PictureInPicture2 from 'lucide-svelte/icons/picture-in-picture-2'
   import Proportions from 'lucide-svelte/icons/proportions'
@@ -122,6 +124,7 @@
   let useMediaBunnyPlayback = $settings.playerCustom || dev
 
   let subtitles: Subs | undefined
+  $: subtitleAlignmentStatus = subtitles?.alignmentStatus
   let deband: VideoDeband | undefined
 
   const pip = new PictureInPicture()
@@ -960,6 +963,24 @@
               </Button>
             {/if}
             {#if subtitles}
+              {#if $subtitleAlignmentStatus && $subtitleAlignmentStatus !== 'hidden'}
+                <div
+                  class='size-12 flex shrink-0 items-center justify-center'
+                  class:text-amber-400={$subtitleAlignmentStatus === 'provisional'}
+                  class:text-green-400={$subtitleAlignmentStatus === 'confirmed'}
+                  role='status'
+                  aria-live='polite'
+                  aria-atomic='true'
+                  aria-label={$subtitleAlignmentStatus === 'timing' ? 'Timing subtitles' : $subtitleAlignmentStatus === 'provisional' ? 'Subtitle timing applied; verifying' : 'Subtitles timed'}
+                  title={$subtitleAlignmentStatus === 'timing' ? 'Timing subtitles' : $subtitleAlignmentStatus === 'provisional' ? 'Subtitle timing applied; verifying' : 'Subtitles timed'}
+                >
+                  {#if $subtitleAlignmentStatus === 'confirmed'}
+                    <CircleCheck size='24px' strokeWidth='2.5' />
+                  {:else}
+                    <LoaderCircle size='24px' strokeWidth='2.5' class='animate-spin' />
+                  {/if}
+                </div>
+              {/if}
               <Button class='p-3 size-12' variant='ghost' on:click={() => openPath(['subs'])} on:keydown={keywrap(() => openPath(['subs']))}>
                 <Subtitles size='24px' fill='currentColor' strokeWidth='0' />
               </Button>

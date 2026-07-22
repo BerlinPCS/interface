@@ -6,6 +6,7 @@ import { writable } from 'simple-store-svelte'
 import { get } from 'svelte/store'
 
 import { findSubtitleAlignment, parseAssCues, shiftAssDialogue, shouldAttemptSubtitleAlignment, type SubtitleCue } from './subtitle-alignment'
+import { advanceAlignment, alignmentStatus, cachedSubtitleAlignment, initialAlignmentProgress, rankJimakuCandidates, readSubtitleAlignmentCache, saveSubtitleAlignment, subtitleReleaseProfile, writeSubtitleAlignmentCache, type SubtitleAlignmentProgress, type SubtitleAlignmentStatus } from './subtitle-profiles'
 
 import type { ResolvedFile } from './resolver'
 import type { MediaInfo } from './util'
@@ -15,7 +16,7 @@ import type { SubtitleTrack, TorrentFile } from 'native'
 import { extensions } from '$lib/modules/extensions'
 import native from '$lib/modules/native'
 import { type defaults, settings } from '$lib/modules/settings'
-import { fontRx, HashMap, subRx, subtitleExtensions, toTS } from '$lib/utils'
+import { anitomyscript, fontRx, HashMap, subRx, subtitleExtensions, toTS } from '$lib/utils'
 
 const defaultHeader = `[Script Info]
 Title: English (US)
@@ -96,7 +97,8 @@ const stylesRx = /^Style:[^,]*/gm
 interface JimakuAlignmentState {
   originalHeader: string
   cues: SubtitleCue[]
-  offset?: number
+  profile?: string
+  progress: SubtitleAlignmentProgress
 }
 
 export default class Subtitles {
@@ -106,11 +108,14 @@ export default class Subtitles {
   fonts: string[]
   jassub: JASSUB | null = null
   current = writable<number | string>(-1)
+  alignmentStatus = writable<SubtitleAlignmentStatus>('hidden')
   set = get(settings)
   embeddedTracks = new Set<string>()
   jimakuTracks = new Map<string, JimakuAlignmentState>()
+  alignmentCache = readSubtitleAlignmentCache()
   alignmentReferenceTrack: string | undefined
   alignmentTimer: ReturnType<typeof setTimeout> | undefined
+  mediaId: number
 
   _tracks = writable<Record<number | string, { events: HashMap<{ text: string, time: number, duration: number, style?: string }, ASSEvent>, meta: SubtitleTrack, styles: Record<string | number, number> }>>({})
 
@@ -118,6 +123,7 @@ export default class Subtitles {
     this.video = video
     this.canvas = canvas
     this.selected = mediaInfo.file
+    this.mediaId = mediaInfo.media.id
     this.fonts = [...otherFiles.filter(file => fontRx.test(file.name)).map(file => file.url)]
 
     this.current.subscribe(value => {
@@ -130,15 +136,43 @@ export default class Subtitles {
 
     const subFiles = otherFiles.filter(({ name }) => subRx.test(name))
 
-    const fetchAndLoad = async (file: { url: string, name: string, extension?: string }) => {
+    const fetchSubtitleFile = async (file: { url: string, name: string }) => {
       const res = await fetch(file.url)
       const blob = await res.blob()
-      await this.addSingleSubtitleFile(new File([blob], file.name), file.extension)
+      return new File([blob], file.name)
+    }
+
+    const fetchAndLoad = async (file: { url: string, name: string, extension?: string }) => {
+      await this.addSingleSubtitleFile(await fetchSubtitleFile(file), file.extension)
     }
 
     extensions.subtitlesQuery(mediaInfo.media, mediaInfo.episode).then(async results => {
-      for (const { url, language, extension } of results) {
+      const jimaku = results.filter(({ extension }) => extension === 'jimaku')
+      for (const { url, language, extension } of results.filter(({ extension }) => extension !== 'jimaku')) {
         fetchAndLoad({ url, name: language, extension })
+      }
+
+      if (!jimaku.length) return
+      const parsed = await anitomyscript(jimaku.map(({ language }) => language))
+      const candidates = jimaku.map((value, index) => ({
+        value,
+        filename: value.language,
+        profile: subtitleReleaseProfile(value.language, parsed[index] ?? {}),
+        episodeNumbers: parsed[index]?.episode_number ?? [],
+        index
+      }))
+      const playingMultiEpisode = mediaInfo.file.metadata.parseObject.episode_number.length > 1
+      const ranked = rankJimakuCandidates(candidates, this.alignmentCache, this.mediaId, playingMultiEpisode)
+      const files = await Promise.allSettled(ranked.map(async candidate => ({
+        candidate,
+        file: await fetchSubtitleFile({ url: candidate.value.url, name: candidate.value.language })
+      })))
+      for (const result of files) {
+        if (result.status === 'rejected') {
+          console.error(result.reason)
+          continue
+        }
+        await this.addSingleSubtitleFile(result.value.file, 'jimaku', result.value.candidate.profile)
       }
     })
 
@@ -273,7 +307,7 @@ export default class Subtitles {
     input.click()
   }
 
-  async addSingleSubtitleFile (file: File, source?: string) {
+  async addSingleSubtitleFile (file: File, source?: string, profile?: string) {
     const dot = file.name.lastIndexOf('.')
     const extension = file.name.substring(dot + 1).toLowerCase()
     if (!subtitleExtensions.includes(extension)) return
@@ -286,15 +320,19 @@ export default class Subtitles {
     const convert = Subtitles.convertSubText(await file.text(), extension)
     if (!convert) return
     const { header, type } = convert
+    const cached = source === 'jimaku' ? cachedSubtitleAlignment(this.alignmentCache, this.mediaId, profile) : undefined
+    const activeHeader = cached ? shiftAssDialogue(header, cached.offset) : header
     // lets hope there's no more than 1000 subtitle tracks in a file
     const trackNumber = 1000 + Object.keys(this._tracks.value).length
     const newtrack = this.track(trackNumber)
     newtrack.styles.Default = 0
-    newtrack.meta = { type, header, number: '' + trackNumber, name, language: (detectCJKLanguage(header) ?? name.replace(/[,._-]/g, ' ').trim()) || 'Track ' + trackNumber, _compressed: false, default: false, forced: false }
+    newtrack.meta = { type, header: activeHeader, number: '' + trackNumber, name, language: (detectCJKLanguage(header) ?? name.replace(/[,._-]/g, ' ').trim()) || 'Track ' + trackNumber, _compressed: false, default: false, forced: false }
     if (source === 'jimaku') {
       this.jimakuTracks.set(String(trackNumber), {
         originalHeader: header,
-        cues: parseAssCues(header)
+        cues: parseAssCues(header),
+        profile,
+        progress: initialAlignmentProgress(cached)
       })
     }
     const styleMatches = header.match(stylesRx)
@@ -360,14 +398,29 @@ export default class Subtitles {
     if (!state || !reference || reference.cues.length < 4) return
 
     const estimate = findSubtitleAlignment(reference.cues, state.cues)
-    if (!estimate || (state.offset !== undefined && Math.abs(state.offset - estimate.offset) < 0.1)) return
+    if (!estimate) return
+
+    const update = advanceAlignment(state.progress, estimate.offset, reference.cues.length)
+    state.progress = update.progress
+
+    if (update.confirmedNow && state.profile && state.progress.offset !== undefined) {
+      saveSubtitleAlignment(this.alignmentCache, this.mediaId, state.profile, state.progress.offset)
+      writeSubtitleAlignmentCache(this.alignmentCache)
+    }
+
+    if (String(this.current.value) === trackNumber) this.updateAlignmentStatus(trackNumber)
+    if (!update.applyOffset || state.progress.offset === undefined) return
 
     const track = this._tracks.value[trackNumber]
     if (!track) return
-    track.meta.header = shiftAssDialogue(state.originalHeader, estimate.offset)
-    state.offset = estimate.offset
+    track.meta.header = shiftAssDialogue(state.originalHeader, state.progress.offset)
 
     if (String(this.current.value) === trackNumber) await this.selectCaptions(trackNumber)
+  }
+
+  updateAlignmentStatus (trackNumber: number | string) {
+    const state = this.jimakuTracks.get(String(trackNumber))
+    this.alignmentStatus.value = state ? alignmentStatus(state.progress) : 'hidden'
   }
 
   async initSubtitleRenderer () {
@@ -480,6 +533,7 @@ export default class Subtitles {
 
   async selectCaptions (trackNumber: number | string) {
     this.current.value = trackNumber
+    this.updateAlignmentStatus(trackNumber)
 
     if (!this.jassub) return
 
@@ -513,6 +567,7 @@ export default class Subtitles {
     this.jimakuTracks.clear()
     this.embeddedTracks.clear()
     this.alignmentReferenceTrack = undefined
+    this.alignmentStatus.value = 'hidden'
     this.jassub?.destroy()
     for (const { events } of Object.values(this._tracks.value)) {
       events.clear()
