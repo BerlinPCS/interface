@@ -5,6 +5,9 @@ import tseslint from 'typescript-eslint'
 import svelteConfig from './svelte.config.js'
 
 export default tseslint.config(
+  {
+    ignores: ['build/**', '.svelte-kit/**', 'node_modules/**', 'test/**']
+  },
   ...config({
     ..._globals.browser,
     ..._globals.worker,
@@ -22,7 +25,6 @@ export default tseslint.config(
         svelteConfig
       }
     },
-    ignores: ['build/', '.svelte-kit/', 'node_modules/'],
     rules: {
       '@typescript-eslint/prefer-nullish-coalescing': [
         'error',

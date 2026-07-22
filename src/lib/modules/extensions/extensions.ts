@@ -375,10 +375,11 @@ export const extensions = new class Extensions {
 
     const options = await this._getQueryOptions(media, episode)
 
-    const { settled, errors } = await toSettled<ExtensionError, Array<{ url: string, language: string }> | undefined>(extensions.entries().map(async ([id, worker]) => {
+    const { settled, errors } = await toSettled<ExtensionError, Array<{ url: string, language: string, extension: string }> | undefined>(extensions.entries().map(async ([id, worker]) => {
       if (!extopts[id]?.enabled || configs[id]?.type !== 'subtitle') return
       try {
-        return await raceTimeout(worker.single(options, extopts[id].options) as Promise<Array<{ url: string, language: string }>>, 10_000)
+        const subtitles = await raceTimeout(worker.single(options, extopts[id].options) as Promise<Array<{ url: string, language: string }>>, 10_000)
+        return subtitles?.map(subtitle => ({ ...subtitle, extension: id }))
       } catch (error) {
         throw new ExtensionError(error as Error, id)
       }

@@ -5,6 +5,8 @@ import workerUrl from 'jassub/dist/worker/worker.js?worker&url'
 import { writable } from 'simple-store-svelte'
 import { get } from 'svelte/store'
 
+import { findSubtitleAlignment, parseAssCues, shiftAssDialogue, shouldAttemptSubtitleAlignment, type SubtitleAlignment, type SubtitleCue } from './subtitle-alignment'
+
 import type { ResolvedFile } from './resolver'
 import type { MediaInfo } from './util'
 import type { ASSEvent, ASSStyle } from 'jassub/dist/worker/util'
@@ -90,6 +92,14 @@ function detectCJKLanguage (str: string) {
 let lastSelectedTrack: { language?: string, name?: string, number: string } | undefined
 
 const stylesRx = /^Style:[^,]*/gm
+
+interface JimakuAlignmentState {
+  filename: string
+  originalHeader: string
+  cues: SubtitleCue[]
+  offset?: number
+}
+
 export default class Subtitles {
   video?: HTMLVideoElement
   canvas?: HTMLCanvasElement
@@ -98,6 +108,9 @@ export default class Subtitles {
   jassub: JASSUB | null = null
   current = writable<number | string>(-1)
   set = get(settings)
+  embeddedTracks = new Set<string>()
+  jimakuTracks = new Map<string, JimakuAlignmentState>()
+  alignmentTimer: ReturnType<typeof setTimeout> | undefined
 
   _tracks = writable<Record<number | string, { events: HashMap<{ text: string, time: number, duration: number, style?: string }, ASSEvent>, meta: SubtitleTrack, styles: Record<string | number, number> }>>({})
 
@@ -117,15 +130,15 @@ export default class Subtitles {
 
     const subFiles = otherFiles.filter(({ name }) => subRx.test(name))
 
-    const fetchAndLoad = async (file: { url: string, name: string }) => {
+    const fetchAndLoad = async (file: { url: string, name: string, extension?: string }) => {
       const res = await fetch(file.url)
       const blob = await res.blob()
-      await this.addSingleSubtitleFile(new File([blob], file.name))
+      await this.addSingleSubtitleFile(new File([blob], file.name), file.extension)
     }
 
     extensions.subtitlesQuery(mediaInfo.media, mediaInfo.episode).then(async results => {
-      for (const { url, language } of results) {
-        fetchAndLoad({ url, name: language })
+      for (const { url, language, extension } of results) {
+        fetchAndLoad({ url, name: language, extension })
       }
     })
 
@@ -142,6 +155,7 @@ export default class Subtitles {
 
     const tracks = native.tracks(this.selected.hash, this.selected.id).then(async tracklist => {
       for (const track of tracklist) {
+        this.embeddedTracks.add(String(track.number))
         const newtrack = this.track(track.number)
         newtrack.styles.Default = 0
         if (track.header?.startsWith('[Script Info]')) track.type = 'ass'
@@ -213,6 +227,9 @@ export default class Subtitles {
       if (events.has(subtitle)) return
       const event = this.constructSub(subtitle, meta.type !== 'ass', events.size, styles[subtitle.style ?? 'Default'] ?? 0)
       events.add(subtitle, event)
+      if (this.embeddedTracks.has(String(trackNumber)) && !meta.forced && shouldAttemptSubtitleAlignment(events.size)) {
+        this.scheduleJimakuAlignment()
+      }
       if (Number(this.current.value) === trackNumber) {
         await this.jassub?.ready
         if (this.jassub?._destroyed) return
@@ -255,10 +272,7 @@ export default class Subtitles {
     input.click()
   }
 
-  async addSingleSubtitleFile (file: File) {
-    // lets hope there's no more than 1000 subtitle tracks in a file
-    const trackNumber = 1000 + Object.keys(this._tracks.value).length
-
+  async addSingleSubtitleFile (file: File, source?: string) {
     const dot = file.name.lastIndexOf('.')
     const extension = file.name.substring(dot + 1).toLowerCase()
     if (!subtitleExtensions.includes(extension)) return
@@ -271,9 +285,19 @@ export default class Subtitles {
     const convert = Subtitles.convertSubText(await file.text(), extension)
     if (!convert) return
     const { header, type } = convert
+    // lets hope there's no more than 1000 subtitle tracks in a file
+    const trackNumber = 1000 + Object.keys(this._tracks.value).length
     const newtrack = this.track(trackNumber)
     newtrack.styles.Default = 0
     newtrack.meta = { type, header, number: '' + trackNumber, name, language: (detectCJKLanguage(header) ?? name.replace(/[,._-]/g, ' ').trim()) || 'Track ' + trackNumber, _compressed: false, default: false, forced: false }
+    if (source === 'jimaku') {
+      this.jimakuTracks.set(String(trackNumber), {
+        filename: file.name,
+        originalHeader: header,
+        cues: parseAssCues(header)
+      })
+      this.scheduleJimakuAlignment()
+    }
     const styleMatches = header.match(stylesRx)
     if (styleMatches) {
       for (let i = 0; i < styleMatches.length; ++i) {
@@ -283,6 +307,73 @@ export default class Subtitles {
     if (this.current.value === -1) {
       await this.initSubtitleRenderer()
       await this.selectCaptions(trackNumber)
+    }
+  }
+
+  scheduleJimakuAlignment () {
+    if (this.alignmentTimer !== undefined || !this.jimakuTracks.size) return
+    this.alignmentTimer = setTimeout(() => {
+      this.alignmentTimer = undefined
+      this.alignJimakuTracks().catch(console.error)
+    })
+  }
+
+  async alignJimakuTracks () {
+    const references = [...this.embeddedTracks].reduce<Array<{ trackNumber: string, language: string, name?: string, cues: SubtitleCue[] }>>((result, trackNumber) => {
+      const track = this._tracks.value[trackNumber]
+      if (!track || track.meta.forced || track.events.size < 4) return result
+
+      const cues = [...track.events]
+        .map(event => ({ start: event.Start / 1000, end: (event.Start + event.Duration) / 1000 }))
+        .filter(cue => Number.isFinite(cue.start) && Number.isFinite(cue.end) && cue.end > cue.start)
+      if (cues.length < 4) return result
+
+      result.push({
+        trackNumber,
+        language: track.meta.language,
+        name: track.meta.name,
+        cues
+      })
+      return result
+    }, [])
+
+    if (!references.length) return
+
+    for (const [trackNumber, state] of this.jimakuTracks) {
+      let estimate: (SubtitleAlignment & { referenceTrack: string, referenceLanguage: string, referenceName?: string, referenceCueCount: number, referenceStarts: number[] }) | undefined
+      for (const reference of references) {
+        const alignment = findSubtitleAlignment(reference.cues, state.cues)
+        if (!alignment) continue
+
+        const candidate = {
+          ...alignment,
+          referenceTrack: reference.trackNumber,
+          referenceLanguage: reference.language,
+          referenceName: reference.name,
+          referenceCueCount: reference.cues.length,
+          referenceStarts: reference.cues.slice(0, 12).map(cue => cue.start)
+        }
+        if (!estimate || candidate.score > estimate.score || (candidate.score === estimate.score && candidate.referenceCueCount > estimate.referenceCueCount)) {
+          estimate = candidate
+        }
+      }
+
+      console.debug('Jimaku subtitle alignment', JSON.stringify({
+        filename: state.filename,
+        targetCues: state.cues.length,
+        targetStarts: state.cues.slice(0, 12).map(cue => cue.start),
+        previousOffset: state.offset,
+        estimate
+      }))
+      if (!estimate || (state.offset !== undefined && Math.abs(state.offset - estimate.offset) < 0.1)) continue
+
+      const track = this._tracks.value[trackNumber]
+      if (!track) continue
+      track.meta.header = shiftAssDialogue(state.originalHeader, estimate.offset)
+      state.offset = estimate.offset
+      console.debug(`Aligned Jimaku subtitle ${state.filename} by ${estimate.offset.toFixed(1)}s using embedded track ${estimate.referenceTrack}`)
+
+      if (String(this.current.value) === trackNumber) await this.selectCaptions(trackNumber)
     }
   }
 
@@ -423,6 +514,9 @@ export default class Subtitles {
   }
 
   destroy () {
+    if (this.alignmentTimer !== undefined) clearTimeout(this.alignmentTimer)
+    this.jimakuTracks.clear()
+    this.embeddedTracks.clear()
     this.jassub?.destroy()
     for (const { events } of Object.values(this._tracks.value)) {
       events.clear()
