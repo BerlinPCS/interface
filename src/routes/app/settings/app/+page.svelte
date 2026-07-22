@@ -96,6 +96,12 @@
   <Button href='/#/app/debug' class='btn btn-primary font-bold'>Go to Debug Page</Button>
 </SettingCard>
 
+{#if SUPPORTS.isAndroid}
+  <SettingCard title='Open WebView Devtools' description={'Open devtools for the system WebView, this allows to specify performance flags to improve performance.\n\nYou can read more about this on https://wiki.hayase.watch'}>
+    <Button on:click={native.openUIDevtools} class='btn btn-primary font-bold'>Open Devtools</Button>
+  </SettingCard>
+{/if}
+
 {#if !SUPPORTS.isAndroid && !SUPPORTS.isIOS}
   <SettingCard title='Log Output' description='Save debug logs to a file. Once you enable a logging level you can use this to quickly copy the created logs to clipboard instead of navigating to the log file in directories.'>
     <Button on:click={copyLogs} class='btn btn-primary font-bold'>Copy To Clipboard</Button>
