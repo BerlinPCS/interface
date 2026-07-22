@@ -5,7 +5,7 @@ import workerUrl from 'jassub/dist/worker/worker.js?worker&url'
 import { writable } from 'simple-store-svelte'
 import { get } from 'svelte/store'
 
-import { findSubtitleAlignment, parseAssCues, shiftAssDialogue, shouldAttemptSubtitleAlignment, type SubtitleAlignment, type SubtitleCue } from './subtitle-alignment'
+import { findSubtitleAlignment, parseAssCues, shiftAssDialogue, shouldAttemptSubtitleAlignment, type SubtitleCue } from './subtitle-alignment'
 
 import type { ResolvedFile } from './resolver'
 import type { MediaInfo } from './util'
@@ -94,7 +94,6 @@ let lastSelectedTrack: { language?: string, name?: string, number: string } | un
 const stylesRx = /^Style:[^,]*/gm
 
 interface JimakuAlignmentState {
-  filename: string
   originalHeader: string
   cues: SubtitleCue[]
   offset?: number
@@ -110,6 +109,7 @@ export default class Subtitles {
   set = get(settings)
   embeddedTracks = new Set<string>()
   jimakuTracks = new Map<string, JimakuAlignmentState>()
+  alignmentReferenceTrack: string | undefined
   alignmentTimer: ReturnType<typeof setTimeout> | undefined
 
   _tracks = writable<Record<number | string, { events: HashMap<{ text: string, time: number, duration: number, style?: string }, ASSEvent>, meta: SubtitleTrack, styles: Record<string | number, number> }>>({})
@@ -167,6 +167,7 @@ export default class Subtitles {
           newtrack.styles[styleMatches[i]!.replace('Style:', '').trim()] = i + 1
         }
       }
+      this.alignmentReferenceTrack = this.chooseAlignmentReferenceTrack()
       await this.initSubtitleRenderer()
 
       if (!this.set.subtitleLanguage) return // if lang set to none dont autoselect
@@ -227,7 +228,7 @@ export default class Subtitles {
       if (events.has(subtitle)) return
       const event = this.constructSub(subtitle, meta.type !== 'ass', events.size, styles[subtitle.style ?? 'Default'] ?? 0)
       events.add(subtitle, event)
-      if (this.embeddedTracks.has(String(trackNumber)) && !meta.forced && shouldAttemptSubtitleAlignment(events.size)) {
+      if (this.alignmentReferenceTrack === String(trackNumber) && this.jimakuTracks.has(String(this.current.value)) && shouldAttemptSubtitleAlignment(events.size)) {
         this.scheduleJimakuAlignment()
       }
       if (Number(this.current.value) === trackNumber) {
@@ -292,11 +293,9 @@ export default class Subtitles {
     newtrack.meta = { type, header, number: '' + trackNumber, name, language: (detectCJKLanguage(header) ?? name.replace(/[,._-]/g, ' ').trim()) || 'Track ' + trackNumber, _compressed: false, default: false, forced: false }
     if (source === 'jimaku') {
       this.jimakuTracks.set(String(trackNumber), {
-        filename: file.name,
         originalHeader: header,
         cues: parseAssCues(header)
       })
-      this.scheduleJimakuAlignment()
     }
     const styleMatches = header.match(stylesRx)
     if (styleMatches) {
@@ -311,70 +310,64 @@ export default class Subtitles {
   }
 
   scheduleJimakuAlignment () {
-    if (this.alignmentTimer !== undefined || !this.jimakuTracks.size) return
+    if (this.alignmentTimer !== undefined || !this.jimakuTracks.has(String(this.current.value))) return
     this.alignmentTimer = setTimeout(() => {
       this.alignmentTimer = undefined
       this.alignJimakuTracks().catch(console.error)
     })
   }
 
-  async alignJimakuTracks () {
-    const references = [...this.embeddedTracks].reduce<Array<{ trackNumber: string, language: string, name?: string, cues: SubtitleCue[] }>>((result, trackNumber) => {
+  chooseAlignmentReferenceTrack () {
+    const references = [...this.embeddedTracks].reduce<Array<{ trackNumber: string, language: string, default: boolean }>>((result, trackNumber) => {
       const track = this._tracks.value[trackNumber]
-      if (!track || track.meta.forced || track.events.size < 4) return result
-
-      const cues = [...track.events]
-        .map(event => ({ start: event.Start / 1000, end: (event.Start + event.Duration) / 1000 }))
-        .filter(cue => Number.isFinite(cue.start) && Number.isFinite(cue.end) && cue.end > cue.start)
-      if (cues.length < 4) return result
+      if (!track || track.meta.forced) return result
 
       result.push({
         trackNumber,
         language: track.meta.language,
-        name: track.meta.name,
-        cues
+        default: track.meta.default
       })
       return result
     }, [])
 
-    if (!references.length) return
+    return references.sort((a, b) => {
+      const aEnglish = a.language === 'eng' || a.language === 'en'
+      const bEnglish = b.language === 'eng' || b.language === 'en'
+      if (aEnglish !== bEnglish) return Number(bEnglish) - Number(aEnglish)
+      if (a.default !== b.default) return Number(b.default) - Number(a.default)
+      return 0
+    })[0]?.trackNumber
+  }
 
-    for (const [trackNumber, state] of this.jimakuTracks) {
-      let estimate: (SubtitleAlignment & { referenceTrack: string, referenceLanguage: string, referenceName?: string, referenceCueCount: number, referenceStarts: number[] }) | undefined
-      for (const reference of references) {
-        const alignment = findSubtitleAlignment(reference.cues, state.cues)
-        if (!alignment) continue
+  alignmentReference () {
+    if (!this.alignmentReferenceTrack) return
+    const track = this._tracks.value[this.alignmentReferenceTrack]
+    if (!track || track.meta.forced) return
 
-        const candidate = {
-          ...alignment,
-          referenceTrack: reference.trackNumber,
-          referenceLanguage: reference.language,
-          referenceName: reference.name,
-          referenceCueCount: reference.cues.length,
-          referenceStarts: reference.cues.slice(0, 12).map(cue => cue.start)
-        }
-        if (!estimate || candidate.score > estimate.score || (candidate.score === estimate.score && candidate.referenceCueCount > estimate.referenceCueCount)) {
-          estimate = candidate
-        }
-      }
+    const cues = [...track.events]
+      .map(event => ({ start: event.Start / 1000, end: (event.Start + event.Duration) / 1000 }))
+      .filter(cue => Number.isFinite(cue.start) && Number.isFinite(cue.end) && cue.end > cue.start)
 
-      console.debug('Jimaku subtitle alignment', JSON.stringify({
-        filename: state.filename,
-        targetCues: state.cues.length,
-        targetStarts: state.cues.slice(0, 12).map(cue => cue.start),
-        previousOffset: state.offset,
-        estimate
-      }))
-      if (!estimate || (state.offset !== undefined && Math.abs(state.offset - estimate.offset) < 0.1)) continue
-
-      const track = this._tracks.value[trackNumber]
-      if (!track) continue
-      track.meta.header = shiftAssDialogue(state.originalHeader, estimate.offset)
-      state.offset = estimate.offset
-      console.debug(`Aligned Jimaku subtitle ${state.filename} by ${estimate.offset.toFixed(1)}s using embedded track ${estimate.referenceTrack}`)
-
-      if (String(this.current.value) === trackNumber) await this.selectCaptions(trackNumber)
+    return {
+      cues
     }
+  }
+
+  async alignJimakuTracks () {
+    const trackNumber = String(this.current.value)
+    const state = this.jimakuTracks.get(trackNumber)
+    const reference = this.alignmentReference()
+    if (!state || !reference || reference.cues.length < 4) return
+
+    const estimate = findSubtitleAlignment(reference.cues, state.cues)
+    if (!estimate || (state.offset !== undefined && Math.abs(state.offset - estimate.offset) < 0.1)) return
+
+    const track = this._tracks.value[trackNumber]
+    if (!track) return
+    track.meta.header = shiftAssDialogue(state.originalHeader, estimate.offset)
+    state.offset = estimate.offset
+
+    if (String(this.current.value) === trackNumber) await this.selectCaptions(trackNumber)
   }
 
   async initSubtitleRenderer () {
@@ -499,6 +492,8 @@ export default class Subtitles {
     const track = this._tracks.value[trackNumber]
     if (!track) return
 
+    if (this.jimakuTracks.has(String(trackNumber))) this.scheduleJimakuAlignment()
+
     lastSelectedTrack = track.meta
 
     await this.jassub.renderer.setTrack(track.meta.header?.slice(0, -1) || defaultHeader)
@@ -517,6 +512,7 @@ export default class Subtitles {
     if (this.alignmentTimer !== undefined) clearTimeout(this.alignmentTimer)
     this.jimakuTracks.clear()
     this.embeddedTracks.clear()
+    this.alignmentReferenceTrack = undefined
     this.jassub?.destroy()
     for (const { events } of Object.values(this._tracks.value)) {
       events.clear()

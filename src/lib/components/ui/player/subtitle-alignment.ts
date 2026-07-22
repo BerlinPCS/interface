@@ -5,16 +5,12 @@ export interface SubtitleCue {
 
 export interface SubtitleAlignment {
   offset: number
-  score: number
-  margin: number
-  alternatives: Array<{ offset: number, score: number }>
 }
 
 const RESOLUTION = 0.1
 const MAX_OFFSET = 120
 const MIN_REFERENCE_CUES = 4
 const MIN_SCORE = 0.3
-const DISTINCT_OFFSET = 0.5
 const ONSET_TOLERANCE = 0.8
 
 function parseTimestamp (value: string): number | undefined {
@@ -63,6 +59,12 @@ interface EventFormat {
   end: number
 }
 
+const DEFAULT_EVENT_FORMAT: EventFormat = {
+  fields: ['layer', 'start', 'end', 'style', 'name', 'marginl', 'marginr', 'marginv', 'effect', 'text'],
+  start: 1,
+  end: 2
+}
+
 function eventFormat (line: string): EventFormat | undefined {
   const match = line.match(/^\s*Format\s*:\s*(.*)$/i)
   if (!match) return
@@ -83,7 +85,7 @@ export function parseAssCues (header: string): SubtitleCue[] {
     const section = line.match(/^\s*\[([^\]]+)]\s*$/)
     if (section) {
       inEvents = section[1]!.trim().toLowerCase() === 'events'
-      format = undefined
+      format = inEvents ? DEFAULT_EVENT_FORMAT : undefined
       continue
     }
     if (!inEvents) continue
@@ -113,7 +115,7 @@ export function shiftAssDialogue (header: string, offset: number): string {
     const section = line.match(/^\s*\[([^\]]+)]\s*$/)
     if (section) {
       inEvents = section[1]!.trim().toLowerCase() === 'events'
-      format = undefined
+      format = inEvents ? DEFAULT_EVENT_FORMAT : undefined
       continue
     }
     if (!inEvents) continue
@@ -151,7 +153,7 @@ export function findSubtitleAlignment (referenceCues: SubtitleCue[], targetCues:
   const targetTicks = new Set(targetCues.map(cue => Math.round(cue.start / RESOLUTION)))
   const maxOffsetTicks = Math.round(MAX_OFFSET / RESOLUTION)
   const toleranceTicks = Math.round(ONSET_TOLERANCE / RESOLUTION)
-  const scores: Array<{ offsetTicks: number, score: number }> = []
+  let best = { offsetTicks: 0, score: -Infinity }
 
   for (let offsetTicks = -maxOffsetTicks; offsetTicks <= maxOffsetTicks; ++offsetTicks) {
     let score = 0
@@ -164,34 +166,13 @@ export function findSubtitleAlignment (referenceCues: SubtitleCue[], targetCues:
         }
       }
     }
-    scores.push({ offsetTicks, score: score / referenceTicks.length })
-  }
-
-  let best = scores[0]!
-  for (const candidate of scores.slice(1)) {
+    const candidate = { offsetTicks, score: score / referenceTicks.length }
     if (candidate.score > best.score || (candidate.score === best.score && Math.abs(candidate.offsetTicks) < Math.abs(best.offsetTicks))) {
       best = candidate
     }
   }
 
-  const distinctTicks = Math.round(DISTINCT_OFFSET / RESOLUTION)
-  const alternatives: Array<{ offset: number, score: number }> = []
-  for (const candidate of [...scores].sort((a, b) => b.score - a.score || Math.abs(a.offsetTicks) - Math.abs(b.offsetTicks))) {
-    if (alternatives.some(alternative => Math.abs(alternative.offset - candidate.offsetTicks * RESOLUTION) <= DISTINCT_OFFSET)) continue
-    alternatives.push({ offset: candidate.offsetTicks * RESOLUTION, score: candidate.score })
-    if (alternatives.length === 3) break
-  }
-
-  const runnerUp = scores.reduce((score, candidate) => {
-    if (Math.abs(candidate.offsetTicks - best.offsetTicks) <= distinctTicks) return score
-    return Math.max(score, candidate.score)
-  }, 0)
   if (best.score < MIN_SCORE) return
 
-  return {
-    offset: best.offsetTicks * RESOLUTION,
-    score: best.score,
-    margin: best.score - runnerUp,
-    alternatives
-  }
+  return { offset: best.offsetTicks * RESOLUTION }
 }

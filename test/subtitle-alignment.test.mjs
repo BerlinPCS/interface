@@ -49,6 +49,13 @@ test('parses reordered ASS fields and preserves commas in dialogue text', () => 
   assert.ok(shifted.includes('\r\n'))
 })
 
+test('parses and shifts Hayase SRT conversions without an explicit event format', () => {
+  const ass = `[Events]\n\nDialogue: 0,0:00:03.50,0:00:05.00,Default,,0,0,0,,hello, world`
+
+  assert.deepEqual(parseAssCues(ass), [{ start: 3.5, end: 5 }])
+  assert.match(shiftAssDialogue(ass, -2.5), /Dialogue: 0,0:00:01\.00,0:00:02\.50,Default,,0,0,0,,hello, world/)
+})
+
 test('clamps shifted timestamps at zero and always shifts from the supplied original', () => {
   const ass = `[Events]\nFormat: Layer, Start, End, Style, Text\nDialogue: 0,0:00:01.00,0:00:02.50,Default,test\n`
   const shifted = shiftAssDialogue(ass, -2)
