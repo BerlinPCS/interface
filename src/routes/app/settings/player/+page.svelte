@@ -1,14 +1,16 @@
 <script lang='ts'>
+  import { toast } from 'svelte-sonner'
+
   import { dev } from '$app/env'
   import SettingCard from '$lib/components/SettingCard.svelte'
   import { Button } from '$lib/components/ui/button'
   import { SingleCombo } from '$lib/components/ui/combobox'
   import { Input } from '$lib/components/ui/input'
+  import { saveCustomSubtitleFont } from '$lib/components/ui/player/custom-subtitle-font'
   import { Switch } from '$lib/components/ui/switch'
-  import * as ToggleGroup from '$lib/components/ui/toggle-group'
   import native from '$lib/modules/native'
-  import { navigate } from '$lib/modules/navigate'
   import { settings, languageCodes, subtitleResolutions, SUPPORTS } from '$lib/modules/settings'
+  import { fontExtensions, fontRx } from '$lib/utils'
 
   let prevSubStyle = $settings.subtitleStyle
   $: if (!$settings.subtitleStyle) {
@@ -20,33 +22,46 @@
   async function selectPlayer () {
     $settings.playerPath = await native.selectPlayer()
   }
+
+  $: subtitleFonts = {
+    none: 'None',
+    gandhisans: 'Gandhi Sans Bold',
+    notosans: 'Noto Sans Bold',
+    roboto: 'Roboto Bold',
+    ...($settings.subtitleCustomFontName ? { custom: `Custom — ${$settings.subtitleCustomFontName}` } : {})
+  }
+
+  function selectCustomFont () {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = fontExtensions.map(extension => '.' + extension).join(',')
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0]
+      if (!file || !fontRx.test(file.name)) return
+      try {
+        $settings.subtitleCustomFontName = await saveCustomSubtitleFont(file)
+        $settings.subtitleStyle = 'custom'
+      } catch (error) {
+        toast.error('Failed to save custom subtitle font', { description: error instanceof Error ? error.message : String(error) })
+      }
+    })
+    input.click()
+  }
 </script>
 
 <div class='font-weight-bold text-xl font-bold'>Subtitle Settings</div>
+<SettingCard let:id title='Automatic Subtitle Retiming' description='Automatically align Jimaku subtitles with the embedded subtitles in the video. Requires the Jimaku extension.'>
+  <Switch {id} bind:checked={$settings.subtitleAutoRetiming} />
+</SettingCard>
 <SettingCard title='Subtitle Render Resolution Limit' description="Max resolution to render subtitles at. If your resolution is higher than this setting the subtitles will be upscaled lineary. This will GREATLY improve rendering speeds for complex typesetting for slower devices. It's best to lower this on mobile devices which often have high pixel density where their effective resolution might be ~1440p while having small screens and slow processors.">
   <SingleCombo bind:value={$settings.subtitleRenderHeight} items={subtitleResolutions} class='w-32 shrink-0 border-input border' />
 </SettingCard>
 
-<SettingCard class='md:flex-col md:items-start' title='Subtitle Dialogue Style Overrides' description={'Selectively override the default dialogue style for subtitles. This will not change the style of typesetting [Fancy 3D Signs and Songs].\n\nWarning: the heuristic used for deciding when to override the style is rather rough, and enabling this option can lead to incorrectly rendered subtitles.'}>
-  <ToggleGroup.Root type='single' bind:value={$settings.subtitleStyle} asChild let:builder variant='ghost'>
-    <div class='grid sm:grid-cols-2 gap-3' use:builder.action {...builder} on:keydown|capture|stopPropagation={navigate}>
-      <ToggleGroup.Item value='none' class='h-auto aspect-video text-4xl px-0 relative'>
-        <div class='absolute top-4 text-xl font-bold'>None</div>🚫
-      </ToggleGroup.Item>
-      <ToggleGroup.Item value='gandhisans' class='h-auto p-0 relative'>
-        <div class='absolute top-4 text-xl font-bold'>Gandhi Sans Bold</div>
-        <img src='/gandhisans.png' class='w-full' />
-      </ToggleGroup.Item>
-      <ToggleGroup.Item value='notosans' class='h-auto p-0 relative'>
-        <div class='absolute top-4 text-xl font-bold'>Noto Sans Bold</div>
-        <img src='/notosans.png' class='w-full' />
-      </ToggleGroup.Item>
-      <ToggleGroup.Item value='roboto' class='h-auto p-0 relative'>
-        <div class='absolute top-4 text-xl font-bold'>Roboto Bold</div>
-        <img src='/roboto.png' class='w-full' />
-      </ToggleGroup.Item>
-    </div>
-  </ToggleGroup.Root>
+<SettingCard title='Subtitle Dialogue Font' description='Override the font used for normal dialogue subtitles. Fancy typesetting, signs, and songs keep their original styles.'>
+  <div class='flex flex-col sm:flex-row gap-2 sm:items-center'>
+    <SingleCombo bind:value={$settings.subtitleStyle} items={subtitleFonts} class='w-60 shrink-0 border-input border' />
+    <Button on:click={selectCustomFont} variant='secondary'>Add Custom Font</Button>
+  </div>
 </SettingCard>
 
 <div class='font-weight-bold text-xl font-bold'>Language Settings</div>

@@ -5,6 +5,7 @@ import workerUrl from 'jassub/dist/worker/worker.js?worker&url'
 import { writable } from 'simple-store-svelte'
 import { get } from 'svelte/store'
 
+import { loadCustomSubtitleFont } from './custom-subtitle-font'
 import { findSubtitleAlignment, parseAssCues, shiftAssDialogue, shouldAttemptSubtitleAlignment, type SubtitleCue } from './subtitle-alignment'
 import { advanceAlignment, alignmentStatus, cachedSubtitleAlignment, initialAlignmentProgress, rankJimakuCandidates, readSubtitleAlignmentCache, saveSubtitleAlignment, subtitleReleaseProfile, writeSubtitleAlignmentCache, type SubtitleAlignmentProgress, type SubtitleAlignmentStatus } from './subtitle-profiles'
 
@@ -33,7 +34,10 @@ Style: Default, Roboto Medium,52,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0
 
 `
 
-const STYLE_OVERRIDES: Record<typeof defaults.subtitleStyle, Pick<ASSStyle, 'FontName' |'Spacing' | 'ScaleX'>> = {
+type SubtitleStyle = typeof defaults.subtitleStyle
+type StyleOverride = Pick<ASSStyle, 'FontName' |'Spacing' | 'ScaleX'>
+
+const STYLE_OVERRIDES: Record<Exclude<SubtitleStyle, 'custom'>, StyleOverride> = {
   none: {
     FontName: 'Roboto Medium',
     Spacing: 0,
@@ -54,6 +58,17 @@ const STYLE_OVERRIDES: Record<typeof defaults.subtitleStyle, Pick<ASSStyle, 'Fon
     Spacing: 0,
     ScaleX: 1
   }
+}
+
+function subtitleStyleOverride (style: SubtitleStyle, customFontName: string): StyleOverride {
+  if (style === 'custom') {
+    return {
+      FontName: customFontName || 'Roboto Medium',
+      Spacing: 0,
+      ScaleX: 1
+    }
+  }
+  return STYLE_OVERRIDES[style]
 }
 
 const AVAILABLE_FONTS = {
@@ -105,7 +120,10 @@ export default class Subtitles {
   video?: HTMLVideoElement
   canvas?: HTMLCanvasElement
   selected: ResolvedFile
-  fonts: string[]
+  fonts: Array<string | Uint8Array>
+  customFontReady: Promise<void>
+  customFontUrl: string | undefined
+  customFontFamily: string | undefined
   jassub: JASSUB | null = null
   current = writable<number | string>(-1)
   alignmentStatus = writable<SubtitleAlignmentStatus>('hidden')
@@ -116,6 +134,7 @@ export default class Subtitles {
   alignmentReferenceTrack: string | undefined
   alignmentTimer: ReturnType<typeof setTimeout> | undefined
   mediaId: number
+  settingsUnsubscribe: () => void
 
   _tracks = writable<Record<number | string, { events: HashMap<{ text: string, time: number, duration: number, style?: string }, ASSEvent>, meta: SubtitleTrack, styles: Record<string | number, number> }>>({})
 
@@ -125,13 +144,26 @@ export default class Subtitles {
     this.selected = mediaInfo.file
     this.mediaId = mediaInfo.media.id
     this.fonts = [...otherFiles.filter(file => fontRx.test(file.name)).map(file => file.url)]
+    this.customFontReady = loadCustomSubtitleFont().then(font => {
+      if (!font) return
+      this.customFontUrl = URL.createObjectURL(new Blob([font.data.buffer as ArrayBuffer], { type: font.type || 'font/ttf' }))
+      this.fonts.push(this.customFontUrl)
+      const family = font.family
+      this.customFontFamily = family
+      if (family && this.set.subtitleCustomFontName !== family) {
+        settings.update(set => ({ ...set, subtitleCustomFontName: family }))
+      }
+    })
 
     this.current.subscribe(value => {
       this.selectCaptions(value)
     })
 
-    settings.subscribe(set => {
+    this.settingsUnsubscribe = settings.subscribe(set => {
+      const autoRetimingChanged = this.set.subtitleAutoRetiming !== set.subtitleAutoRetiming
+      this.set = set
       this._applyStyleOverride(set.subtitleStyle)
+      if (autoRetimingChanged) this.resetJimakuAlignment(set.subtitleAutoRetiming).catch(console.error)
     })
 
     const subFiles = otherFiles.filter(({ name }) => subRx.test(name))
@@ -162,7 +194,7 @@ export default class Subtitles {
         index
       }))
       const playingMultiEpisode = mediaInfo.file.metadata.parseObject.episode_number.length > 1
-      const ranked = rankJimakuCandidates(candidates, this.alignmentCache, this.mediaId, playingMultiEpisode)
+      const ranked = rankJimakuCandidates(candidates, this.set.subtitleAutoRetiming ? this.alignmentCache : {}, this.mediaId, playingMultiEpisode)
       const files = await Promise.allSettled(ranked.map(async candidate => ({
         candidate,
         file: await fetchSubtitleFile({ url: candidate.value.url, name: candidate.value.language })
@@ -320,7 +352,7 @@ export default class Subtitles {
     const convert = Subtitles.convertSubText(await file.text(), extension)
     if (!convert) return
     const { header, type } = convert
-    const cached = source === 'jimaku' ? cachedSubtitleAlignment(this.alignmentCache, this.mediaId, profile) : undefined
+    const cached = source === 'jimaku' && this.set.subtitleAutoRetiming ? cachedSubtitleAlignment(this.alignmentCache, this.mediaId, profile) : undefined
     const activeHeader = cached ? shiftAssDialogue(header, cached.offset) : header
     // lets hope there's no more than 1000 subtitle tracks in a file
     const trackNumber = 1000 + Object.keys(this._tracks.value).length
@@ -348,7 +380,7 @@ export default class Subtitles {
   }
 
   scheduleJimakuAlignment () {
-    if (this.alignmentTimer !== undefined || !this.jimakuTracks.has(String(this.current.value))) return
+    if (!this.set.subtitleAutoRetiming || this.alignmentTimer !== undefined || !this.jimakuTracks.has(String(this.current.value))) return
     this.alignmentTimer = setTimeout(() => {
       this.alignmentTimer = undefined
       this.alignJimakuTracks().catch(console.error)
@@ -392,6 +424,7 @@ export default class Subtitles {
   }
 
   async alignJimakuTracks () {
+    if (!this.set.subtitleAutoRetiming) return
     const trackNumber = String(this.current.value)
     const state = this.jimakuTracks.get(trackNumber)
     const reference = this.alignmentReference()
@@ -420,11 +453,38 @@ export default class Subtitles {
 
   updateAlignmentStatus (trackNumber: number | string) {
     const state = this.jimakuTracks.get(String(trackNumber))
-    this.alignmentStatus.value = state ? alignmentStatus(state.progress) : 'hidden'
+    this.alignmentStatus.value = this.set.subtitleAutoRetiming && state ? alignmentStatus(state.progress) : 'hidden'
+  }
+
+  async resetJimakuAlignment (enabled: boolean) {
+    if (this.alignmentTimer !== undefined) {
+      clearTimeout(this.alignmentTimer)
+      this.alignmentTimer = undefined
+    }
+
+    for (const [trackNumber, state] of this.jimakuTracks) {
+      const cached = enabled ? cachedSubtitleAlignment(this.alignmentCache, this.mediaId, state.profile) : undefined
+      state.progress = initialAlignmentProgress(cached)
+      const track = this._tracks.value[trackNumber]
+      if (track) track.meta.header = cached ? shiftAssDialogue(state.originalHeader, cached.offset) : state.originalHeader
+    }
+
+    const current = String(this.current.value)
+    this.updateAlignmentStatus(current)
+    if (this.jimakuTracks.has(current)) {
+      await this.selectCaptions(current)
+      if (enabled) this.scheduleJimakuAlignment()
+    }
   }
 
   async initSubtitleRenderer () {
+    await this.customFontReady
     if (this.jassub) return
+
+    const styleOverride = subtitleStyleOverride(this.set.subtitleStyle, this.customFontFamily ?? this.set.subtitleCustomFontName)
+    const defaultFont = this.set.subtitleStyle === 'custom' ? 'Roboto Medium' : styleOverride.FontName
+    const availableFonts: Record<string, string | Uint8Array> = { ...AVAILABLE_FONTS }
+    if (this.customFontUrl && this.customFontFamily) availableFonts[this.customFontFamily] = this.customFontUrl
 
     this.jassub = new JASSUB({
       video: this.video,
@@ -432,12 +492,12 @@ export default class Subtitles {
       subContent: defaultHeader,
       fonts: this.fonts,
       maxRenderHeight: parseInt(this.set.subtitleRenderHeight) || 0,
-      defaultFont: STYLE_OVERRIDES[this.set.subtitleStyle].FontName,
-      queryFonts: 'localandremote',
+      defaultFont,
+      queryFonts: this.set.subtitleStyle === 'custom' ? false : 'localandremote',
       workerUrl,
       modernWasmUrl,
       wasmUrl,
-      availableFonts: AVAILABLE_FONTS
+      availableFonts
     })
 
     await this.jassub.ready
@@ -445,11 +505,14 @@ export default class Subtitles {
     await this._applyStyleOverride(this.set.subtitleStyle)
   }
 
-  lastSubtitleStyle: typeof defaults.subtitleStyle | undefined = undefined
-  async _applyStyleOverride (subtitleStyle: typeof defaults.subtitleStyle) {
-    if (this.lastSubtitleStyle === subtitleStyle) return
-    if (this.jassub) this.lastSubtitleStyle = subtitleStyle
+  lastSubtitleStyle: string | undefined = undefined
+  async _applyStyleOverride (subtitleStyle: SubtitleStyle) {
+    const customFontName = this.customFontFamily ?? this.set.subtitleCustomFontName
+    const styleKey = subtitleStyle === 'custom' ? `${subtitleStyle}:${customFontName}` : subtitleStyle
+    if (this.lastSubtitleStyle === styleKey) return
+    if (this.jassub) this.lastSubtitleStyle = styleKey
     if (subtitleStyle !== 'none') {
+      const styleOverride = subtitleStyleOverride(subtitleStyle, customFontName)
       const overrideStyle: ASSStyle = {
         Name: 'DialogueStyleOverride',
         FontSize: 72,
@@ -457,7 +520,7 @@ export default class Subtitles {
         SecondaryColour: 0xFF000000,
         OutlineColour: 0,
         BackColour: 0,
-        Bold: 1,
+        Bold: subtitleStyle === 'custom' ? 0 : 1,
         Italic: 0,
         Underline: 0,
         StrikeOut: 0,
@@ -474,10 +537,10 @@ export default class Subtitles {
         treat_fontname_as_pattern: 0,
         Blur: 0,
         Justify: 0,
-        ...STYLE_OVERRIDES[subtitleStyle]
+        ...styleOverride
       }
       await this.jassub?.renderer.styleOverride(overrideStyle)
-      await this.jassub?.renderer.setDefaultFont(overrideStyle.FontName)
+      await this.jassub?.renderer.setDefaultFont(subtitleStyle === 'custom' ? 'Roboto Medium' : overrideStyle.FontName)
     } else {
       await this.jassub?.renderer.disableStyleOverride()
       await this.jassub?.renderer.setDefaultFont('roboto medium')
@@ -553,7 +616,9 @@ export default class Subtitles {
     await this.jassub.renderer.setTrack(track.meta.header?.slice(0, -1) || defaultHeader)
     for (const subtitle of track.events) await this.jassub.renderer.createEvent(subtitle)
     const lang = track.meta.language
-    if (LANGUAGE_OVERRIDES[lang]) {
+    if (this.set.subtitleStyle === 'custom') {
+      await this.jassub.renderer.setDefaultFont('Roboto Medium')
+    } else if (LANGUAGE_OVERRIDES[lang]) {
       const name = LANGUAGE_OVERRIDES[lang]
       await this.jassub.renderer.setDefaultFont(name)
     } else {
@@ -568,7 +633,9 @@ export default class Subtitles {
     this.embeddedTracks.clear()
     this.alignmentReferenceTrack = undefined
     this.alignmentStatus.value = 'hidden'
+    this.settingsUnsubscribe()
     this.jassub?.destroy()
+    if (this.customFontUrl) URL.revokeObjectURL(this.customFontUrl)
     for (const { events } of Object.values(this._tracks.value)) {
       events.clear()
     }
