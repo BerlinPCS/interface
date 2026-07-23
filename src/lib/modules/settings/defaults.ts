@@ -3,6 +3,7 @@ import SUPPORTS from './supports'
 import type { languageCodes, subtitleResolutions, videoResolutions } from './util'
 
 import { DEFAULT_MINING_SUBTITLE_CSS } from '$lib/modules/mining'
+import { DEFAULT_MINING_DICTIONARY_CSS } from '$lib/modules/mining-dictionary'
 
 export default {
   volume: 1,
@@ -17,6 +18,18 @@ export default {
   subtitleAutoRetiming: true,
   miningPauseOnEnter: false,
   miningSubtitleCss: DEFAULT_MINING_SUBTITLE_CSS,
+  miningPopupWidth: 500,
+  miningPopupHeight: 400,
+  miningPopupScale: 1.5,
+  miningDictionaryScanNonJapanese: false,
+  miningDictionaryMaxResults: 16,
+  miningDictionaryScanLength: 16,
+  miningDictionaryCollapseMode: 'expandAll' as 'expandAll' | 'collapseAll',
+  miningDictionaryExpandFirst: false,
+  miningDictionaryTwoColumn: false,
+  miningDictionaryCompactGlossaries: true,
+  miningDictionaryShowExpressionTags: false,
+  miningDictionaryCss: DEFAULT_MINING_DICTIONARY_CSS,
   searchQuality: '1080' as keyof typeof videoResolutions,
   searchAutoSelect: true,
   lookupPreference: 'quality' as 'quality' | 'size' | 'seeders',

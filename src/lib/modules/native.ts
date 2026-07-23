@@ -1,7 +1,17 @@
 import ChromeCast from './chromecast.ts'
 import SUPPORTS from './settings/supports'
 
+import type { MiningDictionaryState } from '$lib/modules/mining-dictionary'
 import type { AuthResponse, Native, TorrentInfo } from 'native'
+
+const unavailableDictionaryState = (): MiningDictionaryState => ({
+  available: false,
+  generation: 0,
+  error: 'Dictionary lookup is only available in the Hayase desktop app.',
+  dictionaries: [],
+  order: { term: [], frequency: [], pitch: [] },
+  styles: {}
+})
 
 const dummyFiles = [
   {
@@ -179,6 +189,13 @@ export default Object.assign<Native, Partial<Native>>({
   pluginDelete: async () => undefined,
   pluginImport: async () => { throw new Error('Plugins are not supported in this version of Hayase!') },
   pluginList: async () => [],
-  pluginPopup: async () => undefined
+  pluginPopup: async () => undefined,
+  miningDictionaryState: async () => unavailableDictionaryState(),
+  miningDictionaryLookup: async () => ({ length: 0, entries: [] }),
+  miningDictionaryImport: async () => unavailableDictionaryState(),
+  miningDictionarySetEnabled: async () => unavailableDictionaryState(),
+  miningDictionaryReorder: async () => unavailableDictionaryState(),
+  miningDictionaryRemove: async () => unavailableDictionaryState(),
+  onMiningDictionaryEvent: () => () => {}
   // @ts-expect-error idk
 }, globalThis.native as Partial<Native>)
