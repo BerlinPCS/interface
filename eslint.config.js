@@ -6,7 +6,14 @@ import svelteConfig from './svelte.config.js'
 
 export default tseslint.config(
   {
-    ignores: ['build/**', '.svelte-kit/**', 'node_modules/**', 'test/**']
+    ignores: [
+      'build/**',
+      '.svelte-kit/**',
+      'node_modules/**',
+      'test/**',
+      'scripts/verify-hoshi-popup-assets.mjs',
+      'static/mining-popup/**'
+    ]
   },
   ...config({
     ..._globals.browser,

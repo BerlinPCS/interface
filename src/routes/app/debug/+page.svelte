@@ -38,19 +38,19 @@
       },
       ...device
     }
-    await saveFile(info, 'hayase-device-info')
+    await saveFile(info, 'hayatan-device-info')
   }
 
   async function logs () {
     const logs = await native.getLogs()
-    await saveFile(logs, 'hayase-logs', 'ansi')
+    await saveFile(logs, 'hayatan-logs', 'ansi')
   }
 
   async function settingsFile () {
     const set = { ...$settings }
     set.nzbPassword = '***'
     set.nzbLogin = '***'
-    await saveFile(set, 'hayase-settings')
+    await saveFile(set, 'hayatan-settings')
   }
 
   async function torrent () {
@@ -65,7 +65,7 @@
       native.protocolStatus(hash)
     ])
 
-    await saveFile({ storage: fastPrettyBytes(storage), info, trackers, protocol }, 'hayase-torrent-capabilities')
+    await saveFile({ storage: fastPrettyBytes(storage), info, trackers, protocol }, 'hayatan-torrent-capabilities')
   }
 
   const AUDIO_CODECS = [
@@ -335,7 +335,7 @@
 
     const [audioMatrix, videoMatrix] = await mediaPromise
 
-    await saveFile({ video, audioMatrix, videoMatrix }, 'hayase-media-capabilities')
+    await saveFile({ video, audioMatrix, videoMatrix }, 'hayatan-media-capabilities')
   }
 </script>
 
@@ -343,7 +343,7 @@
   <div class='flex justify-center'>
     <div class='space-y-0.5 lg:max-w-[1440px] w-full'>
       <h2 class='text-2xl font-bold'>Debug Page</h2>
-      <p class='text-muted-foreground'>If you're here because you're looking for support with Hayase, you're in the right place! Otherwise, you might want to check the <a href='/#/app/settings' class='text-blue-500 hover:underline'>settings</a> page.</p>
+      <p class='text-muted-foreground'>If you're here because you're looking for support with Hayatan, you're in the right place! Otherwise, you might want to check the <a href='/#/app/settings' class='text-blue-500 hover:underline'>settings</a> page.</p>
     </div>
   </div>
   <SettingCard title='App and Device Info' description='Save app and device debug info and capabilities, such as GPU information, GPU capabilities, version information and settings to a file.'>

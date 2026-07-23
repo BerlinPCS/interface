@@ -1,0 +1,55 @@
+html,
+body {
+  overscroll-behavior: none;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+* {
+  scrollbar-width: none;
+}
+
+html[data-hoshi-color-scheme="light"],
+html[data-hoshi-color-scheme="light"] body {
+  --background-color: #fff;
+  --background-color-light: #fff;
+  --text-color: #000;
+  color-scheme: light;
+  background-color: #fff !important;
+}
+
+html[data-hoshi-color-scheme="light"] .overlay {
+  color: #000;
+  background: #eee;
+}
+
+html[data-hoshi-color-scheme="dark"],
+html[data-hoshi-color-scheme="dark"] body {
+  --background-color: #000;
+  --background-color-light: #000;
+  --text-color: #fff;
+  --text-color-light1: #aaa;
+  --text-color-light2: #999;
+  --text-color-light3: #888;
+  --text-color-light4: #777;
+  --background-color-dark1: #333;
+  color-scheme: dark;
+  background-color: #000 !important;
+}
+
+html[data-hoshi-color-scheme="dark"] .overlay {
+  color: #fff;
+  background: #000;
+}
+
+html[data-hoshi-color-scheme="dark"] .glossary-group > div[data-dictionary] {
+  color: var(--text-color) !important;
+}

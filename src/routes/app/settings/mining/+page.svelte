@@ -1,8 +1,9 @@
 <script lang='ts'>
   import ChevronDown from 'lucide-svelte/icons/chevron-down'
+  import ChevronRight from 'lucide-svelte/icons/chevron-right'
   import CodeXml from 'lucide-svelte/icons/code-xml'
   import RotateCcw from 'lucide-svelte/icons/rotate-ccw'
-  import { onDestroy } from 'svelte'
+  import { onDestroy, onMount } from 'svelte'
 
   import MiningDictionariesSettings from './mining-dictionaries-settings.svelte'
 
@@ -11,17 +12,22 @@
   import { SingleCombo } from '$lib/components/ui/combobox'
   import * as Dialog from '$lib/components/ui/dialog'
   import { Input } from '$lib/components/ui/input'
-  import MiningDictionaryPopup from '$lib/components/ui/player/mining-dictionary-popup.svelte'
+  import MiningDictionaryIframePopup from '$lib/components/ui/player/mining-dictionary-iframe-popup.svelte'
   import MiningSubtitle from '$lib/components/ui/player/mining-subtitle.svelte'
   import { Switch } from '$lib/components/ui/switch'
   import { Textarea } from '$lib/components/ui/textarea'
   import { DEFAULT_MINING_SUBTITLE_CSS, type MiningSelection } from '$lib/modules/mining'
+  import { enabledMiningAudioTemplates } from '$lib/modules/mining-audio'
   import {
     calculateMiningPopupPosition,
     DEFAULT_MINING_DICTIONARY_CSS,
+    getMiningLookupRequest,
+    UNAVAILABLE_MINING_DICTIONARY_STATE,
     type MiningDictionaryEntry,
+    type MiningDictionaryState,
     type MiningPopupPosition
   } from '$lib/modules/mining-dictionary'
+  import native from '$lib/modules/native'
   import { settings } from '$lib/modules/settings'
 
   const previewCue = {
@@ -33,72 +39,95 @@
     rawText: '昨日は寿司を食べました',
     plainText: '昨日は寿司を食べました'
   }
-  const previewEntries: MiningDictionaryEntry[] = [{
-    expression: '食べる',
-    reading: 'たべる',
-    matched: '食べました',
-    deinflected: '食べる',
-    trace: [{ name: 'polite past', description: '食べました → 食べる' }],
-    rules: ['v1'],
-    glossaries: [{
-      dictionary: 'JMdict',
-      content: '["to eat", "to consume"]',
-      definitionTags: 'v1 transitive',
-      termTags: 'common'
-    }, {
-      dictionary: 'Japanese Examples',
-      content: '[{"type":"structured-content","content":[{"tag":"span","content":"何か食べましたか？ — Did you eat anything?"}]}]',
-      definitionTags: '',
-      termTags: ''
-    }],
-    frequencies: [{
-      dictionary: 'Frequency',
-      frequencies: [{ value: 612, displayValue: '612' }]
-    }],
-    pitches: [{
-      dictionary: 'Pitch Accent',
-      pitchPositions: [2],
-      transcriptions: ['たべる']
-    }]
-  }]
   const collapseModes = {
     expandAll: 'Expand All',
     collapseAll: 'Collapse All'
   }
-  const previewVerbOffset = previewCue.plainText.indexOf('食べました')
-
   let dictionaryCssOpen = false
   let subtitleCssOpen = false
-  let previewContainer: HTMLDivElement
+  let previewPortalTarget: HTMLElement | undefined
   let previewSelection: MiningSelection | undefined
+  let previewEntries: MiningDictionaryEntry[] = []
+  let previewLoading = false
+  let previewPending = false
+  let previewError = ''
+  let previewSelectionLength = 0
+  let previewRequestKey = ''
+  let previewRequestGeneration = 0
+  let previewDictionaryState = UNAVAILABLE_MINING_DICTIONARY_STATE
   let previewCloseTimer: ReturnType<typeof setTimeout> | undefined
 
-  $: previewPopupPosition = previewContainer && previewSelection
+  $: previewPopupPosition = previewSelection
     ? calculatePreviewPopupPosition(previewSelection)
     : undefined
 
   function calculatePreviewPopupPosition (selection: MiningSelection): MiningPopupPosition {
-    const container = previewContainer.getBoundingClientRect()
-    return calculateMiningPopupPosition({
-      left: selection.anchor.left - container.left,
-      right: selection.anchor.right - container.left,
-      top: selection.anchor.top - container.top,
-      bottom: selection.anchor.bottom - container.top
-    }, {
-      width: previewContainer.clientWidth,
-      height: previewContainer.clientHeight
-    }, $settings.miningPopupWidth, $settings.miningPopupHeight)
+    return calculateMiningPopupPosition(
+      selection.anchor,
+      { width: window.innerWidth, height: window.innerHeight },
+      $settings.miningPopupWidth,
+      $settings.miningPopupHeight
+    )
   }
 
   function handlePreviewSelection (event: CustomEvent<MiningSelection | undefined>) {
     const selection = event.detail
     if (!selection) return schedulePreviewClose()
-    if (selection.utf16Offset < previewVerbOffset) {
-      previewSelection = undefined
-      return
-    }
+    const request = getMiningLookupRequest(
+      previewCue,
+      selection,
+      $settings.miningDictionaryScanLength,
+      $settings.miningDictionaryScanNonJapanese,
+      $settings.miningDictionaryMaxResults
+    )
+    if (!request) return closePreviewDictionary()
+
     keepPreviewOpen()
     previewSelection = selection
+    previewSelectionLength = selection.utf16Length
+    if (!previewDictionaryState.available) {
+      previewEntries = []
+      previewPending = false
+      previewLoading = false
+      previewError = previewDictionaryState.error || (native.isApp
+        ? 'The offline dictionary backend is unavailable.'
+        : 'Dictionary lookup is only available in the Hayatan desktop app.')
+      return
+    }
+    if (!previewDictionaryState.order.term.some(id => previewDictionaryState.dictionaries.find(dictionary => dictionary.id === id)?.enabled.term)) {
+      previewEntries = []
+      previewPending = false
+      previewLoading = false
+      previewError = 'Import and enable a term dictionary to use this preview.'
+      return
+    }
+
+    const requestKey = `${previewDictionaryState.generation}:${request.text}:${request.offset}:${request.scanLength}:${request.maxResults}`
+    if (requestKey === previewRequestKey && (previewPending || previewEntries.length)) return
+    const requestGeneration = ++previewRequestGeneration
+    previewRequestKey = requestKey
+    previewEntries = []
+    previewError = ''
+    previewPending = true
+    previewLoading = true
+    native.miningDictionaryLookup(request)
+      .then(result => {
+        if (requestGeneration === previewRequestGeneration) {
+          previewEntries = result.entries
+          previewSelectionLength = result.length
+        }
+      })
+      .catch(error => {
+        if (requestGeneration !== previewRequestGeneration) return
+        if (error instanceof Error && error.message.includes('SUPERSEDED')) return
+        previewError = error instanceof Error ? error.message : 'Dictionary lookup failed'
+      })
+      .finally(() => {
+        if (requestGeneration === previewRequestGeneration) {
+          previewPending = false
+          previewLoading = false
+        }
+      })
   }
 
   function keepPreviewOpen () {
@@ -109,9 +138,31 @@
   function schedulePreviewClose () {
     keepPreviewOpen()
     previewCloseTimer = setTimeout(() => {
-      previewSelection = undefined
+      closePreviewDictionary()
       previewCloseTimer = undefined
     }, 100)
+  }
+
+  function closePreviewDictionary () {
+    ++previewRequestGeneration
+    previewSelection = undefined
+    previewEntries = []
+    previewPending = false
+    previewLoading = false
+    previewError = ''
+    previewSelectionLength = 0
+    previewRequestKey = ''
+  }
+
+  function lookupPreviewRedirect (query: string) {
+    const text = query.trim()
+    if (!text) return Promise.resolve({ length: 0, entries: [] })
+    return native.miningDictionaryLookup({
+      text,
+      offset: 0,
+      scanLength: Math.max(1, Math.min(64, $settings.miningDictionaryScanLength)),
+      maxResults: Math.max(1, Math.min(50, $settings.miningDictionaryMaxResults))
+    })
   }
 
   function resetSubtitleCss () {
@@ -122,7 +173,36 @@
     $settings.miningDictionaryCss = DEFAULT_MINING_DICTIONARY_CSS
   }
 
-  onDestroy(keepPreviewOpen)
+  onMount(() => {
+    previewPortalTarget = document.body
+    if (!native.isApp) return
+    const applyDictionaryState = (state: MiningDictionaryState) => {
+      previewDictionaryState = state
+    }
+    const unsubscribe = native.onMiningDictionaryEvent(event => {
+      if (event.event === 'stateChanged') applyDictionaryState(event.data)
+      if (event.event === 'backendError' && previewSelection) {
+        ++previewRequestGeneration
+        previewError = event.data.message
+        previewPending = false
+        previewLoading = false
+      }
+    })
+    native.miningDictionaryState()
+      .then(applyDictionaryState)
+      .catch(error => {
+        previewDictionaryState = {
+          ...UNAVAILABLE_MINING_DICTIONARY_STATE,
+          error: error instanceof Error ? error.message : 'The offline dictionary backend is unavailable.'
+        }
+      })
+    return unsubscribe
+  })
+
+  onDestroy(() => {
+    keepPreviewOpen()
+    closePreviewDictionary()
+  })
 </script>
 
 <div class='font-weight-bold text-xl font-bold'>Mining Mode</div>
@@ -133,8 +213,26 @@
 >
   <Switch {id} bind:checked={$settings.miningPauseOnEnter} />
 </SettingCard>
+<SettingCard
+  let:id
+  title='Pause On Lookup'
+  description='Keep the video paused while a dictionary popup is open, then restore playback when it closes.'
+>
+  <Switch {id} bind:checked={$settings.miningPauseOnLookup} />
+</SettingCard>
 
 <MiningDictionariesSettings on:editcss={() => { dictionaryCssOpen = true }} />
+
+<a
+  href='/#/app/settings/mining/audio'
+  class='no-scale flex items-center justify-between gap-4 rounded-lg border bg-card p-4 transition-colors hover:bg-accent'
+>
+  <div>
+    <h2 class='font-bold'>Audio Sources</h2>
+    <p class='text-sm text-muted-foreground'>Configure Hoshi-compatible online sources and optional local android.db audio.</p>
+  </div>
+  <ChevronRight class='shrink-0' size={22} />
+</a>
 
 <section class='rounded-lg border bg-card p-4'>
   <div class='mb-3 flex flex-wrap items-start justify-between gap-3'>
@@ -148,37 +246,45 @@
     </Button>
   </div>
   <div
-    bind:this={previewContainer}
-    class='relative flex min-h-[420px] items-center justify-center overflow-hidden rounded-md bg-black px-6'
+    class='relative flex min-h-[100px] items-center justify-center overflow-hidden rounded-md bg-black px-6'
   >
     <div class='absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_center,_#475569,_#020617_70%)]' />
     <MiningSubtitle
       cues={[previewCue]}
       css={$settings.miningSubtitleCss}
       preview
+      selectionLength={previewSelectionLength}
       on:selection={handlePreviewSelection}
     />
-    {#if previewPopupPosition}
-      <MiningDictionaryPopup
-        entries={previewEntries}
-        position={previewPopupPosition}
-        scale={$settings.miningPopupScale}
-        collapseMode={$settings.miningDictionaryCollapseMode}
-        expandFirstDictionary={$settings.miningDictionaryExpandFirst}
-        twoColumnLayout={$settings.miningDictionaryTwoColumn}
-        compactGlossaries={$settings.miningDictionaryCompactGlossaries}
-        showExpressionTags={$settings.miningDictionaryShowExpressionTags}
-        dictionaryStyles={{}}
-        customCss={$settings.miningDictionaryCss}
-        on:enter={keepPreviewOpen}
-        on:leave={schedulePreviewClose}
-        on:close={() => { previewSelection = undefined }}
-      />
-    {/if}
+    <MiningDictionaryIframePopup
+      entries={previewEntries}
+      loading={previewLoading}
+      error={previewError}
+      position={previewPopupPosition && (!previewPending || previewLoading) ? previewPopupPosition : undefined}
+      scale={$settings.miningPopupScale}
+      collapseMode={$settings.miningDictionaryCollapseMode}
+      expandFirstDictionary={$settings.miningDictionaryExpandFirst}
+      compactGlossaries={$settings.miningDictionaryCompactGlossaries}
+      showExpressionTags={$settings.miningDictionaryShowExpressionTags}
+      dictionaryStyles={previewDictionaryState.styles}
+      customCss={$settings.miningDictionaryCss}
+      scanNonJapaneseText={$settings.miningDictionaryScanNonJapanese}
+      scanLength={$settings.miningDictionaryScanLength}
+      lookupRedirect={lookupPreviewRedirect}
+      audioSources={enabledMiningAudioTemplates($settings.miningAudioSources)}
+      audioAutoplay={$settings.miningAudioAutoplay}
+      audioPlaybackMode={$settings.miningAudioPlaybackMode}
+      fixed
+      portalTarget={previewPortalTarget}
+      on:enter={keepPreviewOpen}
+      on:leave={schedulePreviewClose}
+      on:close={closePreviewDictionary}
+      on:runtimeerror={({ detail }) => { previewError = detail }}
+    />
   </div>
 </section>
 
-<details class='group rounded-lg border bg-card'>
+<details class='no-scale group rounded-lg border bg-card'>
   <summary class='flex cursor-pointer list-none items-center gap-3 p-4 [&::-webkit-details-marker]:hidden'>
     <ChevronDown class='shrink-0 transition-transform group-open:rotate-180' size={18} />
     <div>
@@ -213,9 +319,6 @@
         <Switch {id} bind:checked={$settings.miningDictionaryExpandFirst} />
       </SettingCard>
     {/if}
-    <SettingCard let:id title='Two-Column Layout' description='Arrange multiple dictionary sections in two columns when results provide them.'>
-      <Switch {id} bind:checked={$settings.miningDictionaryTwoColumn} />
-    </SettingCard>
     <SettingCard let:id title='Compact Glossaries' description='Place multiple definitions on one line separated by vertical bars.'>
       <Switch {id} bind:checked={$settings.miningDictionaryCompactGlossaries} />
     </SettingCard>

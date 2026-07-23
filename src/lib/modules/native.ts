@@ -7,7 +7,7 @@ import type { AuthResponse, Native, TorrentInfo } from 'native'
 const unavailableDictionaryState = (): MiningDictionaryState => ({
   available: false,
   generation: 0,
-  error: 'Dictionary lookup is only available in the Hayase desktop app.',
+  error: 'Dictionary lookup is only available in the Hayatan desktop app.',
   dictionaries: [],
   order: { term: [], frequency: [], pitch: [] },
   styles: {}
@@ -187,7 +187,7 @@ export default Object.assign<Native, Partial<Native>>({
   updateToNewEndpoint: async () => undefined,
   accentColor: async () => 'AccentColor',
   pluginDelete: async () => undefined,
-  pluginImport: async () => { throw new Error('Plugins are not supported in this version of Hayase!') },
+  pluginImport: async () => { throw new Error('Plugins are not supported in this version of Hayatan!') },
   pluginList: async () => [],
   pluginPopup: async () => undefined,
   miningDictionaryState: async () => unavailableDictionaryState(),
@@ -196,6 +196,11 @@ export default Object.assign<Native, Partial<Native>>({
   miningDictionarySetEnabled: async () => unavailableDictionaryState(),
   miningDictionaryReorder: async () => unavailableDictionaryState(),
   miningDictionaryRemove: async () => unavailableDictionaryState(),
+  miningAudioLocalState: async () => ({ available: false, sizeBytes: 0, sources: [], sourceOrder: [] }),
+  miningAudioLocalImport: async () => ({ available: false, sizeBytes: 0, sources: [], sourceOrder: [] }),
+  miningAudioLocalRemove: async () => ({ available: false, sizeBytes: 0, sources: [], sourceOrder: [] }),
+  miningAudioLocalReorder: async () => ({ available: false, sizeBytes: 0, sources: [], sourceOrder: [] }),
+  miningAudioResolveSource: async () => null,
   onMiningDictionaryEvent: () => () => {}
   // @ts-expect-error idk
 }, globalThis.native as Partial<Native>)

@@ -144,7 +144,7 @@
   </div>
 
   {#if !native.isApp}
-    <p class='rounded-md bg-muted p-3 text-sm'>Dictionary import and lookup are available in the Hayase desktop app.</p>
+    <p class='rounded-md bg-muted p-3 text-sm'>Dictionary import and lookup are available in the Hayatan desktop app.</p>
   {:else if loading}
     <p class='flex items-center gap-2 text-sm text-muted-foreground'><LoaderCircle class='animate-spin' size={16} /> Starting dictionary backend…</p>
   {:else if !state.available}
@@ -189,7 +189,7 @@
     <div class='flex flex-col gap-2'>
       {#each kinds as { kind, title } (kind)}
         {@const dictionaries = recordsFor(kind)}
-        <details class='group min-w-0 rounded-md border bg-background'>
+        <details class='no-scale group min-w-0 rounded-md border bg-background'>
           <summary class='flex cursor-pointer list-none items-center gap-3 p-3 [&::-webkit-details-marker]:hidden'>
             <ChevronDown class='shrink-0 transition-transform group-open:rotate-180' size={17} />
             <span class='font-bold'>{title}</span>

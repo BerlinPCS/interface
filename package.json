@@ -1,5 +1,5 @@
 {
-	"name": "ui",
+	"name": "hayatan-interface",
 	"version": "6.4.562",
 	"license": "BUSL-1.1",
 	"private": true,
@@ -11,7 +11,8 @@
 		"sync": "svelte-kit sync",
 		"check": "svelte-check --threshold error --tsconfig ./tsconfig.web.json",
 		"check:watch": "svelte-check --threshold error --tsconfig ./tsconfig.web.json --watch",
-		"test": "node --experimental-strip-types --test test/*.test.mjs && pnpm run sync && pnpm run lint && pnpm run gql:check && pnpm run check",
+		"test": "pnpm run verify:hoshi-popup && node --experimental-strip-types --test test/*.test.mjs && pnpm run sync && pnpm run lint && pnpm run gql:check && pnpm run check",
+		"verify:hoshi-popup": "node scripts/verify-hoshi-popup-assets.mjs",
 		"lint": "eslint --quiet -c eslint.config.js",
 		"lint:fix": "eslint --quiet -c eslint.config.js --fix",
 		"gql:turbo": "node ./node_modules/gql.tada/bin/cli.js turbo -c ./tsconfig.web.json",

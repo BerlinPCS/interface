@@ -19,7 +19,7 @@
 
   async function copyLogs () {
     try {
-      await saveFile(await native.getLogs(), 'hayase-logs', 'ansi')
+      await saveFile(await native.getLogs(), 'hayatan-logs', 'ansi')
       toast.success('Copied to clipboard', {
         description: 'Copied log contents to clipboard'
       })
@@ -44,7 +44,7 @@
   }
   async function exportSettings () {
     try {
-      await saveFile($settings, 'hayase-settings')
+      await saveFile($settings, 'hayatan-settings')
     } catch (error) {
       toast.error('Failed to export settings', {
         description: 'Failed to export settings to file.'
@@ -88,7 +88,7 @@
 </div>
 
 <div class='font-weight-bold text-xl font-bold'>Debug Settings</div>
-<SettingCard title='Logging Levels' description='Enable logging of specific parts of the app. These logs are saved to %appdata$/Hayase/logs/main.log or ~/config/Hayase/logs/main.log.'>
+<SettingCard title='Logging Levels' description='Enable logging of specific parts of the app. These logs are saved to %appdata$/Hayatan/logs/main.log or ~/config/Hayatan/logs/main.log.'>
   <SingleCombo bind:value={$debug} items={debugOpts} class='w-32 shrink-0 border-input border' />
 </SettingCard>
 

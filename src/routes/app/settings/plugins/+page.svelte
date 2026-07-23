@@ -47,7 +47,7 @@
 
 <div class='font-weight-bold text-xl font-bold'>Plugins</div>
 <p class='text-muted-foreground text-sm'>
-  Hayase supports plugins in the form of Chromium extensions. They can be installed as unpacked folders via manifest.json, packed .crx archives or .zip archives.
+  Hayatan supports plugins in the form of Chromium extensions. They can be installed as unpacked folders via manifest.json, packed .crx archives or .zip archives.
 </p>
 <p class='text-sm font-bold'>
   These are for power users, are ENTIRELY OPTIONAL, and should not be installed blindly, they can easily break the entire app, and are not necessary for normal app use!!!

@@ -65,7 +65,7 @@
         <div>
           <div class='bg-striped'>
             <div class='text-[24rem] tracking-wide animate-marquee bg-background mix-blend-multiply'>
-              HAYASE.06&nbsp;
+              HAYATAN.06&nbsp;
             </div>
           </div>
           <div class='bg-striped-muted'>

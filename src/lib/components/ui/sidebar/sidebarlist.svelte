@@ -41,7 +41,7 @@
   }
 
   function manualUpdate () {
-    native.openURL('https://hayase.watch/download/')
+    native.openURL('https://github.com/BerlinPCS/electron/releases/latest')
   }
 
   const viewer = client.viewer
@@ -132,7 +132,7 @@
   <Dialog.Content class='max-w-5xl flex flex-col !w-[500px]'>
     <Dialog.Title class='font-bold text-2xl'>News</Dialog.Title>
     <Dialog.Description>
-      Hayase's Discord server is now publicly available!<br /><br />If you want to recieve news and updates about the app you can join via the invite link on the official website.
+      Hayatan's Discord server is now publicly available!<br /><br />If you want to receive news and updates about the app you can join via the invite link on the official website.
     </Dialog.Description>
   </Dialog.Content>
 </Dialog.Root> -->

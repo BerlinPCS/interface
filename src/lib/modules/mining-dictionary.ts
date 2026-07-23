@@ -120,43 +120,9 @@ export interface MiningPopupPosition {
 
 const JAPANESE_PATTERN = /[\u3000-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]/
 const LOOKUP_TERMINATORS = new Set(' \t\r\n、。！？!?「」『』（）()［］[]｛｝{}〈〉《》【】…‥・,;:')
-const KANJI_PATTERN = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff々]/
-
-export interface FuriganaSegment {
-  text: string
-  reading: string
-}
 
 export function isPartiallyJapanese (text: string): boolean {
   return JAPANESE_PATTERN.test(text)
-}
-
-function toHiragana (text: string) {
-  return text.replace(/[\u30a1-\u30f6]/g, character => String.fromCharCode(character.charCodeAt(0) - 0x60))
-}
-
-export function segmentFurigana (expression: string, reading: string): FuriganaSegment[] {
-  if (!reading || reading === expression) return [{ text: expression, reading: '' }]
-  const groups = expression.match(/[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff々]+|[^\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff々]+/g) ?? []
-
-  function segmentize (remainingReading: string, remainingGroups: string[]): FuriganaSegment[] | undefined {
-    if (!remainingGroups.length) return remainingReading ? undefined : []
-    const [group, ...tail] = remainingGroups
-    if (!group) return
-    if (!KANJI_PATTERN.test(group[0]!)) {
-      const normalized = toHiragana(group)
-      if (!toHiragana(remainingReading).startsWith(normalized)) return
-      const result = segmentize(remainingReading.slice(group.length), tail)
-      return result ? [{ text: group, reading: '' }, ...result] : undefined
-    }
-    for (let length = remainingReading.length; length >= 1; --length) {
-      const result = segmentize(remainingReading.slice(length), tail)
-      if (result) return [{ text: group, reading: remainingReading.slice(0, length) }, ...result]
-      if (!tail.length) break
-    }
-  }
-
-  return segmentize(reading, groups) ?? [{ text: expression, reading }]
 }
 
 export function getMiningLookupRequest (
@@ -182,32 +148,6 @@ export function getMiningLookupRequest (
     scanLength: boundedLength,
     maxResults: Math.max(1, Math.min(50, Math.trunc(maxResults) || 1))
   }
-}
-
-export function splitDictionaryTags (value: string): string[] {
-  return [...new Set(value.split(/\s+/).map(tag => tag.trim()).filter(Boolean))]
-}
-
-export function parseMiningGlossaryContent (content: string): unknown {
-  try {
-    return JSON.parse(content)
-  } catch {
-    return content
-  }
-}
-
-export function groupMiningGlossaries (entry: MiningDictionaryEntry) {
-  const grouped = new Map<string, MiningDictionaryGlossary[]>()
-  for (const glossary of entry.glossaries) {
-    const contents = grouped.get(glossary.dictionary) ?? []
-    contents.push(glossary)
-    grouped.set(glossary.dictionary, contents)
-  }
-  return [...grouped.entries()].map(([dictionary, glossaries]) => ({ dictionary, glossaries }))
-}
-
-export function scaleHoshiDictionaryCss (css: string): string {
-  return css.replace(/(-?(?:\d+(?:\.\d+)?|\.\d+))px/g, 'calc($1px * var(--popup-scale))')
 }
 
 export function calculateMiningPopupPosition (

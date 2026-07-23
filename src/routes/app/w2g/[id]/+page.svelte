@@ -45,7 +45,7 @@
     $w2globby?.destroy()
   }
   function invite () {
-    native.share({ title: 'Hayase W2G', text: 'Invite people to your Watch Together lobby', url: $w2globby?.inviteLink })
+    native.share({ title: 'Hayatan W2G', text: 'Invite people to your Watch Together lobby', url: $w2globby?.inviteLink })
   }
   onDestroy(() => {
     if ($w2globby?.destroyed) $w2globby = undefined

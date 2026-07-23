@@ -14,7 +14,7 @@
   <Logo class='w-52 h-52 object-contain mb-14 shrink-0' />
   <div class='font-bold text-5xl text-center w-full overflow-x-clip flex justify-center'>
     <div class='relative'>
-      Welcome to Hayase
+      Welcome to Hayatan
       <div class='animate-[hearbeat_1.5s_ease-in-out_infinite_alternate] absolute text-lg text-theme right-0 -top-5 xs:-right-20 xs:-top-2 rotate-12'>Previously known as Miru!</div>
     </div>
   </div>

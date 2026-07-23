@@ -3,6 +3,7 @@ import SUPPORTS from './supports'
 import type { languageCodes, subtitleResolutions, videoResolutions } from './util'
 
 import { DEFAULT_MINING_SUBTITLE_CSS } from '$lib/modules/mining'
+import { DEFAULT_MINING_AUDIO_SOURCES, type MiningAudioPlaybackMode, type MiningAudioSource } from '$lib/modules/mining-audio'
 import { DEFAULT_MINING_DICTIONARY_CSS } from '$lib/modules/mining-dictionary'
 
 export default {
@@ -17,6 +18,7 @@ export default {
   subtitleCustomFontName: '',
   subtitleAutoRetiming: true,
   miningPauseOnEnter: false,
+  miningPauseOnLookup: true,
   miningSubtitleCss: DEFAULT_MINING_SUBTITLE_CSS,
   miningPopupWidth: 500,
   miningPopupHeight: 400,
@@ -26,10 +28,12 @@ export default {
   miningDictionaryScanLength: 16,
   miningDictionaryCollapseMode: 'expandAll' as 'expandAll' | 'collapseAll',
   miningDictionaryExpandFirst: false,
-  miningDictionaryTwoColumn: false,
   miningDictionaryCompactGlossaries: true,
   miningDictionaryShowExpressionTags: false,
   miningDictionaryCss: DEFAULT_MINING_DICTIONARY_CSS,
+  miningAudioSources: DEFAULT_MINING_AUDIO_SOURCES.map(source => ({ ...source })) as MiningAudioSource[],
+  miningAudioAutoplay: false,
+  miningAudioPlaybackMode: 'interrupt' as MiningAudioPlaybackMode,
   searchQuality: '1080' as keyof typeof videoResolutions,
   searchAutoSelect: true,
   lookupPreference: 'quality' as 'quality' | 'size' | 'seeders',

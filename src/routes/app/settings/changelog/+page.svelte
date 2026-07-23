@@ -13,7 +13,7 @@
   <div class='sm:col-span-3 col-span-full hidden sm:flex' />
   <div class='sm:col-span-9 col-span-full d-flex justify-content-center flex-column'>
     <div class='font-bold text-4xl mb-3'>Changelog</div>
-    <div class='text-muted-foreground text-sm'>New updates and improvements to Hayase.</div>
+    <div class='text-muted-foreground text-sm'>New updates and improvements to Hayatan.</div>
   </div>
 </div>
 {#await changeLog}

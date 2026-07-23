@@ -8,6 +8,7 @@
   export let cues: MiningCue[] = []
   export let css = ''
   export let preview = false
+  export let selectionLength = 0
 
   const dispatch = createEventDispatcher<{
     selection: MiningSelection | undefined
@@ -44,6 +45,15 @@
   function handleInteractionMove (event: PointerEvent) {
     if (event.target === event.currentTarget) clearSelection()
   }
+
+  function leaveInteractionRegion () {
+    dispatch('selection', undefined)
+  }
+
+  function isSelected (cueId: string, utf16Offset: number, utf16Length: number) {
+    if (selectedCueId !== cueId || selectedOffset === undefined || selectionLength < 1) return false
+    return utf16Offset < selectedOffset + selectionLength && utf16Offset + utf16Length > selectedOffset
+  }
 </script>
 
 {#if cues.length}
@@ -52,7 +62,7 @@
       class='mining-interaction-region max-w-[90%] flex flex-col items-center gap-2 text-center whitespace-pre-wrap pointer-events-auto select-text'
       role='group'
       aria-label={cues.map(cue => cue.plainText).join('\n')}
-      on:pointerleave={clearSelection}
+      on:pointerleave={leaveInteractionRegion}
       on:pointermove={handleInteractionMove}
       on:click|stopPropagation
       on:dblclick|stopPropagation
@@ -68,7 +78,7 @@
                 data-cue-id={cue.id}
                 data-utf16-offset={grapheme.utf16Offset}
                 data-utf16-length={grapheme.utf16Length}
-                class:mining-selected={selectedCueId === cue.id && selectedOffset === grapheme.utf16Offset}
+                class:mining-selected={isSelected(cue.id, grapheme.utf16Offset, grapheme.utf16Length)}
                 on:pointerenter={event => selectGrapheme(event, cue, grapheme.utf16Offset, grapheme.utf16Length, grapheme.whitespace)}
               >{grapheme.text}</span>
             {/if}

@@ -1,0 +1,26 @@
+{
+  "repository": "https://github.com/HuangAntimony/Hoshi-Reader-Android.git",
+  "commit": "5dd6396ebb59c9bcf531d958ec6a30fe7233b13e",
+  "license": "GPL-3.0-or-later",
+  "sourceRoot": "app/src/main/assets/hoshi-web",
+  "files": {
+    "LICENSE": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+    "popup.js": "d27719e8eb744cb3421c48d4a5894313fb9ed736e416858e3b81d3fa7d17c788",
+    "popup.css": "63db976b1c7dc6b5c11bfef284b7112a385e9e1c87f9adaf6d44dbacda8ef449",
+    "shared/language-ja.js": "e0314159c9b4598a19a3579e4dd2bb92fc4d3da9ab6cf4edaa4701fd10f8ccdd",
+    "shared/selection-en.js": "ac6429e51b95de938c2c17c946656fabd9bf0d1f95d2b3f4109f72534ddbb5ad",
+    "shared/selection-ja.js": "7045f2d922d175770abdbbb14e1d4fd795160f41e08a74ac3f4f27b30f38a28e",
+    "shared/selection.js": "fa56e154223074380de96b122327fc4507ee98f95aaea47e87f74902a9339bc7",
+    "icons/add_box.svg": "a98d73e4627a1733c09386103ede3ba19a017b34683c469cac88852e46a9826e",
+    "icons/arrow_back.svg": "cf660f13cdb08b8c49cd3f1570dca14fc65c83293f4497fee23ca8f5fa2db9fa",
+    "icons/arrow_forward.svg": "7b283312ae9ee26ef2fb8af3e20b54cc9d70c5848a3b89705ac17c06344bd4a1",
+    "icons/check_box.svg": "7658586cf2ed884ea85530c44ea8ae0b36b6c97c6c36be22dc7d16d00e03b5de",
+    "icons/close.svg": "63563a76e9f68c851d6ac30089e02c0a8dc6cafdbe4bc64228c82d4dd4a6f365",
+    "icons/pause.svg": "7c68b3463b729ca1a6fc6364e16c0eb2eff4195d4dafb843a199fe279f85b889",
+    "icons/play_arrow.svg": "07c0fa88ed454271d67db805c9a564ba7054ce3c463a9707d3d3bd6e945e4ba9",
+    "icons/replay.svg": "94023ac8b9af8b4a299a5d498b809320cf2627564b1b9c77b6c4346fb8b1d597",
+    "icons/start.svg": "3bccf6939ce14da0a15f6bb127d3921bace4d360c34c4d7bb13544aa530159c4",
+    "icons/volume_off.svg": "d6f0da8425ad9b9cfc7a707b6c6a537693307fa6b42d809d2bb1d3189634e8fe",
+    "icons/volume_up.svg": "d49e21a64c7c3a392f58b34e2efbfd629a2472d76ea3ac33c3abd67cf8d6bc91"
+  }
+}

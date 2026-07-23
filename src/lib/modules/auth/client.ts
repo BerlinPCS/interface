@@ -192,8 +192,8 @@ export default new class AuthAggregator {
   entry (variables: VariablesOf<typeof Entry>) {
     const sync = get(this.syncSettings)
     variables.lists ??= []
-    if (!variables.lists.includes('Watched using Hayase')) {
-      variables.lists.push('Watched using Hayase')
+    if (!variables.lists.includes('Watched using Hayatan')) {
+      variables.lists.push('Watched using Hayatan')
     }
 
     return Promise.allSettled([

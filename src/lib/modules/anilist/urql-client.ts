@@ -73,8 +73,8 @@ export default new class URQLClient extends Client {
     debug('Anilist viewer data', this.viewer.value.viewer)
 
     const lists = viewerRes.data.Viewer.mediaListOptions?.animeList?.customLists ?? []
-    if (!lists.includes('Watched using Hayase')) {
-      this.viewer.value = { viewer: (await this.mutation(UpdateUser, { lists: [...lists, 'Watched using Hayase'] })).data!.UpdateUser!, token, expires }
+    if (!lists.includes('Watched using Hayatan')) {
+      this.viewer.value = { viewer: (await this.mutation(UpdateUser, { lists: [...lists, 'Watched using Hayatan'] })).data!.UpdateUser!, token, expires }
     }
   }
 

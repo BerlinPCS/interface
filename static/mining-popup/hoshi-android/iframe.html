@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ja" data-hoshi-color-scheme="light" data-hoshi-eink-mode="false">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: hayase-dictionary-media:; font-src 'self'; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <link rel="stylesheet" href="./popup.css">
+  <link rel="stylesheet" href="./runtime.css">
+  <script src="./bridge.js"></script>
+  <script src="./shared/language-ja.js"></script>
+  <script src="./shared/selection-ja.js"></script>
+  <script src="./shared/selection.js"></script>
+  <script src="./popup.js"></script>
+  <script src="./runtime-overrides.js"></script>
+</head>
+<body>
+  <div id="entries-container"></div>
+  <div class="overlay">
+    <div class="overlay-close" onclick="closeOverlay()">×</div>
+    <div class="overlay-content"></div>
+  </div>
+</body>
+</html>

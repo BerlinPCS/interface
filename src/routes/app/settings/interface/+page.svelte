@@ -126,7 +126,7 @@
 
   async function exportCustomTheme () {
     try {
-      await saveFile($settings.customThemeColors, 'hayase-custom-theme')
+      await saveFile($settings.customThemeColors, 'hayatan-custom-theme')
     } catch (error) {
       toast.error('Failed to copy custom theme', {
         description: (error as Error).message
@@ -218,7 +218,7 @@
   <SettingCard let:id title='Show Details in Discord Rich Presence' description='Shows currently played anime and episode in Discord rich presence.'>
     <Switch {id} bind:checked={$settings.showDetailsInRPC} />
   </SettingCard>
-  <SettingCard title='ANGLE Backend' description="What ANGLE backend to use for rendering. DON'T CHANGE WITHOUT REASON! On some Windows machines D3D9 might help with flicker. Changing this setting to something your device doesn't support might prevent Hayase from opening which will require a full reinstall. While Vulkan is an available option it might not be fully supported on Linux.">
+  <SettingCard title='ANGLE Backend' description="What ANGLE backend to use for rendering. DON'T CHANGE WITHOUT REASON! On some Windows machines D3D9 might help with flicker. Changing this setting to something your device doesn't support might prevent Hayatan from opening which will require a full reinstall. While Vulkan is an available option it might not be fully supported on Linux.">
     <SingleCombo bind:value={$settings.angle} items={angle} class='w-40 shrink-0 border-input border' />
   </SettingCard>
   <!--

@@ -35,7 +35,7 @@
   import DownloadStats from './downloadstats.svelte'
   import EpisodesModal from './episodesmodal.svelte'
   import { condition, loadWithDefaults } from './keybinds.svelte'
-  import MiningDictionaryPopup from './mining-dictionary-popup.svelte'
+  import MiningDictionaryIframePopup from './mining-dictionary-iframe-popup.svelte'
   import MiningSubtitle from './mining-subtitle.svelte'
   import Options from './options.svelte'
   import PictureInPicture from './pip'
@@ -64,11 +64,13 @@
   import { authAggregator } from '$lib/modules/auth'
   import { isPlaying } from '$lib/modules/idle'
   import { beginMiningPlaybackSession, miningCueSeekTime, navigateMiningCue, shouldResumeAfterMining, type MiningCue, type MiningPlaybackSession, type MiningSelection } from '$lib/modules/mining'
+  import { enabledMiningAudioTemplates } from '$lib/modules/mining-audio'
   import {
     calculateMiningPopupPosition,
     getMiningLookupRequest,
     UNAVAILABLE_MINING_DICTIONARY_STATE,
     type MiningDictionaryEntry,
+    type MiningDictionaryLookupResult,
     type MiningDictionaryState,
     type MiningPopupPosition
   } from '$lib/modules/mining-dictionary'
@@ -125,20 +127,22 @@
   let miningDictionaryPending = false
   let miningDictionaryLoading = false
   let miningDictionaryError = ''
+  let miningSelectionLength = 0
   let miningDictionaryRequestKey = ''
   let miningDictionaryRequestGeneration = 0
   let miningDictionaryState = UNAVAILABLE_MINING_DICTIONARY_STATE
   let miningDictionaryLookupFrame = 0
   let miningDictionaryLoadingTimer = 0
   let miningDictionaryCloseTimer = 0
-  const miningDictionaryCache = new Map<string, MiningDictionaryEntry[]>()
+  let miningLookupShouldResume = false
+  const miningDictionaryCache = new Map<string, MiningDictionaryLookupResult>()
   $: isMiniplayer = $page.route.id !== '/app/player'
 
   const timeFormat = persisted('timeFormat', 'positive')
 
   // elements
   let fullscreenElement: HTMLElement | null = null
-  let video: Pick<HTMLVideoElement, 'currentTime' | 'play' | 'pause' | 'audioTracks' | 'videoTracks' | 'requestVideoFrameCallback' | 'cancelVideoFrameCallback' |'clientWidth' | 'clientHeight' | 'getVideoPlaybackQuality' | 'playbackRate' | 'load' |'src'>
+  let video: Pick<HTMLVideoElement, 'currentTime' | 'play' | 'pause' | 'paused' | 'volume' | 'audioTracks' | 'videoTracks' | 'requestVideoFrameCallback' | 'cancelVideoFrameCallback' |'clientWidth' | 'clientHeight' | 'getVideoPlaybackQuality' | 'playbackRate' | 'load' |'src'>
   let wrapper: HTMLDivElement
 
   let canvasSource: CanvasImageSource
@@ -195,6 +199,9 @@
   let seeking = false
   let ended = false
   let paused = true
+  $: if (miningMode && miningDictionaryPosition && $settings.miningPauseOnLookup && !paused) {
+    pauseForMiningLookup()
+  }
   $: if (miningMode && subtitles && $miningRevision !== undefined && $miningTrack !== undefined) {
     refreshMiningCue($miningTrack, $miningRevision, currentTime, paused, subtitleDelay)
   }
@@ -459,6 +466,8 @@
   }
 
   function closeMiningDictionary () {
+    const resume = miningLookupShouldResume
+    miningLookupShouldResume = false
     clearMiningDictionaryCloseTimer()
     cancelMiningDictionaryLookupSchedule()
     ++miningDictionaryRequestGeneration
@@ -467,7 +476,9 @@
     miningDictionaryPending = false
     miningDictionaryLoading = false
     miningDictionaryError = ''
+    miningSelectionLength = 0
     miningDictionaryRequestKey = ''
+    if (resume && miningMode) Promise.allSettled([video.play(), pip.element.value?.play()])
   }
 
   function cancelMiningDictionaryLookupSchedule () {
@@ -483,6 +494,8 @@
   }
 
   function positionMiningDictionary (selection: MiningSelection) {
+    const opening = !miningDictionaryPosition
+    if (opening && $settings.miningPauseOnLookup) pauseForMiningLookup()
     const wrapperRect = wrapper.getBoundingClientRect()
     miningDictionaryPosition = calculateMiningPopupPosition(
       selection.anchor,
@@ -491,6 +504,12 @@
       $settings.miningPopupHeight,
       { left: wrapperRect.left, top: wrapperRect.top }
     )
+  }
+
+  function pauseForMiningLookup () {
+    if (!paused) miningLookupShouldResume = true
+    video.pause()
+    pip.element.value?.pause()
   }
 
   function handleMiningSelection ({ detail: selection }: CustomEvent<MiningSelection | undefined>) {
@@ -510,6 +529,7 @@
     )
     if (!request) return closeMiningDictionary()
 
+    miningSelectionLength = selection.utf16Length
     positionMiningDictionary(selection)
     if (!miningDictionaryState.available) {
       miningDictionaryEntries = []
@@ -517,7 +537,7 @@
       miningDictionaryLoading = false
       miningDictionaryError = miningDictionaryState.error || (native.isApp
         ? 'The offline dictionary backend is unavailable.'
-        : 'Dictionary lookup is only available in the Hayase desktop app.')
+        : 'Dictionary lookup is only available in the Hayatan desktop app.')
       return
     }
     if (!miningDictionaryState.order.term.some(id => miningDictionaryState.dictionaries.find(dictionary => dictionary.id === id)?.enabled.term)) {
@@ -535,10 +555,11 @@
     cancelMiningDictionaryLookupSchedule()
     const requestGeneration = ++miningDictionaryRequestGeneration
     miningDictionaryRequestKey = requestKey
-    const cachedEntries = miningDictionaryCache.get(requestKey)
-    miningDictionaryEntries = cachedEntries ?? []
+    const cachedResult = miningDictionaryCache.get(requestKey)
+    miningDictionaryEntries = cachedResult?.entries ?? []
     miningDictionaryError = ''
-    if (cachedEntries) {
+    if (cachedResult) {
+      miningSelectionLength = cachedResult.length
       miningDictionaryPending = false
       miningDictionaryLoading = false
       return
@@ -554,8 +575,9 @@
       try {
         const result = await native.miningDictionaryLookup(request)
         if (requestGeneration !== miningDictionaryRequestGeneration) return
-        miningDictionaryCache.set(requestKey, result.entries)
+        miningDictionaryCache.set(requestKey, result)
         miningDictionaryEntries = result.entries
+        miningSelectionLength = result.length
       } catch (error) {
         if (requestGeneration !== miningDictionaryRequestGeneration) return
         if (error instanceof Error && error.message.includes('SUPERSEDED')) return
@@ -571,8 +593,22 @@
     })
   }
 
+  function lookupMiningRedirect (query: string) {
+    const text = query.trim()
+    if (!text) return Promise.resolve({ length: 0, entries: [] })
+    return native.miningDictionaryLookup({
+      text,
+      offset: 0,
+      scanLength: Math.max(1, Math.min(64, $settings.miningDictionaryScanLength)),
+      maxResults: Math.max(1, Math.min(50, $settings.miningDictionaryMaxResults))
+    })
+  }
+
   function handlePlayerKeydown (event: KeyboardEvent) {
     stopAnimation()
+    if (event.composedPath().some(target =>
+      target instanceof HTMLElement && target.classList.contains('mining-popup-frame')
+    )) return
     if (!miningMode || isMiniplayer || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return
     event.preventDefault()
     event.stopImmediatePropagation()
@@ -1165,26 +1201,31 @@
     />
   {/if}
   {#if miningMode && !isMiniplayer}
-    <MiningSubtitle cues={miningDisplayCues} css={$settings.miningSubtitleCss} on:selection={handleMiningSelection} />
-    {#if miningDictionaryPosition && (!miningDictionaryPending || miningDictionaryLoading)}
-      <MiningDictionaryPopup
-        entries={miningDictionaryEntries}
-        loading={miningDictionaryLoading}
-        error={miningDictionaryError}
-        position={miningDictionaryPosition}
-        scale={$settings.miningPopupScale}
-        collapseMode={$settings.miningDictionaryCollapseMode}
-        expandFirstDictionary={$settings.miningDictionaryExpandFirst}
-        twoColumnLayout={$settings.miningDictionaryTwoColumn}
-        compactGlossaries={$settings.miningDictionaryCompactGlossaries}
-        showExpressionTags={$settings.miningDictionaryShowExpressionTags}
-        dictionaryStyles={miningDictionaryState.styles}
-        customCss={$settings.miningDictionaryCss}
-        on:close={closeMiningDictionary}
-        on:enter={clearMiningDictionaryCloseTimer}
-        on:leave={scheduleMiningDictionaryClose}
-      />
-    {/if}
+    <MiningSubtitle cues={miningDisplayCues} css={$settings.miningSubtitleCss} selectionLength={miningSelectionLength} on:selection={handleMiningSelection} />
+    <MiningDictionaryIframePopup
+      entries={miningDictionaryEntries}
+      loading={miningDictionaryLoading}
+      error={miningDictionaryError}
+      position={miningDictionaryPosition && (!miningDictionaryPending || miningDictionaryLoading) ? miningDictionaryPosition : undefined}
+      scale={$settings.miningPopupScale}
+      collapseMode={$settings.miningDictionaryCollapseMode}
+      expandFirstDictionary={$settings.miningDictionaryExpandFirst}
+      compactGlossaries={$settings.miningDictionaryCompactGlossaries}
+      showExpressionTags={$settings.miningDictionaryShowExpressionTags}
+      dictionaryStyles={miningDictionaryState.styles}
+      customCss={$settings.miningDictionaryCss}
+      scanNonJapaneseText={$settings.miningDictionaryScanNonJapanese}
+      scanLength={$settings.miningDictionaryScanLength}
+      lookupRedirect={lookupMiningRedirect}
+      audioSources={enabledMiningAudioTemplates($settings.miningAudioSources)}
+      audioAutoplay={$settings.miningAudioAutoplay}
+      audioPlaybackMode={$settings.miningAudioPlaybackMode}
+      backgroundMedia={video}
+      on:close={closeMiningDictionary}
+      on:enter={clearMiningDictionaryCloseTimer}
+      on:leave={scheduleMiningDictionaryClose}
+      on:runtimeerror={({ detail }) => { miningDictionaryError = detail }}
+    />
   {/if}
   {#if !isMiniplayer}
     <div class='absolute size-full flex items-center justify-center top-0 pointer-events-none'>

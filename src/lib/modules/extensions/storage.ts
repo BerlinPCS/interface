@@ -244,7 +244,7 @@ export const storage = new class ConfigManager {
     const config = await safejson<ExtensionConfig[]>(url)
     if (!config) {
       debug('Import failed: invalid JSON config', url)
-      throw new Error('Make sure the link you provided is a valid JSON config for Hayase', { cause: 'Invalid extension URI' })
+      throw new Error('Make sure the link you provided is a valid JSON config for Hayatan', { cause: 'Invalid extension URI' })
     }
 
     const attemptedOverrides: string[] = []
@@ -252,7 +252,7 @@ export const storage = new class ConfigManager {
     for (const c of config) {
       if (!this._validateConfig(c)) {
         debug('Invalid extension config found during import', c)
-        throw new Error('Make sure the link you provided is a valid extension config for Hayase', { cause: 'Invalid extension config' })
+        throw new Error('Make sure the link you provided is a valid extension config for Hayatan', { cause: 'Invalid extension config' })
       }
 
       if (c.id in this.configs()) {
