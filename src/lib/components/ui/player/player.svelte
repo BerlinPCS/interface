@@ -122,12 +122,14 @@
   let miningPlaybackSession: MiningPlaybackSession | undefined
   let miningDictionaryEntries: MiningDictionaryEntry[] = []
   let miningDictionaryPosition: MiningPopupPosition | undefined
+  let miningDictionaryPending = false
   let miningDictionaryLoading = false
   let miningDictionaryError = ''
   let miningDictionaryRequestKey = ''
   let miningDictionaryRequestGeneration = 0
   let miningDictionaryState = UNAVAILABLE_MINING_DICTIONARY_STATE
-  let miningDictionaryLookupTimer = 0
+  let miningDictionaryLookupFrame = 0
+  let miningDictionaryLoadingTimer = 0
   let miningDictionaryCloseTimer = 0
   const miningDictionaryCache = new Map<string, MiningDictionaryEntry[]>()
   $: isMiniplayer = $page.route.id !== '/app/player'
@@ -260,7 +262,10 @@
     const unsubscribe = native.onMiningDictionaryEvent(event => {
       if (event.event === 'stateChanged') applyDictionaryState(event.data)
       if (event.event === 'backendError' && miningDictionaryPosition) {
+        cancelMiningDictionaryLookupSchedule()
+        ++miningDictionaryRequestGeneration
         miningDictionaryError = event.data.message
+        miningDictionaryPending = false
         miningDictionaryLoading = false
       }
     })
@@ -455,14 +460,21 @@
 
   function closeMiningDictionary () {
     clearMiningDictionaryCloseTimer()
-    clearTimeout(miningDictionaryLookupTimer)
-    miningDictionaryLookupTimer = 0
+    cancelMiningDictionaryLookupSchedule()
     ++miningDictionaryRequestGeneration
     miningDictionaryPosition = undefined
     miningDictionaryEntries = []
+    miningDictionaryPending = false
     miningDictionaryLoading = false
     miningDictionaryError = ''
     miningDictionaryRequestKey = ''
+  }
+
+  function cancelMiningDictionaryLookupSchedule () {
+    if (miningDictionaryLookupFrame) cancelAnimationFrame(miningDictionaryLookupFrame)
+    miningDictionaryLookupFrame = 0
+    clearTimeout(miningDictionaryLoadingTimer)
+    miningDictionaryLoadingTimer = 0
   }
 
   function scheduleMiningDictionaryClose () {
@@ -501,6 +513,7 @@
     positionMiningDictionary(selection)
     if (!miningDictionaryState.available) {
       miningDictionaryEntries = []
+      miningDictionaryPending = false
       miningDictionaryLoading = false
       miningDictionaryError = miningDictionaryState.error || (native.isApp
         ? 'The offline dictionary backend is unavailable.'
@@ -509,26 +522,35 @@
     }
     if (!miningDictionaryState.order.term.some(id => miningDictionaryState.dictionaries.find(dictionary => dictionary.id === id)?.enabled.term)) {
       miningDictionaryEntries = []
+      miningDictionaryPending = false
       miningDictionaryLoading = false
       miningDictionaryError = 'Import and enable a term dictionary in Mining settings.'
       return
     }
 
     const requestKey = `${miningDictionaryState.generation}:${request.text}:${request.offset}:${request.scanLength}:${request.maxResults}`
-    if (requestKey === miningDictionaryRequestKey && (miningDictionaryLoading || miningDictionaryEntries.length)) return
+    if (requestKey === miningDictionaryRequestKey &&
+      (miningDictionaryPending || miningDictionaryLoading || miningDictionaryEntries.length)) return
 
-    clearTimeout(miningDictionaryLookupTimer)
+    cancelMiningDictionaryLookupSchedule()
     const requestGeneration = ++miningDictionaryRequestGeneration
     miningDictionaryRequestKey = requestKey
     const cachedEntries = miningDictionaryCache.get(requestKey)
     miningDictionaryEntries = cachedEntries ?? []
     miningDictionaryError = ''
     if (cachedEntries) {
+      miningDictionaryPending = false
       miningDictionaryLoading = false
       return
     }
-    miningDictionaryLoading = true
-    miningDictionaryLookupTimer = setTimeout(async () => {
+    miningDictionaryPending = true
+    miningDictionaryLoading = false
+    miningDictionaryLoadingTimer = setTimeout(() => {
+      miningDictionaryLoadingTimer = 0
+      if (requestGeneration === miningDictionaryRequestGeneration) miningDictionaryLoading = true
+    }, 40)
+    miningDictionaryLookupFrame = requestAnimationFrame(async () => {
+      miningDictionaryLookupFrame = 0
       try {
         const result = await native.miningDictionaryLookup(request)
         if (requestGeneration !== miningDictionaryRequestGeneration) return
@@ -539,9 +561,14 @@
         if (error instanceof Error && error.message.includes('SUPERSEDED')) return
         miningDictionaryError = error instanceof Error ? error.message : 'Dictionary lookup failed'
       } finally {
-        if (requestGeneration === miningDictionaryRequestGeneration) miningDictionaryLoading = false
+        if (requestGeneration === miningDictionaryRequestGeneration) {
+          clearTimeout(miningDictionaryLoadingTimer)
+          miningDictionaryLoadingTimer = 0
+          miningDictionaryPending = false
+          miningDictionaryLoading = false
+        }
       }
-    }, 120)
+    })
   }
 
   function handlePlayerKeydown (event: KeyboardEvent) {
@@ -1139,7 +1166,7 @@
   {/if}
   {#if miningMode && !isMiniplayer}
     <MiningSubtitle cues={miningDisplayCues} css={$settings.miningSubtitleCss} on:selection={handleMiningSelection} />
-    {#if miningDictionaryPosition}
+    {#if miningDictionaryPosition && (!miningDictionaryPending || miningDictionaryLoading)}
       <MiningDictionaryPopup
         entries={miningDictionaryEntries}
         loading={miningDictionaryLoading}
