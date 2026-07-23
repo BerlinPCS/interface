@@ -65,7 +65,7 @@
     }
   }
 
-  async function * bufferAhead<T> (source: AsyncIterable<T>, bufferSize: number): AsyncGenerator<T> {
+  async function * bufferAhead<T> (source: AsyncIterable<T>, bufferSize: number, dispose: (value: T) => void): AsyncGenerator<T> {
     const iter = source[Symbol.asyncIterator]()
     const pending: Array<Promise<IteratorResult<T>>> = []
     let done = false
@@ -86,7 +86,10 @@
     } finally {
       done = true
       await iter.return?.()
-      await Promise.allSettled(pending)
+      const abandoned = await Promise.allSettled(pending)
+      for (const result of abandoned) {
+        if (result.status === 'fulfilled' && !result.value.done) dispose(result.value.value)
+      }
     }
   }
 
@@ -270,6 +273,7 @@
   async function startBackendVideoIterator (time: number) {
     const safeTime = clamp(time, 0, duration || time)
     if (!videoSink) {
+      nextFrame?.close()
       nextFrame = null
       return safeTime
     }
@@ -278,17 +282,23 @@
 
     const currentAsyncId = asyncId
 
+    nextFrame?.close()
+    nextFrame = null
     try {
       await videoFrameIterator?.return()
-      videoFrameIterator = nextFrame = null
+      videoFrameIterator = null
     } catch {}
 
     if (asyncId !== currentAsyncId) return safeTime
 
-    const iterator = videoFrameIterator = bufferAhead(videoSink.samples(time), 3)
+    const iterator = videoFrameIterator = bufferAhead(videoSink.samples(time), 3, sample => sample.close())
 
     const firstResult = await iterator.next()
-    if (firstResult.done || asyncId !== currentAsyncId) return safeTime
+    if (firstResult.done) return safeTime
+    if (asyncId !== currentAsyncId) {
+      firstResult.value.close()
+      return safeTime
+    }
 
     readyState = 2
 
@@ -297,6 +307,10 @@
 
     const secondResult = await iterator.next()
 
+    if (!secondResult.done && asyncId !== currentAsyncId) {
+      secondResult.value.close()
+      return safeTime
+    }
     nextFrame = secondResult.done ? null : secondResult.value
 
     readyState = 3
@@ -421,7 +435,10 @@
             const nextResult = await videoFrameIterator.next()
             if (nextResult.done) return
 
-            if (asyncId !== currentAsyncId) return
+            if (asyncId !== currentAsyncId) {
+              nextResult.value.close()
+              return
+            }
 
             const candidate = nextResult.value
             const frameTime = getBackendPlaybackTime()
@@ -526,15 +543,19 @@
 
     const currentAudioIterator = audioBufferIterator
     const currentVideoIterator = videoFrameIterator
+    const currentNextFrame = nextFrame
 
     audioBufferIterator = null
     videoFrameIterator = null
     nextFrame = null
+    currentNextFrame?.close()
 
     await Promise.allSettled([currentAudioIterator?.return(), currentVideoIterator?.return()])
   }
 
   async function destroy () {
+    await clearIterators()
+
     audioCtx?.close()
     audioCtx = null
     gain = null
@@ -548,8 +569,6 @@
     videoTracks = []
     selectedAudioId = undefined
     selectedVideoId = undefined
-
-    await clearIterators()
   }
 
   function handleBackendError (error: Error) {

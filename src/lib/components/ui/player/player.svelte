@@ -9,6 +9,7 @@
   import List from 'lucide-svelte/icons/list'
   import LoaderCircle from 'lucide-svelte/icons/loader-circle'
   import Pause from 'lucide-svelte/icons/pause'
+  import Pickaxe from 'lucide-svelte/icons/pickaxe'
   import PictureInPicture2 from 'lucide-svelte/icons/picture-in-picture-2'
   import Proportions from 'lucide-svelte/icons/proportions'
   import RefreshCcw from 'lucide-svelte/icons/refresh-ccw'
@@ -34,6 +35,7 @@
   import DownloadStats from './downloadstats.svelte'
   import EpisodesModal from './episodesmodal.svelte'
   import { condition, loadWithDefaults } from './keybinds.svelte'
+  import MiningSubtitle from './mining-subtitle.svelte'
   import Options from './options.svelte'
   import PictureInPicture from './pip'
   import Seekbar from './seekbar.svelte'
@@ -60,6 +62,7 @@
   import { W2GChatPanel } from '$lib/components/ui/chat'
   import { authAggregator } from '$lib/modules/auth'
   import { isPlaying } from '$lib/modules/idle'
+  import { beginMiningPlaybackSession, miningCueSeekTime, navigateMiningCue, shouldResumeAfterMining, type MiningCue, type MiningPlaybackSession } from '$lib/modules/mining'
   import native from '$lib/modules/native'
   import { click, customDoubleClick, inputType, keywrap } from '$lib/modules/navigate'
   import { settings, SUPPORTS } from '$lib/modules/settings'
@@ -100,6 +103,16 @@
   $: exponentialVolume = SUPPORTS.isMobile ? 1 : $volume ** 3
   let muted = false
 
+  let miningMode = false
+  let miningCue: MiningCue | undefined
+  let miningDisplayCues: MiningCue[] = []
+  let miningTrackId: string | undefined
+  let miningNavigationCueId: string | undefined
+  let miningRevisionSeen = -1
+  let miningEffectiveTimeSeen = Number.NaN
+  let miningPlaybackSession: MiningPlaybackSession | undefined
+  $: isMiniplayer = $page.route.id !== '/app/player'
+
   const timeFormat = persisted('timeFormat', 'positive')
 
   // elements
@@ -125,6 +138,9 @@
 
   let subtitles: Subs | undefined
   $: subtitleAlignmentStatus = subtitles?.alignmentStatus
+  $: miningRevision = subtitles?.miningRevision
+  $: miningTrack = subtitles?.current
+  $: subtitles?.setMiningMode(miningMode && !isMiniplayer)
   let deband: VideoDeband | undefined
 
   const pip = new PictureInPicture()
@@ -158,6 +174,9 @@
   let seeking = false
   let ended = false
   let paused = true
+  $: if (miningMode && subtitles && $miningRevision !== undefined && $miningTrack !== undefined) {
+    refreshMiningCue($miningTrack, $miningRevision, currentTime, paused, subtitleDelay)
+  }
   let pointerMoving = false
   let fastForwarding = false
   // const cast = false
@@ -166,8 +185,6 @@
 
   $: buffering = readyState < 3 && !paused
   $: immersed = (!buffering && !paused && !ended && !pictureInPictureElement && !pointerMoving) || fastForwarding
-  $: isMiniplayer = $page.route.id !== '/app/player'
-
   let pointerMoveTimeout = 0
   function resetMove (time = 300) {
     clearTimeout(pointerMoveTimeout)
@@ -217,6 +234,8 @@
   onMount(() => {
     if (SUPPORTS.isMobile && !SUPPORTS.isIPad && !fullscreenElement && !isMiniplayer) fullscreen()
   })
+
+  onDestroy(() => subtitles?.setMiningMode(false))
 
   // exiting fullscreen on mobile navigates back since its a "back" gesture
   function checkMobileFullscreen () {
@@ -281,6 +300,116 @@
     // WARN: this causes all subscriptions to video to re-run!!!
     if (video) video.currentTime = currentTime
     playAnimation(time > oldTime ? 'seekforw' : 'seekback')
+  }
+
+  function refreshMiningCue (trackNumber: number | string, revision: number, playbackTime: number, playbackPaused: boolean, delay: number) {
+    if (!subtitles) return
+    const trackId = String(trackNumber)
+    const trackChanged = miningTrackId !== trackId
+    const revisionChanged = miningRevisionSeen !== revision
+    const cues = subtitles.getMiningCues(trackNumber)
+    const effectiveTime = playbackTime + Number(delay)
+    const timeChanged = !Number.isFinite(miningEffectiveTimeSeen) || Math.abs(effectiveTime - miningEffectiveTimeSeen) > 0.001
+    const activeCues = subtitles.getActiveMiningCues(effectiveTime, trackNumber)
+
+    if (trackChanged) {
+      miningNavigationCueId = undefined
+      miningCue = subtitles.getMiningCueAt(effectiveTime, trackNumber)
+      miningDisplayCues = activeCues.length ? activeCues : (miningCue ? [miningCue] : [])
+    } else if (!playbackPaused) {
+      const navigatedCue = cues.find(cue => cue.id === miningNavigationCueId)
+      if (navigatedCue && navigatedCue.start <= effectiveTime && effectiveTime < navigatedCue.end) {
+        miningCue = navigatedCue
+      } else {
+        miningNavigationCueId = undefined
+        miningCue = activeCues[0]
+      }
+      miningDisplayCues = activeCues
+    } else {
+      const navigatedCue = cues.find(cue => cue.id === miningNavigationCueId)
+      if (navigatedCue && navigatedCue.start <= effectiveTime && effectiveTime < navigatedCue.end) {
+        miningCue = navigatedCue
+      } else if (timeChanged) {
+        miningNavigationCueId = undefined
+        miningCue = activeCues[0]
+      } else if (revisionChanged) {
+        miningNavigationCueId = undefined
+        miningCue = cues.find(cue => cue.id === miningCue?.id) ?? activeCues[0]
+      }
+      miningDisplayCues = activeCues.some(cue => cue.id === miningCue?.id)
+        ? activeCues
+        : (miningCue ? [miningCue] : [])
+    }
+
+    miningTrackId = trackId
+    miningRevisionSeen = revision
+    miningEffectiveTimeSeen = effectiveTime
+  }
+
+  function enterMiningMode () {
+    if (miningMode || isMiniplayer || SUPPORTS.isMobile) return
+    miningPlaybackSession = beginMiningPlaybackSession(paused, $settings.miningPauseOnEnter)
+    miningMode = true
+    miningTrackId = undefined
+    miningNavigationCueId = undefined
+    miningRevisionSeen = -1
+    miningEffectiveTimeSeen = Number.NaN
+    if (miningPlaybackSession.autoPaused) {
+      video.pause()
+      pip.element.value?.pause()
+    }
+    if (subtitles) {
+      miningCue = subtitles.getMiningCueAt(currentTime + Number(subtitleDelay))
+      const activeCues = subtitles.getActiveMiningCues(currentTime + Number(subtitleDelay))
+      miningDisplayCues = activeCues.length ? activeCues : (miningCue ? [miningCue] : [])
+      subtitles.setMiningMode(true)
+    }
+  }
+
+  function exitMiningMode () {
+    if (!miningMode) return
+    const resume = shouldResumeAfterMining(miningPlaybackSession)
+    miningMode = false
+    miningCue = undefined
+    miningDisplayCues = []
+    miningTrackId = undefined
+    miningNavigationCueId = undefined
+    miningRevisionSeen = -1
+    miningEffectiveTimeSeen = Number.NaN
+    subtitles?.setMiningMode(false)
+    miningPlaybackSession = undefined
+    if (resume) {
+      Promise.allSettled([video.play(), pip.element.value?.play()])
+    } else {
+      video.pause()
+      pip.element.value?.pause()
+    }
+  }
+
+  function toggleMiningMode () {
+    miningMode ? exitMiningMode() : enterMiningMode()
+  }
+
+  function navigateMiningSubtitle (direction: -1 | 1) {
+    if (!subtitles) return
+    const cues = subtitles.getMiningCues()
+    const nextCue = navigateMiningCue(cues, miningCue?.id, direction, currentTime + Number(subtitleDelay))
+    if (!nextCue) return
+    if (nextCue.id === miningCue?.id) return
+    miningCue = nextCue
+    miningNavigationCueId = nextCue.id
+    const activeCues = subtitles.getActiveMiningCues(nextCue.start)
+    miningDisplayCues = activeCues.length ? activeCues : [nextCue]
+    seekTo(miningCueSeekTime(nextCue, Number(subtitleDelay)))
+  }
+
+  function handlePlayerKeydown (event: KeyboardEvent) {
+    stopAnimation()
+    if (!miningMode || isMiniplayer || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    event.stopPropagation()
+    navigateMiningSubtitle(event.key === 'ArrowLeft' ? -1 : 1)
   }
   let wasPaused = false
   function startSeek () {
@@ -481,6 +610,18 @@
     screenshot(deband?.canvas ?? canvasSource, videoWidth, videoHeight, subtitles)
   }
   let fitWidth = false
+  function getMiningKeybind () {
+    if (SUPPORTS.isMobile) return {}
+    return {
+      KeyV: {
+        fn: toggleMiningMode,
+        id: 'toggle_mining',
+        icon: Pickaxe,
+        type: 'icon',
+        desc: 'Toggle Mining Mode'
+      }
+    }
+  }
   loadWithDefaults({
     KeyX: {
       fn: ss,
@@ -576,6 +717,7 @@
       type: 'icon',
       desc: 'Cycle Subtitles'
     },
+    ...getMiningKeybind(),
     ArrowLeft: {
       fn: (e) => {
         if ($inputType === 'dpad') return
@@ -767,7 +909,7 @@
 </script>
 
 <svelte:document bind:fullscreenElement bind:visibilityState use:holdToFF={'key'} on:fullscreenchange={checkMobileFullscreen} />
-<svelte:window on:keydown|capture={stopAnimation} />
+<svelte:window on:keydown|capture={handlePlayerKeydown} />
 
 <div class='size-full relative content-center bg-background overflow-clip text-left touch-none'
   class:fitWidth class:seeking class:pip={pictureInPictureElement} bind:this={wrapper}
@@ -854,6 +996,9 @@
       on:contextmenu={openSettings}
     />
   {/if}
+  {#if miningMode && !isMiniplayer}
+    <MiningSubtitle cues={miningDisplayCues} css={$settings.miningSubtitleCss} />
+  {/if}
   {#if !isMiniplayer}
     <div class='absolute size-full flex items-center justify-center top-0 pointer-events-none'>
       <DownloadStats {immersed} />
@@ -868,6 +1013,19 @@
         <StatsForNerds {subtitleDelay} {currentTime} {safeduration} {readyState} volume={$volume} {video} {buffered} {videoWidth} {videoHeight} close={() => { showStats = false }} />
       {/if}
       {#if $settings.minimalPlayerUI || (SUPPORTS.isMobile && !SUPPORTS.isAndroidTV)}
+        {#if !SUPPORTS.isMobile}
+          <Button
+            class='inline-flex p-3 size-12 absolute z-[1] top-4 right-20 bg-background/20 pointer-events-auto transition-opacity desktop:select:opacity-100 {immersed && 'opacity-0'} {!pointerMoveTimeout && 'delay-150'}'
+            variant={miningMode ? 'secondary' : 'ghost'}
+            aria-label='Toggle mining mode'
+            aria-pressed={miningMode}
+            title='Toggle mining mode'
+            on:click={toggleMiningMode}
+            on:keydown={keywrap(toggleMiningMode)}
+          >
+            <Pickaxe size='24px' />
+          </Button>
+        {/if}
         <Options {wrapper} bind:open bind:openPath {video} {seekTo} screenshot={ss} {selectAudio} {selectVideo} {fullscreen} chapters={$chapters} {subtitles} {videoFiles} {selectFile} {pip} bind:playbackRate={$playbackRate} bind:subtitleDelay
           class='inline-flex p-3 size-12 absolute z-[1] top-4 right-4 bg-background/20 pointer-events-auto transition-opacity desktop:select:opacity-100 {immersed && 'opacity-0'} {!pointerMoveTimeout && 'delay-150'}' />
       {/if}
@@ -954,6 +1112,19 @@
             {#if $playbackRate !== 1 && $playbackRate}
               <Button class='p-3 size-12 hidden sm:flex leading-none text-base font-bold' variant='ghost' on:click={() => openPath(['rate'])} on:keydown={keywrap(() => openPath(['rate']))}>
                 x{$playbackRate?.toFixed(1)}
+              </Button>
+            {/if}
+            {#if !SUPPORTS.isMobile}
+              <Button
+                class='p-3 size-12 relative shrink-0'
+                variant={miningMode ? 'secondary' : 'ghost'}
+                aria-label='Toggle mining mode'
+                aria-pressed={miningMode}
+                title='Toggle mining mode'
+                on:click={toggleMiningMode}
+                on:keydown={keywrap(toggleMiningMode)}
+              >
+                <Pickaxe size='24px' />
               </Button>
             {/if}
             <Options {fullscreen} {wrapper} screenshot={ss} {seekTo} bind:open bind:openPath {video} {selectAudio} {selectVideo} chapters={$chapters} {subtitles} {videoFiles} {selectFile} {pip} bind:playbackRate={$playbackRate} bind:subtitleDelay />

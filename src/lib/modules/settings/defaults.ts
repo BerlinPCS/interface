@@ -2,6 +2,8 @@ import SUPPORTS from './supports'
 
 import type { languageCodes, subtitleResolutions, videoResolutions } from './util'
 
+import { DEFAULT_MINING_SUBTITLE_CSS } from '$lib/modules/mining'
+
 export default {
   volume: 1,
   playerAutoplay: true,
@@ -13,6 +15,8 @@ export default {
   subtitleStyle: 'none' as 'none' | 'gandhisans' | 'notosans' | 'roboto' | 'custom',
   subtitleCustomFontName: '',
   subtitleAutoRetiming: true,
+  miningPauseOnEnter: false,
+  miningSubtitleCss: DEFAULT_MINING_SUBTITLE_CSS,
   searchQuality: '1080' as keyof typeof videoResolutions,
   searchAutoSelect: true,
   lookupPreference: 'quality' as 'quality' | 'size' | 'seeders',

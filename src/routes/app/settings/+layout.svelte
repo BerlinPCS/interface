@@ -17,6 +17,9 @@
       title: 'Player',
       href: '/#/app/settings/player'
     },
+    SUPPORTS.isMobile
+      ? undefined
+      : { title: 'Mining', href: '/#/app/settings/mining' },
     {
       title: 'Client',
       href: '/#/app/settings/client'

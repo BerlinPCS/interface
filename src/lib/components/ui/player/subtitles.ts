@@ -15,6 +15,7 @@ import type { ASSEvent, ASSStyle } from 'jassub/dist/worker/util'
 import type { SubtitleTrack, TorrentFile } from 'native'
 
 import { extensions } from '$lib/modules/extensions'
+import { createMiningCue, findActiveMiningCues, findMiningCueAt, parseAssMiningCues, sortAndDeduplicateMiningCues, type MiningCue } from '$lib/modules/mining'
 import native from '$lib/modules/native'
 import { type defaults, settings } from '$lib/modules/settings'
 import { anitomyscript, fontRx, HashMap, subRx, subtitleExtensions, toTS } from '$lib/utils'
@@ -116,6 +117,13 @@ interface JimakuAlignmentState {
   progress: SubtitleAlignmentProgress
 }
 
+interface SubtitleTrackState {
+  events: HashMap<{ text: string, time: number, duration: number, style?: string }, ASSEvent>
+  miningEvents: Map<string, MiningCue>
+  meta: SubtitleTrack
+  styles: Record<string | number, number>
+}
+
 export default class Subtitles {
   video?: HTMLVideoElement
   canvas?: HTMLCanvasElement
@@ -135,8 +143,12 @@ export default class Subtitles {
   alignmentTimer: ReturnType<typeof setTimeout> | undefined
   mediaId: number
   settingsUnsubscribe: () => void
+  miningMode = false
+  previousCanvasVisibility: string | undefined
 
-  _tracks = writable<Record<number | string, { events: HashMap<{ text: string, time: number, duration: number, style?: string }, ASSEvent>, meta: SubtitleTrack, styles: Record<string | number, number> }>>({})
+  _tracks = writable<Record<number | string, SubtitleTrackState>>({})
+  miningRevision = writable(0)
+  miningCueCache = new Map<string, { revision: number, cues: MiningCue[] }>()
 
   constructor (video: HTMLVideoElement | undefined, otherFiles: TorrentFile[], mediaInfo: MediaInfo, canvas?: HTMLCanvasElement) {
     this.video = video
@@ -288,12 +300,25 @@ export default class Subtitles {
       await this.selectCaptions(tracks[0]![0])
     }).catch(console.error)
 
-    native.subtitles(this.selected.hash, this.selected.id, async (subtitle: { text: string, time: number, duration: number, style?: string }, trackNumber) => {
+    native.subtitles(this.selected.hash, this.selected.id, async (subtitle: { text: string, time: number, duration: number, style?: string, name?: string, readOrder?: number }, trackNumber) => {
       await tracks
-      const { events, meta, styles } = this.track(trackNumber)
+      const { events, miningEvents, meta, styles } = this.track(trackNumber)
       if (events.has(subtitle)) return
       const event = this.constructSub(subtitle, meta.type !== 'ass', events.size, styles[subtitle.style ?? 'Default'] ?? 0)
       events.add(subtitle, event)
+      const miningCue = createMiningCue({
+        trackId: String(trackNumber),
+        start: event.Start / 1000,
+        end: (event.Start + event.Duration) / 1000,
+        readOrder: event.ReadOrder,
+        style: subtitle.style,
+        speaker: subtitle.name,
+        rawText: subtitle.text
+      })
+      if (miningCue) {
+        miningEvents.set(miningCue.id, miningCue)
+        this.miningRevision.value++
+      }
       if (this.alignmentReferenceTrack === String(trackNumber) && this.jimakuTracks.has(String(this.current.value)) && shouldAttemptSubtitleAlignment(events.size)) {
         this.scheduleJimakuAlignment()
       }
@@ -359,6 +384,7 @@ export default class Subtitles {
     const newtrack = this.track(trackNumber)
     newtrack.styles.Default = 0
     newtrack.meta = { type, header: activeHeader, number: '' + trackNumber, name, language: (detectCJKLanguage(header) ?? name.replace(/[,._-]/g, ' ').trim()) || 'Track ' + trackNumber, _compressed: false, default: false, forced: false }
+    this.miningRevision.value++
     if (source === 'jimaku') {
       this.jimakuTracks.set(String(trackNumber), {
         originalHeader: header,
@@ -447,6 +473,7 @@ export default class Subtitles {
     const track = this._tracks.value[trackNumber]
     if (!track) return
     track.meta.header = shiftAssDialogue(state.originalHeader, state.progress.offset)
+    this.miningRevision.value++
 
     if (String(this.current.value) === trackNumber) await this.selectCaptions(trackNumber)
   }
@@ -466,7 +493,10 @@ export default class Subtitles {
       const cached = enabled ? cachedSubtitleAlignment(this.alignmentCache, this.mediaId, state.profile) : undefined
       state.progress = initialAlignmentProgress(cached)
       const track = this._tracks.value[trackNumber]
-      if (track) track.meta.header = cached ? shiftAssDialogue(state.originalHeader, cached.offset) : state.originalHeader
+      if (track) {
+        track.meta.header = cached ? shiftAssDialogue(state.originalHeader, cached.offset) : state.originalHeader
+        this.miningRevision.value++
+      }
     }
 
     const current = String(this.current.value)
@@ -503,6 +533,7 @@ export default class Subtitles {
     await this.jassub.ready
 
     await this._applyStyleOverride(this.set.subtitleStyle)
+    this.syncMiningVisibility()
   }
 
   lastSubtitleStyle: string | undefined = undefined
@@ -552,12 +583,50 @@ export default class Subtitles {
 
     tracks[trackNumber] ??= {
       events: new HashMap(),
+      miningEvents: new Map(),
       // @ts-expect-error initializing with empty object
       meta: {},
       styles: {}
     }
 
     return tracks[trackNumber]!
+  }
+
+  getMiningCues (trackNumber: number | string = this.current.value) {
+    const trackId = String(trackNumber)
+    const track = this._tracks.value[trackId]
+    if (!track || trackNumber === -1) return []
+    const cached = this.miningCueCache.get(trackId)
+    if (cached?.revision === this.miningRevision.value) return cached.cues
+    const headerCues = track.meta.header ? parseAssMiningCues(track.meta.header, trackId) : []
+    const cues = sortAndDeduplicateMiningCues([...headerCues, ...track.miningEvents.values()])
+    this.miningCueCache.set(trackId, { revision: this.miningRevision.value, cues })
+    return cues
+  }
+
+  getMiningCueAt (time: number, trackNumber: number | string = this.current.value) {
+    return findMiningCueAt(this.getMiningCues(trackNumber), time)
+  }
+
+  getActiveMiningCues (time: number, trackNumber: number | string = this.current.value) {
+    return findActiveMiningCues(this.getMiningCues(trackNumber), time)
+  }
+
+  setMiningMode (active: boolean) {
+    this.miningMode = active
+    this.syncMiningVisibility()
+  }
+
+  syncMiningVisibility () {
+    const canvas = this.jassub?._canvas
+    if (!canvas) return
+    if (this.miningMode) {
+      this.previousCanvasVisibility ??= canvas.style.visibility
+      canvas.style.visibility = 'hidden'
+    } else if (this.previousCanvasVisibility !== undefined) {
+      canvas.style.visibility = this.previousCanvasVisibility
+      this.previousCanvasVisibility = undefined
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -630,14 +699,17 @@ export default class Subtitles {
   destroy () {
     if (this.alignmentTimer !== undefined) clearTimeout(this.alignmentTimer)
     this.jimakuTracks.clear()
+    this.miningCueCache.clear()
     this.embeddedTracks.clear()
     this.alignmentReferenceTrack = undefined
     this.alignmentStatus.value = 'hidden'
     this.settingsUnsubscribe()
+    this.setMiningMode(false)
     this.jassub?.destroy()
     if (this.customFontUrl) URL.revokeObjectURL(this.customFontUrl)
-    for (const { events } of Object.values(this._tracks.value)) {
+    for (const { events, miningEvents } of Object.values(this._tracks.value)) {
       events.clear()
+      miningEvents.clear()
     }
   }
 

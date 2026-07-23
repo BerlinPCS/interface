@@ -338,6 +338,11 @@ canvas {
   src: url("/Excalifont-Regular-subset.woff2") format("woff2");
 }
 
+@font-face {
+  font-family: "Klee One SemiBold";
+  src: url("/KleeOne-SemiBold.ttf") format("woff2");
+}
+
 .font-twemoji {
   font-family: 'Twemoji';
 }
