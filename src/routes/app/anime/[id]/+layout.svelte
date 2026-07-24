@@ -139,7 +139,7 @@
       <BookmarkButton {media} variant='secondary' size='icon' class='min-[380px]:-order-2 md:order-none select:!text-custom' />
       <TransitionButton size='icon' variant='secondary' on:click={share} class='hidden min-[380px]:flex select:!text-custom'>
         <div slot='base'>
-          <HH2 class='size-4' />
+          <Share2 class='size-4' />
         </div>
         <div slot='transition'>
           <Check class='size-4' />
