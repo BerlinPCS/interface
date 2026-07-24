@@ -227,6 +227,8 @@
       reset()
     } else if (message.type === 'clearSelection') {
       window.hoshiSelection?.clearSelection()
+    } else if (message.type === 'highlightSelection') {
+      window.hoshiSelection?.highlightSelection(message.length)
     } else if (message.type === 'navigateBack') {
       window.navigateBack?.()
       if (backCount > 0) {

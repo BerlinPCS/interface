@@ -66,6 +66,11 @@ export type MiningPopupHostMessage =
     type: 'reset' | 'clearSelection' | 'navigateBack' | 'navigateForward' | 'focus'
     popupId: string
   }
+  | HostMessageBase & {
+    type: 'highlightSelection'
+    popupId: string
+    length: number
+  }
 
 export type MiningPopupRequestMethod =
   | 'getEntry'

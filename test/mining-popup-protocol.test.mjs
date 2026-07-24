@@ -70,4 +70,14 @@ test('constructs host messages with the protocol envelope', () => {
     type: 'reset',
     popupId: 'popup-1'
   })
+  assert.deepEqual(makeMiningPopupHostMessage(nonce, {
+    type: 'highlightSelection',
+    popupId: 'popup-1',
+    length: 5
+  }), {
+    ...base,
+    type: 'highlightSelection',
+    popupId: 'popup-1',
+    length: 5
+  })
 })
