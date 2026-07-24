@@ -4,6 +4,7 @@
   import X from 'lucide-svelte/icons/x'
   import { createEventDispatcher, onDestroy, onMount } from 'svelte'
 
+  import type { MiningAnkiConnectionResult, MiningAnkiPopupPayload, MiningAnkiResult } from '$lib/modules/mining-anki'
   import type { MiningAudioPlaybackMode } from '$lib/modules/mining-audio'
   import type { MiningDictionaryEntry, MiningDictionaryLookupResult, MiningPopupPosition } from '$lib/modules/mining-dictionary'
 
@@ -35,6 +36,15 @@
   export let audioSources: string[] = []
   export let audioAutoplay = false
   export let audioPlaybackMode: MiningAudioPlaybackMode = 'interrupt'
+  export let nestedLookupOnHover = true
+  export let miningEnabled = false
+  export let miningAllowDuplicates = false
+  export let miningNeedsWordAudio = false
+  export let showNotesEnabled = false
+  export let duplicateCheck: ((expression: string) => Promise<MiningAnkiResult>) | undefined = undefined
+  export let mineEntry: ((payload: MiningAnkiPopupPayload) => Promise<MiningAnkiResult>) | undefined = undefined
+  export let showNotes: ((expression: string) => Promise<MiningAnkiConnectionResult>) | undefined = undefined
+  export let recheckMiningSignal = 0
   export let fixed = false
   export let portalTarget: HTMLElement | undefined = undefined
   export let backgroundMedia: {
@@ -63,7 +73,9 @@
   $: capabilities = {
     dictionaryMedia: native.isApp,
     audio: audioSources.length > 0,
-    mining: false,
+    mining: true,
+    miningConfigured: miningEnabled && Boolean(duplicateCheck) && Boolean(mineEntry),
+    showNotes: miningEnabled && Boolean(duplicateCheck) && Boolean(mineEntry) && showNotesEnabled && Boolean(showNotes),
     nestedLookup: true
   } satisfies MiningPopupCapabilities
 
@@ -81,6 +93,7 @@
   let audioRestore: (() => void) | undefined
   let lastClearSelectionSignal = 0
   let lastHighlightSelectionSignal = 0
+  let lastRecheckMiningSignal = 0
   export let clearSelectionSignal = 0
   export let highlightSelectionSignal = 0
   export let highlightSelectionLength = 0
@@ -99,11 +112,14 @@
     customCss,
     scale,
     darkMode: true,
+    nestedLookupOnHover,
     audioSources,
     audioEnableAutoplay: audioAutoplay,
-    audioPlaybackMode
+    audioPlaybackMode,
+    miningAllowDuplicates,
+    miningNeedsWordAudio
   } satisfies MiningPopupRuntimeSettings
-  $: settingsKey = JSON.stringify(runtimeSettings)
+  $: settingsKey = JSON.stringify({ runtimeSettings, capabilities })
   $: if (loading || error) contentReady = false
   $: if (frameLoaded && settingsKey !== lastSettingsKey) initializeFrame(runtimeSettings, settingsKey)
   $: syncOpenState(Boolean(position))
@@ -119,6 +135,10 @@
       popupId,
       length: highlightSelectionLength
     }))
+  }
+  $: if (frameReady && recheckMiningSignal !== lastRecheckMiningSignal) {
+    lastRecheckMiningSignal = recheckMiningSignal
+    post(makeMiningPopupHostMessage(nonce, { type: 'recheckMining', popupId }))
   }
 
   function post (message: MiningPopupHostMessage) {
@@ -222,7 +242,34 @@
         reply(message.requestId, { ok: true, value: null })
         return
       }
-      throw new Error(`${message.method} is unavailable`)
+      if (message.method === 'duplicateCheck') {
+        if (typeof message.payload !== 'string') throw new Error('Invalid Anki duplicate check')
+        reply(message.requestId, {
+          ok: true,
+          value: duplicateCheck
+            ? await duplicateCheck(message.payload)
+            : { status: 'error', message: 'Configure AnkiConnect to add cards.' }
+        })
+        return
+      }
+      if (message.method === 'mineEntry') {
+        if (!isRecord(message.payload)) throw new Error('Invalid Anki mining request')
+        reply(message.requestId, {
+          ok: true,
+          value: mineEntry
+            ? await mineEntry(message.payload as unknown as MiningAnkiPopupPayload)
+            : { status: 'error', message: 'Configure AnkiConnect to add cards.' }
+        })
+        return
+      }
+      if (message.method === 'showNotes') {
+        if (!capabilities.showNotes || !showNotes || typeof message.payload !== 'string') {
+          throw new Error('Showing Anki notes is unavailable')
+        }
+        reply(message.requestId, { ok: true, value: await showNotes(message.payload) })
+        return
+      }
+      throw new Error('Popup request is unavailable')
     } catch (cause) {
       if (!destroyed) {
         reply(message.requestId, {

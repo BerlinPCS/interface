@@ -4,6 +4,8 @@ import SUPPORTS from './settings/supports'
 import type { MiningDictionaryState } from '$lib/modules/mining-dictionary'
 import type { AuthResponse, Native, TorrentInfo } from 'native'
 
+import { UNAVAILABLE_MINING_ANKI_STATE } from '$lib/modules/mining-anki'
+
 const unavailableDictionaryState = (): MiningDictionaryState => ({
   available: false,
   generation: 0,
@@ -203,6 +205,14 @@ export default Object.assign<Native, Partial<Native>>({
   miningAudioLocalRemove: async () => ({ available: false, sizeBytes: 0, sources: [], sourceOrder: [] }),
   miningAudioLocalReorder: async () => ({ available: false, sizeBytes: 0, sources: [], sourceOrder: [] }),
   miningAudioResolveSource: async () => null,
+  miningAnkiState: async () => structuredClone(UNAVAILABLE_MINING_ANKI_STATE),
+  miningAnkiUpdateSettings: async () => structuredClone(UNAVAILABLE_MINING_ANKI_STATE),
+  miningAnkiPing: async () => ({ status: 'error', message: 'AnkiConnect is only available in the desktop app.' }),
+  miningAnkiDetect: async () => structuredClone(UNAVAILABLE_MINING_ANKI_STATE),
+  miningAnkiCheckDuplicate: async () => ({ status: 'error', message: 'AnkiConnect is only available in the desktop app.' }),
+  miningAnkiAddNote: async () => ({ status: 'error', message: 'AnkiConnect is only available in the desktop app.' }),
+  miningAnkiShowNotes: async () => ({ status: 'error', message: 'AnkiConnect is only available in the desktop app.' }),
+  onMiningAnkiEvent: () => () => {},
   onMiningDictionaryEvent: () => () => {}
   // @ts-expect-error idk
 }, globalThis.native as Partial<Native>)

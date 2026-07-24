@@ -64,6 +64,12 @@
   import { authAggregator } from '$lib/modules/auth'
   import { isPlaying } from '$lib/modules/idle'
   import { beginMiningPlaybackSession, miningCueSeekTime, navigateMiningCue, shouldResumeAfterMining, type MiningCue, type MiningPlaybackSession, type MiningSelection } from '$lib/modules/mining'
+  import {
+    parseMiningAnkiPopupPayload,
+    UNAVAILABLE_MINING_ANKI_STATE,
+    type MiningAnkiPopupPayload,
+    type MiningAnkiState
+  } from '$lib/modules/mining-anki'
   import { enabledMiningAudioTemplates } from '$lib/modules/mining-audio'
   import {
     calculateMiningPopupPosition,
@@ -74,6 +80,7 @@
     type MiningDictionaryState,
     type MiningPopupPosition
   } from '$lib/modules/mining-dictionary'
+  import { captureMiningAudio, captureMiningScreenshot } from '$lib/modules/mining-media-capture'
   import native from '$lib/modules/native'
   import { click, customDoubleClick, inputType, keywrap } from '$lib/modules/navigate'
   import { settings, SUPPORTS } from '$lib/modules/settings'
@@ -128,9 +135,15 @@
   let miningDictionaryLoading = false
   let miningDictionaryError = ''
   let miningSelectionLength = 0
+  let miningActiveSelection: MiningSelection | undefined
   let miningDictionaryRequestKey = ''
   let miningDictionaryRequestGeneration = 0
   let miningDictionaryState = UNAVAILABLE_MINING_DICTIONARY_STATE
+  let miningAnkiState: MiningAnkiState = UNAVAILABLE_MINING_ANKI_STATE
+  let miningAnkiRecheckSignal = 0
+  let miningAnkiCue: MiningCue | undefined
+  let miningAnkiSelectedText = ''
+  let miningAnkiSentenceOffset: number | undefined
   let miningDictionaryLookupFrame = 0
   let miningDictionaryLoadingTimer = 0
   let miningDictionaryCloseTimer = 0
@@ -266,7 +279,7 @@
       if (state.generation !== miningDictionaryState.generation) miningDictionaryCache.clear()
       miningDictionaryState = state
     }
-    const unsubscribe = native.onMiningDictionaryEvent(event => {
+    const unsubscribeDictionary = native.onMiningDictionaryEvent(event => {
       if (event.event === 'stateChanged') applyDictionaryState(event.data)
       if (event.event === 'backendError' && miningDictionaryPosition) {
         cancelMiningDictionaryLookupSchedule()
@@ -284,7 +297,18 @@
           error: error instanceof Error ? error.message : 'The offline dictionary backend is unavailable.'
         }
       })
-    return unsubscribe
+    native.miningAnkiState()
+      .then(state => { miningAnkiState = state })
+      .catch(() => { miningAnkiState = UNAVAILABLE_MINING_ANKI_STATE })
+    const unsubscribeAnki = native.onMiningAnkiEvent(event => {
+      const connectionChanged = miningAnkiState.connectionStatus !== event.data.connectionStatus
+      miningAnkiState = event.data
+      if (connectionChanged) miningAnkiRecheckSignal++
+    })
+    return () => {
+      unsubscribeDictionary()
+      unsubscribeAnki()
+    }
   })
 
   onDestroy(() => {
@@ -477,6 +501,7 @@
     miningDictionaryLoading = false
     miningDictionaryError = ''
     miningSelectionLength = 0
+    miningActiveSelection = undefined
     miningDictionaryRequestKey = ''
     if (resume && miningMode) Promise.allSettled([video.play(), pip.element.value?.play()])
   }
@@ -520,6 +545,10 @@
     }
     const cue = miningDisplayCues.find(item => item.id === selection.cueId)
     if (!cue) return closeMiningDictionary()
+    miningActiveSelection = selection
+    miningAnkiCue = cue
+    miningAnkiSelectedText = cue.plainText.slice(selection.utf16Offset, selection.utf16Offset + selection.utf16Length)
+    miningAnkiSentenceOffset = selection.utf16Offset
     const request = getMiningLookupRequest(
       cue,
       selection,
@@ -602,6 +631,73 @@
       scanLength: Math.max(1, Math.min(64, $settings.miningDictionaryScanLength)),
       maxResults: Math.max(1, Math.min(50, $settings.miningDictionaryMaxResults))
     })
+  }
+
+  function checkMiningAnkiDuplicate (expression: string) {
+    return native.miningAnkiCheckDuplicate({ expression }).then(result =>
+      result.status === 'error'
+        ? result
+        : (result.duplicate ? { status: 'duplicate' as const } : { status: 'success' as const })
+    )
+  }
+
+  function showMiningAnkiNotes (expression: string) {
+    return native.miningAnkiShowNotes({ expression })
+  }
+
+  async function mineToAnki (rawPayload: MiningAnkiPopupPayload) {
+    const payload = parseMiningAnkiPopupPayload(rawPayload)
+    const cue = miningAnkiCue ?? miningCue
+    if (!cue) return { status: 'error', message: 'The subtitle context is no longer available.' } as const
+
+    try {
+      const templates = Object.values(miningAnkiState.settings.fieldMappings)
+      const media = []
+      if ($settings.miningAnkiCaptureScreenshot && templates.some(value =>
+        value.includes('{screenshot}')
+      )) {
+        media.push(await captureMiningScreenshot(
+          deband?.canvas ?? canvasSource,
+          videoWidth,
+          videoHeight,
+          $settings.miningAnkiScreenshotSubtitles ? subtitles?.screenshotOverlay() : undefined
+        ))
+      }
+      if ($settings.miningAnkiCaptureAudio && templates.some(value =>
+        value.includes('{sentence-audio}')
+      )) {
+        const selectedTrack = [...(video.audioTracks ?? [])].find(track => track.enabled)
+        media.push(await captureMiningAudio({
+          sourceUrl: mediaInfo.file.url,
+          trackId: selectedTrack?.id,
+          start: Math.max(0, cue.start - Number(subtitleDelay) - Number($settings.miningAnkiAudioPaddingStart)),
+          end: Math.max(0, cue.end - Number(subtitleDelay) + Number($settings.miningAnkiAudioPaddingEnd))
+        }))
+      }
+      const result = await native.miningAnkiAddNote({
+        payload,
+        context: {
+          sentence: cue.plainText,
+          selectedText: miningAnkiSelectedText,
+          title: mediaInfo.session.title,
+          timestamp: currentTime,
+          sentenceOffset: miningAnkiSentenceOffset,
+          media
+        }
+      })
+      if (result.status === 'success') {
+        toast.success('Added note to Anki')
+      } else if (result.status === 'duplicate') {
+        toast.info('This note is already in Anki')
+      } else {
+        toast.error('Could not add note to Anki', { description: result.message })
+      }
+      return result
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Media capture failed.'
+      toast.error('Could not add note to Anki', { description: message })
+      return { status: 'error', message } as const
+    }
   }
 
   function handlePlayerKeydown (event: KeyboardEvent) {
@@ -1201,7 +1297,13 @@
     />
   {/if}
   {#if miningMode && !isMiniplayer}
-    <MiningSubtitle cues={miningDisplayCues} css={$settings.miningSubtitleCss} selectionLength={miningSelectionLength} on:selection={handleMiningSelection} />
+    <MiningSubtitle
+      cues={miningDisplayCues}
+      css={$settings.miningSubtitleCss}
+      activeSelection={miningActiveSelection}
+      selectionLength={miningSelectionLength}
+      on:selection={handleMiningSelection}
+    />
     <MiningDictionaryIframePopup
       entries={miningDictionaryEntries}
       loading={miningDictionaryLoading}
@@ -1220,6 +1322,15 @@
       audioSources={enabledMiningAudioTemplates($settings.miningAudioSources)}
       audioAutoplay={$settings.miningAudioAutoplay}
       audioPlaybackMode={$settings.miningAudioPlaybackMode}
+      nestedLookupOnHover={$settings.miningNestedPopupOnHover}
+      miningEnabled={native.isApp && miningAnkiState.available}
+      miningAllowDuplicates={miningAnkiState.settings.allowDuplicates}
+      miningNeedsWordAudio={Object.values(miningAnkiState.settings.fieldMappings).some(value => value.includes('{audio}'))}
+      showNotesEnabled={miningAnkiState.settings.showNotes}
+      duplicateCheck={checkMiningAnkiDuplicate}
+      mineEntry={mineToAnki}
+      showNotes={showMiningAnkiNotes}
+      recheckMiningSignal={miningAnkiRecheckSignal}
       backgroundMedia={video}
       on:close={closeMiningDictionary}
       on:enter={clearMiningDictionaryCloseTimer}

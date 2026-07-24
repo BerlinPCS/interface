@@ -35,6 +35,15 @@ test('accepts valid frame lifecycle and request messages', () => {
     method: 'resolveAudioSource',
     payload: 'https://audio.test'
   }, nonce)?.method, 'resolveAudioSource')
+  assert.equal(parseMiningPopupFrameMessage({
+    ...base,
+    type: 'request',
+    popupId: 'popup-1',
+    resultSetId: 'results-1',
+    requestId: 'request-3',
+    method: 'showNotes',
+    payload: '食べる'
+  }, nonce)?.method, 'showNotes')
 })
 
 test('rejects wrong versions, nonces, methods, and malformed selections', () => {

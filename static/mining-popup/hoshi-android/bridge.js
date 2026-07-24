@@ -42,7 +42,7 @@
         pending.delete(requestId)
         reject(new Error(`${method} request timed out`))
       }, 10000)
-      pending.set(requestId, { resolve, reject, timeout })
+      pending.set(requestId, { method, resolve, reject, timeout })
       post({
         type: 'request',
         popupId,
@@ -71,10 +71,16 @@
     return browserFetch(resource, options)
   }
 
-  function rejectPending (reason) {
+  function cancelPending (reason) {
     for (const item of pending.values()) {
       clearTimeout(item.timeout)
-      item.reject(new Error(reason))
+      if (item.method === 'duplicateCheck' || item.method === 'mineEntry' || item.method === 'showNotes') {
+        item.resolve({ status: 'error', message: reason })
+      } else if (item.method === 'lookupRedirect') {
+        item.resolve({ resultSetId, count: 0 })
+      } else {
+        item.resolve(null)
+      }
     }
     pending.clear()
   }
@@ -93,8 +99,31 @@
       shellReady: { postMessage: () => {} },
       contentReady: { postMessage: () => postPopupEvent('contentReady') },
       popupScrolled: { postMessage: () => postPopupEvent('scrolled') },
-      mineEntry: { postMessage: content => runtimeCapabilities.mining ? request('mineEntry', content) : Promise.resolve(false) },
-      duplicateCheck: { postMessage: expression => runtimeCapabilities.mining ? request('duplicateCheck', expression) : Promise.resolve(false) },
+      mineEntry: {
+        postMessage: content => {
+          return request('mineEntry', content).then(result => {
+            window.dispatchEvent(new CustomEvent('hayase-mining-result', {
+              detail: { phase: 'add', expression: content?.expression, result }
+            }))
+            return result?.status === 'success'
+          })
+        }
+      },
+      duplicateCheck: {
+        postMessage: expression => {
+          return request('duplicateCheck', expression).then(result => {
+            window.dispatchEvent(new CustomEvent('hayase-mining-result', {
+              detail: { phase: 'check', expression, result }
+            }))
+            return result?.status === 'duplicate' || (result?.status === 'success' && result?.duplicate === true)
+          })
+        }
+      },
+      showNotes: {
+        postMessage: expression => runtimeCapabilities.showNotes
+          ? request('showNotes', expression)
+          : Promise.resolve({ status: 'error', message: 'Showing notes is disabled' })
+      },
       getEntry: { postMessage: index => request('getEntry', index) },
       lookupRedirect: {
         postMessage: async query => {
@@ -133,9 +162,11 @@
     window.audioEnableAutoplay = capabilities.audio && settings.audioEnableAutoplay
     window.audioPlaybackMode = settings.audioPlaybackMode
     window.nestedLookupOnHover = settings.nestedLookupOnHover !== false
-    window.needsAudio = false
-    window.allowDupes = false
-    window.useAnkiConnect = capabilities.mining
+    window.needsAudio = capabilities.miningConfigured && settings.miningNeedsWordAudio
+    window.allowDupes = capabilities.miningConfigured && settings.miningAllowDuplicates
+    window.useAnkiConnect = capabilities.miningConfigured
+    window.hayaseMiningConfigured = capabilities.miningConfigured
+    window.hayaseShowNotes = capabilities.showNotes
     window.embedMedia = false
     window.compactGlossariesAnki = settings.compactGlossaries
     window.customCSS = settings.customCss
@@ -161,13 +192,13 @@
       capabilityStyle.id = 'hayase-popup-capability-css'
       document.head.appendChild(capabilityStyle)
     }
-    capabilityStyle.textContent = capabilities.mining
+    capabilityStyle.textContent = capabilities.showNotes
       ? ''
-      : '.button-slot[data-kind="mine"] { display: none !important; }'
+      : '.button-slot[data-kind="show-notes"] { display: none !important; }'
   }
 
   function reset () {
-    rejectPending('Popup reset')
+    cancelPending('Popup reset')
     popupId = null
     resultSetId = null
     backCount = 0
@@ -180,7 +211,7 @@
   }
 
   function render (message) {
-    rejectPending('Popup results replaced')
+    cancelPending('Popup results replaced')
     popupId = message.popupId
     resultSetId = message.resultSetId
     backCount = 0
@@ -193,6 +224,15 @@
       message.initialEntry ? [message.initialEntry] : []
     )
     historyChanged()
+  }
+
+  function recheckMining () {
+    if (!runtimeCapabilities.miningConfigured || !Array.isArray(window.lookupEntries)) return
+    window.lookupEntries.forEach(entry => {
+      const expression = entry?.expression
+      if (!expression) return
+      window.webkit.messageHandlers.duplicateCheck.postMessage(expression)
+    })
   }
 
   window.addEventListener('message', event => {
@@ -230,6 +270,8 @@
       window.hoshiSelection?.clearSelection()
     } else if (message.type === 'highlightSelection') {
       window.hoshiSelection?.highlightSelection(message.length)
+    } else if (message.type === 'recheckMining') {
+      recheckMining()
     } else if (message.type === 'navigateBack') {
       window.navigateBack?.()
       if (backCount > 0) {

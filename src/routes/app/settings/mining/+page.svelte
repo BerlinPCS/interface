@@ -17,6 +17,12 @@
   import { Switch } from '$lib/components/ui/switch'
   import { Textarea } from '$lib/components/ui/textarea'
   import { DEFAULT_MINING_SUBTITLE_CSS, type MiningSelection } from '$lib/modules/mining'
+  import {
+    parseMiningAnkiPopupPayload,
+    UNAVAILABLE_MINING_ANKI_STATE,
+    type MiningAnkiPopupPayload,
+    type MiningAnkiState
+  } from '$lib/modules/mining-anki'
   import { enabledMiningAudioTemplates } from '$lib/modules/mining-audio'
   import {
     calculateMiningPopupPosition,
@@ -55,6 +61,8 @@
   let previewRequestKey = ''
   let previewRequestGeneration = 0
   let previewDictionaryState = UNAVAILABLE_MINING_DICTIONARY_STATE
+  let previewAnkiState: MiningAnkiState = UNAVAILABLE_MINING_ANKI_STATE
+  let previewAnkiRecheckSignal = 0
   let previewCloseTimer: ReturnType<typeof setTimeout> | undefined
 
   $: previewPopupPosition = previewSelection
@@ -165,6 +173,39 @@
     })
   }
 
+  function checkPreviewAnkiDuplicate (expression: string) {
+    return native.miningAnkiCheckDuplicate({ expression }).then(result =>
+      result.status === 'error'
+        ? result
+        : (result.duplicate ? { status: 'duplicate' as const } : { status: 'success' as const })
+    )
+  }
+
+  function showPreviewAnkiNotes (expression: string) {
+    return native.miningAnkiShowNotes({ expression })
+  }
+
+  function minePreviewToAnki (rawPayload: MiningAnkiPopupPayload) {
+    const payload = parseMiningAnkiPopupPayload(rawPayload)
+    const selectedText = previewSelection
+      ? previewCue.plainText.slice(
+        previewSelection.utf16Offset,
+        previewSelection.utf16Offset + previewSelection.utf16Length
+      )
+      : ''
+    return native.miningAnkiAddNote({
+      payload,
+      context: {
+        sentence: previewCue.plainText,
+        selectedText,
+        title: 'Mining settings preview',
+        timestamp: 0,
+        sentenceOffset: previewSelection?.utf16Offset,
+        media: []
+      }
+    })
+  }
+
   function resetSubtitleCss () {
     $settings.miningSubtitleCss = DEFAULT_MINING_SUBTITLE_CSS
   }
@@ -179,7 +220,7 @@
     const applyDictionaryState = (state: MiningDictionaryState) => {
       previewDictionaryState = state
     }
-    const unsubscribe = native.onMiningDictionaryEvent(event => {
+    const unsubscribeDictionary = native.onMiningDictionaryEvent(event => {
       if (event.event === 'stateChanged') applyDictionaryState(event.data)
       if (event.event === 'backendError' && previewSelection) {
         ++previewRequestGeneration
@@ -196,7 +237,18 @@
           error: error instanceof Error ? error.message : 'The offline dictionary backend is unavailable.'
         }
       })
-    return unsubscribe
+    native.miningAnkiState()
+      .then(state => { previewAnkiState = state })
+      .catch(() => { previewAnkiState = UNAVAILABLE_MINING_ANKI_STATE })
+    const unsubscribeAnki = native.onMiningAnkiEvent(event => {
+      const connectionChanged = previewAnkiState.connectionStatus !== event.data.connectionStatus
+      previewAnkiState = event.data
+      if (connectionChanged) previewAnkiRecheckSignal++
+    })
+    return () => {
+      unsubscribeDictionary()
+      unsubscribeAnki()
+    }
   })
 
   onDestroy(() => {
@@ -206,29 +258,16 @@
 </script>
 
 <div class='font-weight-bold text-xl font-bold'>Mining Mode</div>
-<SettingCard
-  let:id
-  title='Pause On Entry'
-  description='Pause a playing video when mining mode opens. Leaving mining mode restores the playing or paused state from before it was opened.'
+<a
+  href='/#/app/settings/mining/anki'
+  class='no-scale flex items-center justify-between gap-4 rounded-lg border bg-card p-4 transition-colors hover:bg-accent'
 >
-  <Switch {id} bind:checked={$settings.miningPauseOnEnter} />
-</SettingCard>
-<SettingCard
-  let:id
-  title='Pause On Lookup'
-  description='Keep the video paused while a dictionary popup is open, then restore playback when it closes.'
->
-  <Switch {id} bind:checked={$settings.miningPauseOnLookup} />
-</SettingCard>
-<SettingCard
-  let:id
-  title='Nested Lookup On Hover'
-  description='Open nested dictionary popups by hovering words inside a popup. Clicking continues to work.'
->
-  <Switch {id} bind:checked={$settings.miningNestedPopupOnHover} />
-</SettingCard>
-
-<MiningDictionariesSettings on:editcss={() => { dictionaryCssOpen = true }} />
+  <div>
+    <h2 class='font-bold'>Anki</h2>
+    <p class='text-sm text-muted-foreground'>Configure anki note fields, duplicate checks, and player media capture.</p>
+  </div>
+  <ChevronRight class='shrink-0' size={22} />
+</a>
 
 <a
   href='/#/app/settings/mining/audio'
@@ -240,6 +279,8 @@
   </div>
   <ChevronRight class='shrink-0' size={22} />
 </a>
+
+<MiningDictionariesSettings on:editcss={() => { dictionaryCssOpen = true }} />
 
 <section class='rounded-lg border bg-card p-4'>
   <div class='mb-3 flex flex-wrap items-start justify-between gap-3'>
@@ -283,6 +324,14 @@
       audioAutoplay={$settings.miningAudioAutoplay}
       audioPlaybackMode={$settings.miningAudioPlaybackMode}
       nestedLookupOnHover={$settings.miningNestedPopupOnHover}
+      miningEnabled={native.isApp && previewAnkiState.available}
+      miningAllowDuplicates={previewAnkiState.settings.allowDuplicates}
+      miningNeedsWordAudio={Object.values(previewAnkiState.settings.fieldMappings).some(value => value.includes('{audio}'))}
+      showNotesEnabled={previewAnkiState.settings.showNotes}
+      duplicateCheck={checkPreviewAnkiDuplicate}
+      mineEntry={minePreviewToAnki}
+      showNotes={showPreviewAnkiNotes}
+      recheckMiningSignal={previewAnkiRecheckSignal}
       fixed
       portalTarget={previewPortalTarget}
       on:enter={keepPreviewOpen}
@@ -292,6 +341,13 @@
     />
   </div>
 </section>
+
+<SettingCard let:id title='Pause On Entry' description='Pause a playing video when mining mode opens. Leaving mining mode restores the playing or paused state from before it was opened.'>
+  <Switch {id} bind:checked={$settings.miningPauseOnEnter} />
+</SettingCard>
+<SettingCard let:id title='Pause On Lookup' description='Keep the video paused while a dictionary popup is open, then restore playback when it closes.'>
+  <Switch {id} bind:checked={$settings.miningPauseOnLookup} />
+</SettingCard>
 
 <details class='no-scale group rounded-lg border bg-card'>
   <summary class='flex cursor-pointer list-none items-center gap-3 p-4 [&::-webkit-details-marker]:hidden'>
@@ -310,6 +366,9 @@
     </SettingCard>
     <SettingCard let:id title='Popup Scale' description='Scales popup text, spacing, and pixel values in compatible Hoshi Reader CSS.'>
       <Input {id} type='number' inputmode='decimal' min='0.8' max='1.5' step='0.05' bind:value={$settings.miningPopupScale} class='w-32 shrink-0' />
+    </SettingCard>
+    <SettingCard let:id title='Nested Lookup On Hover' description='Open nested dictionary popups by hovering words inside a popup. Clicking continues to work.'>
+      <Switch {id} bind:checked={$settings.miningNestedPopupOnHover} />
     </SettingCard>
     <SettingCard let:id title='Scan Non-Japanese Text' description='Allow lookups to start on text that does not contain Japanese characters.'>
       <Switch {id} bind:checked={$settings.miningDictionaryScanNonJapanese} />

@@ -21,12 +21,16 @@ export interface MiningPopupRuntimeSettings {
   audioSources: string[]
   audioEnableAutoplay: boolean
   audioPlaybackMode: 'interrupt' | 'duck' | 'mix'
+  miningAllowDuplicates: boolean
+  miningNeedsWordAudio: boolean
 }
 
 export interface MiningPopupCapabilities {
   dictionaryMedia: boolean
   audio: boolean
   mining: boolean
+  miningConfigured: boolean
+  showNotes: boolean
   nestedLookup: boolean
 }
 
@@ -64,7 +68,7 @@ export type MiningPopupHostMessage =
     error: string
   }
   | HostMessageBase & {
-    type: 'reset' | 'clearSelection' | 'navigateBack' | 'navigateForward' | 'focus'
+    type: 'reset' | 'clearSelection' | 'navigateBack' | 'navigateForward' | 'focus' | 'recheckMining'
     popupId: string
   }
   | HostMessageBase & {
@@ -81,6 +85,7 @@ export type MiningPopupRequestMethod =
   | 'playWordAudio'
   | 'mineEntry'
   | 'duplicateCheck'
+  | 'showNotes'
 
 export interface MiningPopupSelection {
   text: string
@@ -159,7 +164,8 @@ const requestMethods = new Set<MiningPopupRequestMethod>([
   'resolveAudioSource',
   'playWordAudio',
   'mineEntry',
-  'duplicateCheck'
+  'duplicateCheck',
+  'showNotes'
 ])
 
 export function parseMiningPopupFrameMessage (

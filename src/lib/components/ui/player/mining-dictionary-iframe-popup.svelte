@@ -3,6 +3,7 @@
 
   import MiningDictionaryIframeFrame from './mining-dictionary-iframe-frame.svelte'
 
+  import type { MiningAnkiConnectionResult, MiningAnkiPopupPayload, MiningAnkiResult } from '$lib/modules/mining-anki'
   import type { MiningAudioPlaybackMode } from '$lib/modules/mining-audio'
   import type { MiningDictionaryEntry, MiningDictionaryLookupResult, MiningPopupPosition } from '$lib/modules/mining-dictionary'
   import type { MiningPopupSelection } from '$lib/modules/mining-popup-protocol'
@@ -27,6 +28,15 @@
   export let audioSources: string[] = []
   export let audioAutoplay = false
   export let audioPlaybackMode: MiningAudioPlaybackMode = 'interrupt'
+  export let nestedLookupOnHover = true
+  export let miningEnabled = false
+  export let miningAllowDuplicates = false
+  export let miningNeedsWordAudio = false
+  export let showNotesEnabled = false
+  export let duplicateCheck: ((expression: string) => Promise<MiningAnkiResult>) | undefined = undefined
+  export let mineEntry: ((payload: MiningAnkiPopupPayload) => Promise<MiningAnkiResult>) | undefined = undefined
+  export let showNotes: ((expression: string) => Promise<MiningAnkiConnectionResult>) | undefined = undefined
+  export let recheckMiningSignal = 0
   export let fixed = false
   export let portalTarget: HTMLElement | undefined = undefined
   export let backgroundMedia: {
@@ -176,8 +186,17 @@
   {scanLength}
   {lookupRedirect}
   {audioSources}
-  audioAutoplay={audioAutoplay}
+  {audioAutoplay}
   {audioPlaybackMode}
+  {nestedLookupOnHover}
+  {miningEnabled}
+  {miningAllowDuplicates}
+  {miningNeedsWordAudio}
+  {showNotesEnabled}
+  {duplicateCheck}
+  {mineEntry}
+  {showNotes}
+  {recheckMiningSignal}
   {fixed}
   {portalTarget}
   {backgroundMedia}
@@ -209,8 +228,17 @@
     {scanLength}
     {lookupRedirect}
     {audioSources}
-    audioAutoplay={audioAutoplay}
+    {audioAutoplay}
     {audioPlaybackMode}
+    {nestedLookupOnHover}
+    {miningEnabled}
+    {miningAllowDuplicates}
+    {miningNeedsWordAudio}
+    {showNotesEnabled}
+    {duplicateCheck}
+    {mineEntry}
+    {showNotes}
+    {recheckMiningSignal}
     fixed
     {portalTarget}
     {backgroundMedia}

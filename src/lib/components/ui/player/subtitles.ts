@@ -617,6 +617,10 @@ export default class Subtitles {
     this.syncMiningVisibility()
   }
 
+  screenshotOverlay () {
+    return this.jassub?._canvas
+  }
+
   syncMiningVisibility () {
     const canvas = this.jassub?._canvas
     if (!canvas) return

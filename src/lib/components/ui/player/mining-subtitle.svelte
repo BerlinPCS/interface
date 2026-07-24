@@ -9,6 +9,7 @@
   export let css = ''
   export let preview = false
   export let selectionLength = 0
+  export let activeSelection: Pick<MiningSelection, 'cueId' | 'utf16Offset'> | undefined = undefined
 
   const dispatch = createEventDispatcher<{
     selection: MiningSelection | undefined
@@ -51,8 +52,10 @@
   }
 
   function isSelected (cueId: string, utf16Offset: number, utf16Length: number) {
-    if (selectedCueId !== cueId || selectedOffset === undefined || selectionLength < 1) return false
-    return utf16Offset < selectedOffset + selectionLength && utf16Offset + utf16Length > selectedOffset
+    const cueIdToHighlight = activeSelection?.cueId ?? selectedCueId
+    const offsetToHighlight = activeSelection?.utf16Offset ?? selectedOffset
+    if (cueIdToHighlight !== cueId || offsetToHighlight === undefined || selectionLength < 1) return false
+    return utf16Offset < offsetToHighlight + selectionLength && utf16Offset + utf16Length > offsetToHighlight
   }
 </script>
 
