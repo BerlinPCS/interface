@@ -102,6 +102,8 @@ export default Object.assign<Native, Partial<Native>>({
     )
   },
   restart: async () => location.reload(),
+  hayaseMigrationState: async () => ({ available: false }),
+  hayaseMigrationImport: async () => false,
   openURL: async (url: string) => { open(url) },
   selectPlayer: async () => 'mpv',
   selectDownload: async () => '/tmp/webtorrent',

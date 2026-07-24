@@ -1,6 +1,8 @@
 <script lang='ts'>
+  import { onMount } from 'svelte'
   import { toast } from 'svelte-sonner'
 
+  import ConfirmationDialog from '$lib/components/ConfirmationDialog.svelte'
   import SettingCard from '$lib/components/SettingCard.svelte'
   import { Button } from '$lib/components/ui/button'
   import { SingleCombo } from '$lib/components/ui/combobox'
@@ -16,6 +18,22 @@
     'torrent:*,webtorrent:*,simple-peer,bittorrent-protocol,bittorrent-dht,bittorrent-lsd,torrent-discovery,bittorrent-tracker:*,ut_metadata,nat-pmp,nat-api': 'Torrent',
     'ui:*': 'Interface'
   }
+  let hayaseMigrationAvailable = false
+  let checkingHayaseMigration = native.isApp
+  let importingHayase = false
+  let hayaseConfirmOpen = false
+  let resetConfirmOpen = false
+
+  onMount(async () => {
+    if (!native.isApp) return
+    try {
+      hayaseMigrationAvailable = (await native.hayaseMigrationState()).available
+    } catch (error) {
+      console.error('Could not check for Hayase data:', error)
+    } finally {
+      checkingHayaseMigration = false
+    }
+  })
 
   async function copyLogs () {
     try {
@@ -51,6 +69,17 @@
       })
     }
   }
+  async function importFromHayase () {
+    importingHayase = true
+    try {
+      if (!await native.hayaseMigrationImport()) importingHayase = false
+    } catch (error) {
+      importingHayase = false
+      toast.error('Failed to import from Hayase', {
+        description: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
   async function reset () {
     localStorage.clear()
     await storage.clear()
@@ -82,10 +111,36 @@
   <Button on:click={exportSettings} class='font-bold'>
     Export Settings To File
   </Button>
-  <Button on:click={reset} variant='destructive' class='font-bold'>
+  <Button on:click={() => { resetConfirmOpen = true }} variant='destructive' class='font-bold'>
     Reset EVERYTHING To Default
   </Button>
 </div>
+
+{#if native.isApp}
+  <SettingCard title='Import From Hayase' description='Replace Hayatan settings, accounts, browser storage, and mining data with an existing Hayase profile. Hayase itself is left unchanged.' let:id>
+    <Button {id} class='font-bold' variant='secondary' disabled={checkingHayaseMigration || !hayaseMigrationAvailable || importingHayase} on:click={() => { hayaseConfirmOpen = true }}>
+      {importingHayase ? 'Restarting…' : checkingHayaseMigration ? 'Checking…' : hayaseMigrationAvailable ? 'Import and Restart' : 'No Hayase Profile Found'}
+    </Button>
+  </SettingCard>
+{/if}
+
+<ConfirmationDialog
+  bind:open={resetConfirmOpen}
+  title='Reset all app data?'
+  description='This clears Hayatan’s interface settings, accounts, and browser storage, then restarts the app. This cannot be undone.'
+  confirmLabel='Reset Everything'
+  destructive
+  on:confirm={reset}
+/>
+
+<ConfirmationDialog
+  bind:open={hayaseConfirmOpen}
+  title='Import from Hayase?'
+  description='Hayatan will restart and replace its settings, accounts, browser storage, and mining data with the compatible data from Hayase. Your original Hayase profile will not be changed.'
+  confirmLabel='Import and Restart'
+  destructive
+  on:confirm={importFromHayase}
+/>
 
 <div class='font-weight-bold text-xl font-bold'>Debug Settings</div>
 <SettingCard title='Logging Levels' description='Enable logging of specific parts of the app. These logs are saved to %appdata$/Hayatan/logs/main.log or ~/config/Hayatan/logs/main.log.'>
