@@ -132,6 +132,7 @@
     window.audioRequestEndpoint = capabilities.audio ? 'hayase-audio-request://resolve' : ''
     window.audioEnableAutoplay = capabilities.audio && settings.audioEnableAutoplay
     window.audioPlaybackMode = settings.audioPlaybackMode
+    window.nestedLookupOnHover = settings.nestedLookupOnHover !== false
     window.needsAudio = false
     window.allowDupes = false
     window.useAnkiConnect = capabilities.mining

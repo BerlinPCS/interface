@@ -19,6 +19,7 @@ export default {
   subtitleAutoRetiming: true,
   miningPauseOnEnter: false,
   miningPauseOnLookup: true,
+  miningNestedPopupOnHover: true,
   miningSubtitleCss: DEFAULT_MINING_SUBTITLE_CSS,
   miningPopupWidth: 500,
   miningPopupHeight: 400,

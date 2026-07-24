@@ -9,7 +9,7 @@
   import { toast } from 'svelte-sonner'
 
   import SettingCard from '$lib/components/SettingCard.svelte'
-  import { Button, buttonVariants } from '$lib/components/ui/button'
+  import { Button } from '$lib/components/ui/button'
   import { SingleCombo } from '$lib/components/ui/combobox'
   import * as Dialog from '$lib/components/ui/dialog'
   import { Input } from '$lib/components/ui/input'
@@ -134,6 +134,14 @@
     }
   }
 
+  async function downloadLocalDatabase () {
+    try {
+      await native.openURL(localAudioDownloadUrl)
+    } catch (error) {
+      toast.error('Unable to open local audio download', { description: errorMessage(error) })
+    }
+  }
+
   async function removeLocalDatabase () {
     changingLocal = true
     removeLocalOpen = false
@@ -253,20 +261,16 @@
     </div>
     {#if !loadingLocal}
       <div class='flex flex-wrap justify-end gap-2'>
-        <Button variant={localState.available ? 'secondary' : 'default'} disabled={changingLocal || !native.isApp} on:click={importLocalDatabase}>
-          {localState.available ? 'Replace' : 'Choose android.db'}
-        </Button>
-        <a
-          href={localAudioDownloadUrl}
-          target='_blank'
-          rel='noreferrer'
-          class={buttonVariants({ variant: 'secondary', className: 'no-scale gap-2' })}
-        >
-          <Download size={16} />
-          Download
-        </a>
         {#if localState.available}
           <Button variant='destructive' disabled={changingLocal} on:click={() => { removeLocalOpen = true }}>Remove</Button>
+        {:else}
+          <Button disabled={changingLocal || !native.isApp} on:click={importLocalDatabase}>
+            Choose android.db
+          </Button>
+          <Button variant='secondary' class='gap-2' on:click={downloadLocalDatabase}>
+            <Download size={16} />
+            Download
+          </Button>
         {/if}
       </div>
     {/if}

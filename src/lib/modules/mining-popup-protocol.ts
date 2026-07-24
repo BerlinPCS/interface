@@ -17,6 +17,7 @@ export interface MiningPopupRuntimeSettings {
   customCss: string
   scale: number
   darkMode: boolean
+  nestedLookupOnHover: boolean
   audioSources: string[]
   audioEnableAutoplay: boolean
   audioPlaybackMode: 'interrupt' | 'duck' | 'mix'

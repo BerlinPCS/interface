@@ -140,7 +140,7 @@
     previewCloseTimer = setTimeout(() => {
       closePreviewDictionary()
       previewCloseTimer = undefined
-    }, 100)
+    }, 180)
   }
 
   function closePreviewDictionary () {
@@ -220,6 +220,13 @@
 >
   <Switch {id} bind:checked={$settings.miningPauseOnLookup} />
 </SettingCard>
+<SettingCard
+  let:id
+  title='Nested Lookup On Hover'
+  description='Open nested dictionary popups by hovering words inside a popup. Clicking continues to work.'
+>
+  <Switch {id} bind:checked={$settings.miningNestedPopupOnHover} />
+</SettingCard>
 
 <MiningDictionariesSettings on:editcss={() => { dictionaryCssOpen = true }} />
 
@@ -253,6 +260,7 @@
       cues={[previewCue]}
       css={$settings.miningSubtitleCss}
       preview
+      activeSelection={previewSelection}
       selectionLength={previewSelectionLength}
       on:selection={handlePreviewSelection}
     />
@@ -274,6 +282,7 @@
       audioSources={enabledMiningAudioTemplates($settings.miningAudioSources)}
       audioAutoplay={$settings.miningAudioAutoplay}
       audioPlaybackMode={$settings.miningAudioPlaybackMode}
+      nestedLookupOnHover={$settings.miningNestedPopupOnHover}
       fixed
       portalTarget={previewPortalTarget}
       on:enter={keepPreviewOpen}
