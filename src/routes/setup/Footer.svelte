@@ -19,6 +19,7 @@
   import { Badge } from '$lib/components/ui/badge'
   import { Button } from '$lib/components/ui/button'
   import * as Tooltip from '$lib/components/ui/tooltip'
+  import { completeSetup } from '$lib/modules/setup'
   export let step = 0
   export let checks: Checks[] = []
 
@@ -27,8 +28,8 @@
 
   $: settled = Promise.allSettled(checks.map(({ promise }) => promise))
 
-  function checkNext () {
-    if (step === 2) localStorage.setItem('setup-finished', SETUP_VERSION.toString())
+  async function checkNext () {
+    if (step === 2) await completeSetup(SETUP_VERSION)
     goto(NEXT[step]!, { replaceState: true })
   }
 </script>

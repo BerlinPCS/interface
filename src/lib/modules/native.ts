@@ -83,6 +83,10 @@ function makeAuth<T> (popup: Window | null, callback: (data: string) => T | unde
 }
 
 export default Object.assign<Native, Partial<Native>>({
+  getSetupVersion: async () => Number(localStorage.getItem('setup-finished')) || 0,
+  completeSetup: async (version: number) => {
+    localStorage.setItem('setup-finished', version.toString())
+  },
   authAL: (url: string) => {
     return makeAuth(
       open(url, 'authframe', SUPPORTS.isAndroid ? 'popup' : 'popup,width=382,height=582'),
