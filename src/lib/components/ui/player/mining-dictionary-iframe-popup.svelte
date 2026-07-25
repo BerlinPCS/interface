@@ -22,6 +22,7 @@
   export let showExpressionTags = false
   export let dictionaryStyles: Record<string, string> = {}
   export let customCss = ''
+  export let outerCss = ''
   export let scanNonJapaneseText = false
   export let scanLength = 16
   export let lookupRedirect: ((query: string) => Promise<MiningDictionaryLookupResult>) | undefined = undefined
@@ -182,6 +183,7 @@
   {showExpressionTags}
   {dictionaryStyles}
   {customCss}
+  {outerCss}
   {scanNonJapaneseText}
   {scanLength}
   {lookupRedirect}
@@ -224,6 +226,7 @@
     {showExpressionTags}
     {dictionaryStyles}
     {customCss}
+    {outerCss}
     {scanNonJapaneseText}
     {scanLength}
     {lookupRedirect}

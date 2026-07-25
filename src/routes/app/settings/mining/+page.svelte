@@ -28,6 +28,8 @@
     calculateMiningPopupPosition,
     DEFAULT_MINING_DICTIONARY_CSS,
     getMiningLookupRequest,
+    RECOMMENDED_MINING_DICTIONARY_CSS,
+    RECOMMENDED_MINING_DICTIONARY_OUTER_CSS,
     UNAVAILABLE_MINING_DICTIONARY_STATE,
     type MiningDictionaryEntry,
     type MiningDictionaryState,
@@ -213,6 +215,15 @@
     $settings.miningDictionaryCss = DEFAULT_MINING_DICTIONARY_CSS
   }
 
+  function resetDictionaryOuterCss () {
+    $settings.miningDictionaryOuterCss = ''
+  }
+
+  function useRecommendedDictionaryCss () {
+    $settings.miningDictionaryCss = RECOMMENDED_MINING_DICTIONARY_CSS
+    $settings.miningDictionaryOuterCss = RECOMMENDED_MINING_DICTIONARY_OUTER_CSS
+  }
+
   onMount(() => {
     previewPortalTarget = document.body
     if (!native.isApp) return
@@ -316,6 +327,7 @@
       showExpressionTags={$settings.miningDictionaryShowExpressionTags}
       dictionaryStyles={previewDictionaryState.styles}
       customCss={$settings.miningDictionaryCss}
+      outerCss={$settings.miningDictionaryOuterCss}
       scanNonJapaneseText={$settings.miningDictionaryScanNonJapanese}
       scanLength={$settings.miningDictionaryScanLength}
       lookupRedirect={lookupPreviewRedirect}
@@ -398,20 +410,48 @@
 <Dialog.Root portal='#root' bind:open={dictionaryCssOpen}>
   <Dialog.Content class='max-w-3xl bg-background'>
     <Dialog.Header>
-      <Dialog.Title>Dictionary CSS</Dialog.Title>
-      <Dialog.Description>Hoshi Reader-compatible popup CSS, applied after each imported dictionary’s styles.css.</Dialog.Description>
+      <Dialog.Title>Popup CSS</Dialog.Title>
+      <Dialog.Description>Style the Hoshi popup content and its outer window independently.</Dialog.Description>
     </Dialog.Header>
-    <Textarea
-      bind:value={$settings.miningDictionaryCss}
-      class='min-h-[55vh] font-mono bg-background'
-      spellcheck={false}
-      aria-label='Dictionary popup CSS'
-    />
+    <div class='grid gap-4'>
+      <div class='grid gap-2'>
+        <div class='flex items-center justify-between gap-3'>
+          <div>
+            <div class='text-sm text-muted-foreground'>Applied inside the Hoshi Reader iframe after each dictionary’s styles.css.</div>
+          </div>
+          <Button class='shrink-0 gap-2' size='sm' variant='secondary' on:click={resetDictionaryCss}>
+            <RotateCcw size={14} />
+            Reset
+          </Button>
+        </div>
+        <Textarea
+          bind:value={$settings.miningDictionaryCss}
+          class='min-h-[25vh] font-mono bg-background'
+          spellcheck={false}
+          aria-label='Popup CSS'
+        />
+      </div>
+      <div class='grid gap-2'>
+        <div class='flex items-center justify-between gap-3'>
+          <div>
+            <div class='font-bold'>Popup Outer CSS</div>
+            <div class='text-sm text-muted-foreground'>Applied to the popup window using the selector iframe.hoshi-popup.</div>
+          </div>
+          <Button class='shrink-0 gap-2' size='sm' variant='secondary' on:click={resetDictionaryOuterCss}>
+            <RotateCcw size={14} />
+            Reset
+          </Button>
+        </div>
+        <Textarea
+          bind:value={$settings.miningDictionaryOuterCss}
+          class='min-h-[25vh] font-mono bg-background'
+          spellcheck={false}
+          aria-label='Popup outer CSS'
+        />
+      </div>
+    </div>
     <Dialog.Footer>
-      <Button class='gap-2' variant='secondary' on:click={resetDictionaryCss}>
-        <RotateCcw size={16} />
-        Reset
-      </Button>
+      <Button variant='secondary' on:click={useRecommendedDictionaryCss}>Use Recommended CSS</Button>
       <Button on:click={() => { dictionaryCssOpen = false }}>Done</Button>
     </Dialog.Footer>
   </Dialog.Content>

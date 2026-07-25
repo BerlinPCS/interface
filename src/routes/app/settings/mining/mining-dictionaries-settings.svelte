@@ -130,7 +130,7 @@
     <div class='flex flex-wrap gap-2'>
       <Button variant='secondary' class='gap-2' on:click={() => dispatch('editcss', null)}>
         <CodeXml size={16} />
-        Dictionary CSS
+        Popup CSS
       </Button>
       <Button class='gap-2' disabled={!state.available || mutating} on:click={importDictionaries}>
         {#if mutating}

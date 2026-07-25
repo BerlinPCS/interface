@@ -1337,6 +1337,7 @@
       showExpressionTags={$settings.miningDictionaryShowExpressionTags}
       dictionaryStyles={miningDictionaryState.styles}
       customCss={$settings.miningDictionaryCss}
+      outerCss={$settings.miningDictionaryOuterCss}
       scanNonJapaneseText={$settings.miningDictionaryScanNonJapanese}
       scanLength={$settings.miningDictionaryScanLength}
       lookupRedirect={lookupMiningRedirect}

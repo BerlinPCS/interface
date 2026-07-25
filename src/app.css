@@ -340,7 +340,12 @@ canvas {
 
 @font-face {
   font-family: "Klee One SemiBold";
-  src: url("/KleeOne-SemiBold.ttf") format("woff2");
+  src:
+    local("Klee One SemiBold"),
+    url("/KleeOne-SemiBold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
 }
 
 .font-twemoji {

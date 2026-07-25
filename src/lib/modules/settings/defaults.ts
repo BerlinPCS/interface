@@ -40,6 +40,7 @@ export default {
   miningDictionaryCompactGlossaries: true,
   miningDictionaryShowExpressionTags: false,
   miningDictionaryCss: DEFAULT_MINING_DICTIONARY_CSS,
+  miningDictionaryOuterCss: '',
   miningAudioSources: DEFAULT_MINING_AUDIO_SOURCES.map(source => ({ ...source })) as MiningAudioSource[],
   miningAudioAutoplay: false,
   miningAudioPlaybackMode: 'interrupt' as MiningAudioPlaybackMode,

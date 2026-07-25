@@ -23,7 +23,7 @@ html[data-hoshi-color-scheme="light"] body {
   --background-color-light: #fff;
   --text-color: #000;
   color-scheme: light;
-  background-color: #fff !important;
+  background-color: transparent !important;
 }
 
 html[data-hoshi-color-scheme="light"] .overlay {
@@ -42,7 +42,7 @@ html[data-hoshi-color-scheme="dark"] body {
   --text-color-light4: #777;
   --background-color-dark1: #333;
   color-scheme: dark;
-  background-color: #000 !important;
+  background-color: transparent !important;
 }
 
 html[data-hoshi-color-scheme="dark"] .overlay {
@@ -52,4 +52,37 @@ html[data-hoshi-color-scheme="dark"] .overlay {
 
 html[data-hoshi-color-scheme="dark"] .glossary-group > div[data-dictionary] {
   color: var(--text-color) !important;
+}
+
+.pronunciation-text {
+  display: inline-block;
+  padding-top: 0.2em;
+  line-height: 1.35;
+}
+
+.pitch-group:has(> .pitch-entries > li:only-child),
+.transcription-group:has(> .pitch-entries > li:only-child) {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.pitch-group:has(> .pitch-entries > li:only-child) > .pitch-dict-label,
+.transcription-group:has(> .pitch-entries > li:only-child) > .pitch-dict-label {
+  flex: 0 0 auto;
+}
+
+.pitch-group:has(> .pitch-entries > li:only-child) > .pitch-entries,
+.transcription-group:has(> .pitch-entries > li:only-child) > .pitch-entries {
+  min-width: 0;
+  margin-top: 0;
+  padding-top: 0.05em;
+  list-style: none;
+}
+
+.pitch-group > .pitch-entries:has(> li + li),
+.transcription-group > .pitch-entries:has(> li + li) {
+  display: grid;
+  gap: 0.15em;
+  margin-top: 0.4em;
 }

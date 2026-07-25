@@ -8,6 +8,7 @@
   import type { MiningAudioPlaybackMode } from '$lib/modules/mining-audio'
   import type { MiningDictionaryEntry, MiningDictionaryLookupResult, MiningPopupPosition } from '$lib/modules/mining-dictionary'
 
+  import { scopeMiningPopupOuterCss } from '$lib/modules/mining-popup-outer-css'
   import {
     makeMiningPopupHostMessage,
     parseMiningPopupFrameMessage,
@@ -30,6 +31,7 @@
   export let showExpressionTags = false
   export let dictionaryStyles: Record<string, string> = {}
   export let customCss = ''
+  export let outerCss = ''
   export let scanNonJapaneseText = false
   export let scanLength = 16
   export let lookupRedirect: ((query: string) => Promise<MiningDictionaryLookupResult>) | undefined = undefined
@@ -390,6 +392,22 @@
     }
   }
 
+  function applyOuterCss (node: HTMLElement, css: string) {
+    const stylesheet = document.createElement('style')
+    const scopeSelector = `[data-mining-popup-id="${popupId}"]`
+    const update = (nextCss: string) => {
+      stylesheet.textContent = scopeMiningPopupOuterCss(nextCss, scopeSelector)
+    }
+    document.head.appendChild(stylesheet)
+    update(css)
+    return {
+      update,
+      destroy () {
+        stylesheet.remove()
+      }
+    }
+  }
+
   onMount(() => {
     window.addEventListener('message', frameMessage)
   })
@@ -406,6 +424,7 @@
   class:active={Boolean(position)}
   class:content-ready={contentReady}
   class:fixed
+  data-mining-popup-id={popupId}
   aria-label='Dictionary lookup'
   aria-live='polite'
   style:left={position ? `${position.left}px` : '-10000px'}
@@ -427,6 +446,7 @@
   on:touchmove|stopPropagation
   on:touchend|stopPropagation
   on:keydown|stopPropagation
+  use:applyOuterCss={outerCss}
   use:portalPopup={portalTarget}
 >
   <div class='action-bar'>
@@ -443,6 +463,7 @@
   </div>
 
   <iframe
+    class='hoshi-popup'
     class:hidden={loading || Boolean(error)}
     bind:this={iframe}
     title='Dictionary results'
@@ -496,7 +517,7 @@
     flex: 0 0 37px;
     align-items: center;
     border-bottom: 1px solid rgb(120 120 128 / 25%);
-    background: #000;
+    background: inherit;
   }
 
   .action-bar span { flex: 1; }
@@ -523,7 +544,7 @@
     flex: 1;
     border: 0;
     opacity: 0;
-    background: #000;
+    background: transparent;
   }
 
   iframe.hidden { display: none; }

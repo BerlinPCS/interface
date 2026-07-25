@@ -9,6 +9,110 @@ import type { MiningCue, MiningSelection } from './mining'
 
 export const DEFAULT_MINING_DICTIONARY_CSS = ''
 
+export const RECOMMENDED_MINING_DICTIONARY_CSS = `html,
+body,
+button {
+    font-family: "Klee One", "Klee One SemiBold", cursive !important;
+    font-weight: 600;
+}
+
+html[data-hoshi-color-scheme],
+html[data-hoshi-color-scheme] body {
+    background: transparent !important;
+    color: #dfdfdf !important;
+}
+
+.frequency-group {
+    --freq-tag-color: #43864d;
+    border-color: #43864d !important;
+    background: rgba(35, 38, 40, 0.72) !important;
+}
+
+.frequency-dict-label {
+    color: #f2fff3 !important;
+    background: #43864d !important;
+}
+
+.frequency-values {
+    color: #e6e6eb !important;
+    background: rgba(35, 38, 40, 0.72) !important;
+}
+
+.pitch-dict-label {
+    color: #fff !important;
+    background: #7048bd !important;
+}
+
+.glossary-tag,
+.deinflection-tag {
+    color: #f1f1f3 !important;
+    background: #515258 !important;
+}
+
+.expr-tag {
+    color: #fff !important;
+    background: #398ca6 !important;
+}
+
+.gloss-sc-thead,
+.gloss-sc-tfoot,
+.gloss-sc-th {
+    color: #dfdfdf !important;
+    background: transparent !important;
+}
+
+.gloss-sc-th,
+.gloss-sc-td {
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.expression,
+.glossary-content,
+.glossary-group > div[data-dictionary] {
+    color: #dfdfdf !important;
+}
+
+.expression rt,
+.headword-term > ruby > rt {
+    color: #dedede !important;
+}
+
+hr {
+    border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+button.button-slot {
+    color: rgba(235, 235, 245, 0.92) !important;
+}
+
+.overlay {
+    color: #dfdfdf !important;
+    background: rgba(45, 45, 55, 0.96) !important;
+}
+
+a {
+    color: #9dbbff !important;
+}`
+
+export const RECOMMENDED_MINING_DICTIONARY_OUTER_CSS = `iframe.hoshi-popup {
+    background: rgba(45, 45, 55, 0.85) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3) !important;
+    overflow: hidden !important;
+}
+
+.action-bar {
+    background: transparent !important;
+    border-bottom-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+.action-bar button {
+    color: rgba(235, 235, 245, 0.92) !important;
+}`
+
 export type MiningDictionaryKind = 'term' | 'frequency' | 'pitch'
 
 export interface MiningDictionaryTrace {
