@@ -114,10 +114,17 @@ class CodeManager {
 
     const codeList = await getMany<string>(configIDs)
 
-    const workerPromises = configIDs.map((id, index) => {
-      const code = codeList[index]!
+    const workerPromises = configs.map(async (config, index) => {
+      let code = codeList[index]
+      if (!code) {
+        debug('Cached extension code is missing, downloading', config.id)
+        code = await safejs(config.code) ?? undefined
+        if (!code) throw new Error(`Failed to download extension code for ${config.id}`)
+        await set(config.id, code)
+      }
+      const id = config.id
       debug('Loading worker for', id)
-      return this._loadWorker(code, id, configs[index]!.type, false)
+      return await this._loadWorker(code, id, config.type, false)
     })
 
     await Promise.allSettled(workerPromises)
