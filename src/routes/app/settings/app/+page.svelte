@@ -23,6 +23,7 @@
   let importingHayase = false
   let hayaseConfirmOpen = false
   let resetConfirmOpen = false
+  let refreshingInterfaceCache = false
 
   onMount(async () => {
     if (!native.isApp) return
@@ -85,6 +86,30 @@
     await storage.clear()
     native.restart()
   }
+  async function refreshInterfaceCache () {
+    if (refreshingInterfaceCache) return
+
+    refreshingInterfaceCache = true
+
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations()
+        await Promise.all(registrations.map(registration => registration.unregister()))
+      }
+
+      if (typeof caches !== 'undefined') {
+        const cacheNames = await caches.keys()
+        await Promise.all(cacheNames.map(cacheName => caches.delete(cacheName)))
+      }
+
+      await native.restart()
+    } catch (error) {
+      refreshingInterfaceCache = false
+      toast.error('Failed to refresh the interface cache', {
+        description: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
   async function useInternalALAPI () {
     try {
       await urqlClient.token()
@@ -123,6 +148,12 @@
     </Button>
   </SettingCard>
 {/if}
+
+<SettingCard title='Refresh Interface Cache' description='Clear cached interface files and service workers, then restart. Your settings, accounts, extensions, and downloaded data are kept.' let:id>
+  <Button {id} class='font-bold' variant='secondary' disabled={refreshingInterfaceCache} on:click={refreshInterfaceCache}>
+    {refreshingInterfaceCache ? 'Refreshing…' : 'Refresh Interface Cache'}
+  </Button>
+</SettingCard>
 
 <ConfirmationDialog
   bind:open={resetConfirmOpen}
