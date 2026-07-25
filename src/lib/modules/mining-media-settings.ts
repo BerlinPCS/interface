@@ -1,11 +1,11 @@
 export const DEFAULT_MINING_MEDIA_SETTINGS = {
-  imageMode: 'static',
+  imageMode: 'animated',
   staticImageFormat: 'webp',
   animatedImageFormat: 'webp',
-  quality: 'balanced',
+  quality: 'fast',
   maxHeight: 720,
-  animationFps: 12,
-  syncAnimationToWordAudio: false
+  animationFps: 8,
+  syncAnimationToWordAudio: true
 } as const
 
 export function migrateMiningMediaSettings<T extends Record<string, unknown>> (value: T): T {
