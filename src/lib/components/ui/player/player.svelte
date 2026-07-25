@@ -80,7 +80,6 @@
     type MiningDictionaryState,
     type MiningPopupPosition
   } from '$lib/modules/mining-dictionary'
-  import { captureMiningAudio, captureMiningScreenshot } from '$lib/modules/mining-media-capture'
   import native from '$lib/modules/native'
   import { click, customDoubleClick, inputType, keywrap } from '$lib/modules/navigate'
   import { settings, SUPPORTS } from '$lib/modules/settings'
@@ -121,7 +120,7 @@
   $: exponentialVolume = SUPPORTS.isMobile ? 1 : $volume ** 3
   let muted = false
 
-  let miningMode = false
+  let miningMode = $settings.miningModeActive
   let miningCue: MiningCue | undefined
   let miningDisplayCues: MiningCue[] = []
   let miningTrackId: string | undefined
@@ -429,6 +428,7 @@
     if (miningMode || isMiniplayer || SUPPORTS.isMobile) return
     miningPlaybackSession = beginMiningPlaybackSession(paused, $settings.miningPauseOnEnter)
     miningMode = true
+    persistMiningMode(true)
     miningTrackId = undefined
     miningNavigationCueId = undefined
     miningRevisionSeen = -1
@@ -449,6 +449,7 @@
     if (!miningMode) return
     const resume = shouldResumeAfterMining(miningPlaybackSession)
     miningMode = false
+    persistMiningMode(false)
     miningCue = undefined
     miningDisplayCues = []
     miningTrackId = undefined
@@ -468,6 +469,12 @@
 
   function toggleMiningMode () {
     miningMode ? exitMiningMode() : enterMiningMode()
+  }
+
+  function persistMiningMode (active: boolean) {
+    settings.update(value => value.miningModeActive === active
+      ? value
+      : { ...value, miningModeActive: active })
   }
 
   function navigateMiningSubtitle (direction: -1 | 1) {
@@ -633,6 +640,11 @@
     })
   }
 
+  $: miningAnkiTemplates = Object.values(miningAnkiState.settings.fieldMappings)
+  $: miningAnkiNeedsNativeMedia =
+    ($settings.miningAnkiCaptureScreenshot && miningAnkiTemplates.some(value => value.includes('{screenshot}'))) ||
+    ($settings.miningAnkiCaptureAudio && miningAnkiTemplates.some(value => value.includes('{sentence-audio}')))
+
   function checkMiningAnkiDuplicate (expression: string) {
     return native.miningAnkiCheckDuplicate({ expression }).then(result =>
       result.status === 'error'
@@ -651,38 +663,47 @@
     if (!cue) return { status: 'error', message: 'The subtitle context is no longer available.' } as const
 
     try {
+      const captureTimestamp = currentTime
       const templates = Object.values(miningAnkiState.settings.fieldMappings)
-      const media = []
-      if ($settings.miningAnkiCaptureScreenshot && templates.some(value =>
-        value.includes('{screenshot}')
-      )) {
-        media.push(await captureMiningScreenshot(
-          deband?.canvas ?? canvasSource,
-          videoWidth,
-          videoHeight,
-          $settings.miningAnkiScreenshotSubtitles ? subtitles?.screenshotOverlay() : undefined
-        ))
-      }
-      if ($settings.miningAnkiCaptureAudio && templates.some(value =>
-        value.includes('{sentence-audio}')
-      )) {
-        const selectedTrack = [...(video.audioTracks ?? [])].find(track => track.enabled)
-        media.push(await captureMiningAudio({
+      const captureImage = $settings.miningAnkiCaptureScreenshot &&
+        templates.some(value => value.includes('{screenshot}'))
+      const captureAudio = $settings.miningAnkiCaptureAudio &&
+        templates.some(value => value.includes('{sentence-audio}'))
+      const audioTracks = [...(video.audioTracks ?? [])]
+      const selectedAudioTrack = audioTracks.findIndex(track => track.enabled)
+      const captureStart = Math.max(0, cue.start - Number(subtitleDelay) - Number($settings.miningAnkiAudioPaddingStart))
+      const captureEnd = Math.min(
+        Math.max(0, cue.end - Number(subtitleDelay) + Number($settings.miningAnkiAudioPaddingEnd)),
+        captureStart + 30
+      )
+      const capture = captureImage || captureAudio
+        ? {
           sourceUrl: mediaInfo.file.url,
-          trackId: selectedTrack?.id,
-          start: Math.max(0, cue.start - Number(subtitleDelay) - Number($settings.miningAnkiAudioPaddingStart)),
-          end: Math.max(0, cue.end - Number(subtitleDelay) + Number($settings.miningAnkiAudioPaddingEnd))
-        }))
-      }
+          ...(selectedAudioTrack < 0 ? {} : { audioTrackIndex: selectedAudioTrack }),
+          currentTime: captureTimestamp,
+          start: captureStart,
+          end: captureEnd,
+          captureImage,
+          captureAudio,
+          imageMode: $settings.miningAnkiImageMode,
+          staticFormat: $settings.miningAnkiStaticImageFormat,
+          animatedFormat: $settings.miningAnkiAnimatedImageFormat,
+          quality: $settings.miningAnkiMediaQuality,
+          maxHeight: Math.round(Number($settings.miningAnkiImageMaxHeight)),
+          fps: Math.round(Number($settings.miningAnkiAnimationFps)),
+          syncAnimationToWordAudio: $settings.miningAnkiImageMode === 'animated' &&
+            $settings.miningAnkiSyncAnimationToWordAudio
+        } as const
+        : undefined
       const result = await native.miningAnkiAddNote({
         payload,
         context: {
           sentence: cue.plainText,
           selectedText: miningAnkiSelectedText,
           title: mediaInfo.session.title,
-          timestamp: currentTime,
+          timestamp: captureTimestamp,
           sentenceOffset: miningAnkiSentenceOffset,
-          media
+          ...(capture ? { capture } : {})
         }
       })
       if (result.status === 'success') {
@@ -1323,7 +1344,7 @@
       audioAutoplay={$settings.miningAudioAutoplay}
       audioPlaybackMode={$settings.miningAudioPlaybackMode}
       nestedLookupOnHover={$settings.miningNestedPopupOnHover}
-      miningEnabled={native.isApp && miningAnkiState.available}
+      miningEnabled={native.isApp && miningAnkiState.available && (!miningAnkiNeedsNativeMedia || miningAnkiState.mediaCapture.available)}
       miningAllowDuplicates={miningAnkiState.settings.allowDuplicates}
       miningNeedsWordAudio={Object.values(miningAnkiState.settings.fieldMappings).some(value => value.includes('{audio}'))}
       showNotesEnabled={miningAnkiState.settings.showNotes}

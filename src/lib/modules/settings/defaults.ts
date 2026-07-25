@@ -5,6 +5,7 @@ import type { languageCodes, subtitleResolutions, videoResolutions } from './uti
 import { DEFAULT_MINING_SUBTITLE_CSS } from '$lib/modules/mining'
 import { DEFAULT_MINING_AUDIO_SOURCES, type MiningAudioPlaybackMode, type MiningAudioSource } from '$lib/modules/mining-audio'
 import { DEFAULT_MINING_DICTIONARY_CSS } from '$lib/modules/mining-dictionary'
+import { DEFAULT_MINING_MEDIA_SETTINGS } from '$lib/modules/mining-media-settings'
 
 export default {
   volume: 1,
@@ -17,6 +18,13 @@ export default {
   subtitleStyle: 'none' as 'none' | 'gandhisans' | 'notosans' | 'roboto' | 'custom',
   subtitleCustomFontName: '',
   subtitleAutoRetiming: true,
+  playerSubtitleSelection: null as null | {
+    off: boolean
+    language?: string
+    name?: string
+    number?: string
+  },
+  miningModeActive: false,
   miningPauseOnEnter: false,
   miningPauseOnLookup: true,
   miningNestedPopupOnHover: true,
@@ -36,7 +44,13 @@ export default {
   miningAudioAutoplay: false,
   miningAudioPlaybackMode: 'interrupt' as MiningAudioPlaybackMode,
   miningAnkiCaptureScreenshot: true,
-  miningAnkiScreenshotSubtitles: false,
+  miningAnkiImageMode: DEFAULT_MINING_MEDIA_SETTINGS.imageMode as 'static' | 'animated',
+  miningAnkiStaticImageFormat: DEFAULT_MINING_MEDIA_SETTINGS.staticImageFormat as 'png' | 'jpeg' | 'webp' | 'avif',
+  miningAnkiAnimatedImageFormat: DEFAULT_MINING_MEDIA_SETTINGS.animatedImageFormat as 'webp' | 'avif',
+  miningAnkiMediaQuality: DEFAULT_MINING_MEDIA_SETTINGS.quality as 'fast' | 'balanced' | 'high',
+  miningAnkiImageMaxHeight: DEFAULT_MINING_MEDIA_SETTINGS.maxHeight,
+  miningAnkiAnimationFps: DEFAULT_MINING_MEDIA_SETTINGS.animationFps,
+  miningAnkiSyncAnimationToWordAudio: DEFAULT_MINING_MEDIA_SETTINGS.syncAnimationToWordAudio,
   miningAnkiCaptureAudio: true,
   miningAnkiAudioPaddingStart: 0.15,
   miningAnkiAudioPaddingEnd: 0.15,

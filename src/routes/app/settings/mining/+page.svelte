@@ -200,8 +200,7 @@
         selectedText,
         title: 'Mining settings preview',
         timestamp: 0,
-        sentenceOffset: previewSelection?.utf16Offset,
-        media: []
+        sentenceOffset: previewSelection?.utf16Offset
       }
     })
   }

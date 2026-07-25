@@ -1,6 +1,25 @@
-import type { MiningCapturedMedia } from './mining-media-capture'
-
 export type MiningAnkiDuplicateScope = 'collection' | 'deck' | 'deckRoot'
+export type MiningCaptureMode = 'static' | 'animated'
+export type MiningStaticImageFormat = 'png' | 'jpeg' | 'webp' | 'avif'
+export type MiningAnimatedImageFormat = 'webp' | 'avif'
+export type MiningMediaQuality = 'fast' | 'balanced' | 'high'
+
+export interface MiningCaptureSpec {
+  sourceUrl: string
+  audioTrackIndex?: number
+  currentTime: number
+  start: number
+  end: number
+  captureImage: boolean
+  captureAudio: boolean
+  imageMode: MiningCaptureMode
+  staticFormat: MiningStaticImageFormat
+  animatedFormat: MiningAnimatedImageFormat
+  quality: MiningMediaQuality
+  maxHeight: number
+  fps: number
+  syncAnimationToWordAudio: boolean
+}
 
 export interface MiningAnkiModel {
   name: string
@@ -24,6 +43,10 @@ export interface MiningAnkiSettings {
 export interface MiningAnkiState {
   available: boolean
   connectionStatus: 'unknown' | 'connected' | 'disconnected'
+  mediaCapture: {
+    available: boolean
+    error?: string
+  }
   settings: MiningAnkiSettings
   decks: string[]
   models: MiningAnkiModel[]
@@ -63,7 +86,7 @@ export interface MiningAnkiContext {
   title: string
   timestamp: number
   sentenceOffset?: number
-  media: MiningCapturedMedia[]
+  capture?: MiningCaptureSpec
 }
 
 export type MiningAnkiAddResult =
@@ -93,6 +116,10 @@ export interface MiningAnkiAddRequest {
 export const UNAVAILABLE_MINING_ANKI_STATE: MiningAnkiState = {
   available: false,
   connectionStatus: 'unknown',
+  mediaCapture: {
+    available: false,
+    error: 'Native media capture is unavailable.'
+  },
   settings: {
     endpoint: 'http://127.0.0.1:8765',
     hasApiKey: false,

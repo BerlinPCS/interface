@@ -37,6 +37,7 @@ Style: Default, Roboto Medium,52,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0
 
 type SubtitleStyle = typeof defaults.subtitleStyle
 type StyleOverride = Pick<ASSStyle, 'FontName' |'Spacing' | 'ScaleX'>
+type PersistedSubtitleSelection = NonNullable<typeof defaults.playerSubtitleSelection>
 
 const STYLE_OVERRIDES: Record<Exclude<SubtitleStyle, 'custom'>, StyleOverride> = {
   none: {
@@ -106,8 +107,6 @@ function detectCJKLanguage (str: string) {
   return null
 }
 
-let lastSelectedTrack: { language?: string, name?: string, number: string } | undefined
-
 const stylesRx = /^Style:[^,]*/gm
 
 interface JimakuAlignmentState {
@@ -145,6 +144,8 @@ export default class Subtitles {
   settingsUnsubscribe: () => void
   miningMode = false
   previousCanvasVisibility: string | undefined
+  selectionInitialized = false
+  initialSubtitleSelection: typeof defaults.playerSubtitleSelection
 
   _tracks = writable<Record<number | string, SubtitleTrackState>>({})
   miningRevision = writable(0)
@@ -155,6 +156,7 @@ export default class Subtitles {
     this.canvas = canvas
     this.selected = mediaInfo.file
     this.mediaId = mediaInfo.media.id
+    this.initialSubtitleSelection = this.set.playerSubtitleSelection
     this.fonts = [...otherFiles.filter(file => fontRx.test(file.name)).map(file => file.url)]
     this.customFontReady = loadCustomSubtitleFont().then(font => {
       if (!font) return
@@ -248,11 +250,30 @@ export default class Subtitles {
       this.alignmentReferenceTrack = this.chooseAlignmentReferenceTrack()
       await this.initSubtitleRenderer()
 
-      if (!this.set.subtitleLanguage) return // if lang set to none dont autoselect
-
       const tracks = Object.entries(this._tracks.value)
-
       if (!tracks.length) return
+      if (this.selectionInitialized && this.current.value !== -1) return
+      this.selectionInitialized = true
+      const previousSelection = this.initialSubtitleSelection
+      if (previousSelection?.off) {
+        this.initialSubtitleSelection = null
+        return await this.selectCaptions(-1)
+      }
+
+      const matchesLast = previousSelection && tracks.filter(([_, { meta }]) =>
+        meta.language === previousSelection.language &&
+        meta.name === previousSelection.name
+      )
+      if (previousSelection && matchesLast?.length) {
+        this.initialSubtitleSelection = null
+        if (matchesLast.length === 1) return await this.selectCaptions(matchesLast[0]![0])
+
+        const matchesLastNumber = matchesLast.find(([_, { meta }]) => meta.number === previousSelection.number)
+        if (matchesLastNumber) return await this.selectCaptions(matchesLastNumber[0])
+        return await this.selectCaptions(matchesLast[0]![0])
+      }
+
+      if (!this.set.subtitleLanguage) return // if lang set to none dont autoselect
       if (tracks.length === 1) return await this.selectCaptions(tracks[0]![0])
 
       const audioLanguage = this.set.audioLanguage
@@ -274,17 +295,6 @@ export default class Subtitles {
           filteredTracks[0]!
 
         return await this.selectCaptions(desired)
-      }
-
-      const matchesLast = lastSelectedTrack && tracks.filter(([_, { meta }]) => meta.language === lastSelectedTrack!.language && meta.name === lastSelectedTrack!.name)
-
-      if (matchesLast?.length) {
-        if (matchesLast.length === 1) return await this.selectCaptions(matchesLast[0]![0])
-
-        const matchesLastNumber = matchesLast.find(([_, { meta }]) => meta.number === lastSelectedTrack!.number)
-        if (matchesLastNumber) return await this.selectCaptions(matchesLastNumber[0])
-
-        return await selectDesired(matchesLast)
       }
 
       const wantedLanguages = tracks.filter(([_, { meta }]) => (meta.language ?? 'eng') === this.set.subtitleLanguage)
@@ -399,8 +409,22 @@ export default class Subtitles {
         newtrack.styles[styleMatches[i]!.replace('Style:', '').trim()] = i + 1
       }
     }
+    const previousSelection = this.initialSubtitleSelection
+    const matchesPrevious = previousSelection && !previousSelection.off &&
+      newtrack.meta.language === previousSelection.language &&
+      newtrack.meta.name === previousSelection.name
+    if (previousSelection?.off || matchesPrevious) {
+      await this.initSubtitleRenderer()
+      this.selectionInitialized = true
+      if (matchesPrevious) {
+        this.initialSubtitleSelection = null
+        await this.selectCaptions(trackNumber)
+      }
+      return
+    }
     if (this.current.value === -1) {
       await this.initSubtitleRenderer()
+      this.selectionInitialized = true
       await this.selectCaptions(trackNumber)
     }
   }
@@ -671,20 +695,27 @@ export default class Subtitles {
     this.current.value = trackNumber
     this.updateAlignmentStatus(trackNumber)
 
-    if (!this.jassub) return
-
-    await this.jassub.ready
     if (trackNumber === -1) {
+      this.persistSubtitleSelection({ off: true })
+      if (!this.jassub) return
+      await this.jassub.ready
       await this.jassub.renderer.setTrack(defaultHeader)
       return await this.jassub.resize()
     }
 
     const track = this._tracks.value[trackNumber]
     if (!track) return
+    this.persistSubtitleSelection({
+      off: false,
+      language: track.meta.language,
+      name: track.meta.name,
+      number: track.meta.number
+    })
+
+    if (!this.jassub) return
+    await this.jassub.ready
 
     if (this.jimakuTracks.has(String(trackNumber))) this.scheduleJimakuAlignment()
-
-    lastSelectedTrack = track.meta
 
     await this.jassub.renderer.setTrack(track.meta.header?.slice(0, -1) || defaultHeader)
     for (const subtitle of track.events) await this.jassub.renderer.createEvent(subtitle)
@@ -698,6 +729,16 @@ export default class Subtitles {
       await this.jassub.renderer.setDefaultFont('roboto medium')
     }
     await this.jassub.resize()
+  }
+
+  private persistSubtitleSelection (selection: PersistedSubtitleSelection) {
+    if (!this.selectionInitialized) return
+    const previous = this.set.playerSubtitleSelection
+    if (previous?.off === selection.off &&
+      previous?.language === selection.language &&
+      previous?.name === selection.name &&
+      previous?.number === selection.number) return
+    settings.update(value => ({ ...value, playerSubtitleSelection: selection }))
   }
 
   destroy () {

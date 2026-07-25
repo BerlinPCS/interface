@@ -3,6 +3,7 @@ import { derived } from 'svelte/store'
 import { persisted } from 'svelte-persisted-store'
 import { toast } from 'svelte-sonner'
 
+import { migrateMiningMediaSettings } from '../mining-media-settings'
 import native from '../native'
 
 import SUPPORTS from './supports'
@@ -14,7 +15,9 @@ import { derivedDeep, skipFirst } from '$lib/utils'
 
 const _debug = Debug('ui:settings')
 
-export const settings = persisted('settings', defaults, { beforeRead: value => ({ ...defaults, ...value }) })
+export const settings = persisted('settings', defaults, {
+  beforeRead: value => ({ ...defaults, ...migrateMiningMediaSettings(value) })
+})
 
 export const debug = persisted('debug-key', '')
 

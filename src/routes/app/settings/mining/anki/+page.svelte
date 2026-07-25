@@ -1,6 +1,7 @@
 <script lang='ts'>
   import ArrowLeft from 'lucide-svelte/icons/arrow-left'
   import Check from 'lucide-svelte/icons/check'
+  import ChevronDown from 'lucide-svelte/icons/chevron-down'
   import RefreshCw from 'lucide-svelte/icons/refresh-cw'
   import Unplug from 'lucide-svelte/icons/unplug'
   import { onMount } from 'svelte'
@@ -15,6 +16,7 @@
     type MiningAnkiSettingsPatch,
     type MiningAnkiState
   } from '$lib/modules/mining-anki'
+  import { estimateMiningMedia, formatEstimatedBytes, formatEstimatedDuration } from '$lib/modules/mining-media-estimate'
   import native from '$lib/modules/native'
   import { settings } from '$lib/modules/settings'
 
@@ -23,6 +25,9 @@
     deck: 'Selected deck',
     deckRoot: 'Deck and children'
   }
+  const staticImageFormats = { png: 'PNG', jpeg: 'JPEG', webp: 'WebP', avif: 'AVIF' }
+  const animatedImageFormats = { webp: 'WebP', avif: 'AVIF' }
+  const qualityPresets = { fast: 'Fast', balanced: 'Balanced', high: 'High quality' }
   const templateOptions = [
     '{expression}', '{reading}', '{furigana-plain}', '{audio}', '{selected-text}',
     '{popup-selection-text}', '{sentence}', '{sentence-audio}', '{screenshot}',
@@ -44,6 +49,18 @@
   $: deckItems = Object.fromEntries(state.decks.map(name => [name, name]))
   $: modelItems = Object.fromEntries(state.models.map(model => [model.name, model.name]))
   $: selectedModel = state.models.find(model => model.name === state.settings.modelName)
+  $: mediaEstimate = estimateMiningMedia({
+    captureImage: $settings.miningAnkiCaptureScreenshot,
+    captureAudio: $settings.miningAnkiCaptureAudio,
+    imageMode: $settings.miningAnkiImageMode,
+    staticFormat: $settings.miningAnkiStaticImageFormat,
+    animatedFormat: $settings.miningAnkiAnimatedImageFormat,
+    quality: $settings.miningAnkiMediaQuality,
+    maxHeight: Number($settings.miningAnkiImageMaxHeight),
+    fps: Number($settings.miningAnkiAnimationFps),
+    paddingBefore: Number($settings.miningAnkiAudioPaddingStart),
+    paddingAfter: Number($settings.miningAnkiAudioPaddingEnd)
+  })
 
   onMount(() => {
     refresh()
@@ -267,27 +284,103 @@
             <span>Screenshot <small class='block text-muted-foreground'>{'{screenshot}'}</small></span>
             <Switch id='anki-screenshot' bind:checked={$settings.miningAnkiCaptureScreenshot} />
           </label>
-          <label class='setting-row' for='anki-screenshot-subtitles'>
-            <span>Include Subtitles in Screenshot</span>
-            <Switch
-              id='anki-screenshot-subtitles'
-              bind:checked={$settings.miningAnkiScreenshotSubtitles}
-              disabled={!$settings.miningAnkiCaptureScreenshot}
-            />
-          </label>
+          {#if $settings.miningAnkiCaptureScreenshot}
+            <label class='setting-row' for='anki-animation'>
+              <span>Animation</span>
+              <Switch
+                id='anki-animation'
+                checked={$settings.miningAnkiImageMode === 'animated'}
+                on:click={() => settings.update(value => ({
+                  ...value,
+                  miningAnkiImageMode: value.miningAnkiImageMode === 'animated' ? 'static' : 'animated'
+                }))}
+              />
+            </label>
+            <label class='setting-row'>
+              <span>Image Format</span>
+              {#if $settings.miningAnkiImageMode === 'animated'}
+                <SingleCombo bind:value={$settings.miningAnkiAnimatedImageFormat} items={animatedImageFormats} class='w-40 border border-input' />
+              {:else}
+                <SingleCombo bind:value={$settings.miningAnkiStaticImageFormat} items={staticImageFormats} class='w-40 border border-input' />
+              {/if}
+            </label>
+            {#if $settings.miningAnkiImageMode === 'animated'}
+              <label class='setting-row' for='anki-sync-animation'>
+                <span>
+                  Synchronize Animation to Word Audio
+                  <small class='block max-w-64 text-muted-foreground'>Hold the first frame for the word-audio duration, then play once.</small>
+                </span>
+                <Switch id='anki-sync-animation' bind:checked={$settings.miningAnkiSyncAnimationToWordAudio} />
+              </label>
+            {/if}
+          {/if}
           <label class='setting-row' for='anki-audio'>
-            <span>Subtitle Audio <small class='block text-muted-foreground'>{'{sentence-audio}'}</small></span>
+            <span>Subtitle Audio <small class='block text-muted-foreground'>{'{sentence-audio}'} · mono MP3</small></span>
             <Switch id='anki-audio' bind:checked={$settings.miningAnkiCaptureAudio} />
           </label>
-          <label class='setting-row' for='anki-padding-before'>
-            <span>Audio Padding Before</span>
-            <Input id='anki-padding-before' type='number' min='0' max='5' step='0.05' bind:value={$settings.miningAnkiAudioPaddingStart} class='w-24' />
-          </label>
-          <label class='setting-row' for='anki-padding-after'>
-            <span>Audio Padding After</span>
-            <Input id='anki-padding-after' type='number' min='0' max='5' step='0.05' bind:value={$settings.miningAnkiAudioPaddingEnd} class='w-24' />
-          </label>
         </div>
+        <div class='mt-3 rounded-lg border bg-muted/30 px-3 py-2.5'>
+          <div class='flex items-center justify-between gap-3 text-sm'>
+            <span class='font-medium'>Expected Media Size</span>
+            <strong>≈ {formatEstimatedBytes(mediaEstimate.totalBytes)} per card</strong>
+          </div>
+          <div class='mt-1 flex items-center justify-between gap-3 text-sm'>
+            <span class='font-medium'>Expected Card Creation</span>
+            <strong>≈ {formatEstimatedDuration(mediaEstimate.creationSeconds)}</strong>
+          </div>
+          {#if mediaEstimate.totalBytes}
+            <p class='mt-1 text-xs text-muted-foreground'>
+              {#if mediaEstimate.imageBytes}
+                {formatEstimatedBytes(mediaEstimate.imageBytes)} image
+              {/if}
+              {#if mediaEstimate.imageBytes && mediaEstimate.audioBytes} + {/if}
+              {#if mediaEstimate.audioBytes}
+                {formatEstimatedBytes(mediaEstimate.audioBytes)} sentence MP3
+              {/if}
+              {#if $settings.miningAnkiCaptureScreenshot && $settings.miningAnkiImageMode === 'animated' && $settings.miningAnkiSyncAnimationToWordAudio}
+                + {formatEstimatedBytes(mediaEstimate.animationBytesPerSecond)} per second of initial hold
+              {/if}
+            </p>
+          {:else}
+            <p class='mt-1 text-xs text-muted-foreground'>Enable screenshot or subtitle-audio capture to estimate generated media.</p>
+          {/if}
+        </div>
+        {#if !state.mediaCapture.available}
+          <p class='mt-3 text-xs text-destructive'>{state.mediaCapture.error ?? 'Native media capture is unavailable.'}</p>
+        {/if}
+        {#if $settings.miningAnkiCaptureScreenshot && ($settings.miningAnkiImageMode === 'animated' ? $settings.miningAnkiAnimatedImageFormat : $settings.miningAnkiStaticImageFormat) === 'avif'}
+          <p class='mt-3 text-xs text-muted-foreground'>AVIF support varies between Anki desktop, web, and mobile clients.</p>
+        {/if}
+        <details class='group mt-3 rounded-lg border'>
+          <summary class='flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden'>
+            <ChevronDown class='transition-transform group-open:rotate-180' size={16} />
+            Advanced Media Settings
+          </summary>
+          <div class='divide-y border-t'>
+            <label class='setting-row'>
+              <span>Quality</span>
+              <SingleCombo bind:value={$settings.miningAnkiMediaQuality} items={qualityPresets} class='w-40 border border-input' />
+            </label>
+            <label class='setting-row' for='anki-image-height'>
+              <span>Maximum Image Height</span>
+              <Input id='anki-image-height' type='number' min='240' max='2160' step='10' bind:value={$settings.miningAnkiImageMaxHeight} class='w-24' />
+            </label>
+            {#if $settings.miningAnkiImageMode === 'animated'}
+              <label class='setting-row' for='anki-animation-fps'>
+                <span>Animation FPS</span>
+                <Input id='anki-animation-fps' type='number' min='1' max='30' step='1' bind:value={$settings.miningAnkiAnimationFps} class='w-24' />
+              </label>
+            {/if}
+            <label class='setting-row' for='anki-padding-before'>
+              <span>Audio Padding Before</span>
+              <Input id='anki-padding-before' type='number' min='0' max='5' step='0.05' bind:value={$settings.miningAnkiAudioPaddingStart} class='w-24' />
+            </label>
+            <label class='setting-row' for='anki-padding-after'>
+              <span>Audio Padding After</span>
+              <Input id='anki-padding-after' type='number' min='0' max='5' step='0.05' bind:value={$settings.miningAnkiAudioPaddingEnd} class='w-24' />
+            </label>
+          </div>
+        </details>
       </section>
     </div>
   </div>
