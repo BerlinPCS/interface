@@ -37,6 +37,23 @@ export function toHoshiPopupEntry (entry: MiningDictionaryEntry): HoshiPopupEntr
     pitches: entry.pitches.map(group => ({
       dictionary: group.dictionary,
       pitchPositions: unique(group.pitchPositions),
+      accents: (group.accents ?? unique(group.pitchPositions).map(position => ({
+        position,
+        pattern: '',
+        nasal: [],
+        devoice: []
+      }))).filter((accent, index, accents) =>
+        accents.findIndex(candidate =>
+          candidate.position === accent.position &&
+          candidate.pattern === accent.pattern &&
+          candidate.nasal.join(',') === accent.nasal.join(',') &&
+          candidate.devoice.join(',') === accent.devoice.join(',')
+        ) === index
+      ).map(accent => ({
+        ...accent,
+        nasal: unique(accent.nasal),
+        devoice: unique(accent.devoice)
+      })),
       transcriptions: unique(group.transcriptions)
     })),
     rules: unique(entry.rules.filter(Boolean))

@@ -28,6 +28,8 @@ body {
     --text-color-light3: #777777;
     --text-color-light4: #888888;
     --background-color-dark1: #eeeeee;
+    --danger-color: #c83c28;
+    --pronunciation-annotation-color: #000000;
     color: var(--text-color);
     background-color: transparent;
     font-family: var(--hoshi-content-font-family, "Noto Sans CJK JP", "NotoSansCJKJP-Regular", sans-serif) !important;
@@ -48,6 +50,44 @@ body {
     display: flex;
     align-items: center;
     padding-top: 4px;
+}
+
+.kanji-char {
+    text-decoration: none;
+}
+
+.kanji-char[data-kanji-entry="true"] {
+    cursor: pointer;
+    text-decoration-line: underline;
+    text-decoration-style: dotted;
+    text-decoration-thickness: 0.08em;
+    text-underline-offset: 0.12em;
+}
+
+.kanji {
+    font-size: calc(120px * var(--popup-scale, 1));
+    line-height: 1;
+    font-family: "KanjiStrokeOrders_v4.005", "YuKyo-Medium", "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif;
+}
+
+.kanji-separator {
+    margin: calc(6px * var(--popup-scale, 1)) 0;
+}
+
+.kanji-reading-label {
+    margin-right: calc(6px * var(--popup-scale, 1));
+    opacity: 0.6;
+}
+
+.kanji-stats {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 2px 10px;
+    margin-top: 8px;
+}
+
+.kanji-stats dt {
+    opacity: 0.6;
 }
 
 .expression-scroll {
@@ -424,28 +464,81 @@ a {
     margin-top: 5px;
 }
 
-/* https://github.com/yomidevs/yomitan/blob/master/ext/css/display-pronunciation.css */
+/* https://github.com/yomidevs/yomitan/blob/c0c3702963c22e0f39fdd2f03deef6b15558a7f5/ext/css/display-pronunciation.css */
+.pronunciation-text {
+    display: inline;
+}
+
 .pronunciation-mora {
+    display: inline-block;
     position: relative;
 }
 
+.pronunciation-mora-line {
+    border-color: var(--pronunciation-annotation-color);
+}
+
 .pronunciation-mora[data-pitch="high"] > .pronunciation-mora-line {
+    display: block;
+    pointer-events: none;
     position: absolute;
-    top: -2px;
+    top: 0.1em;
     left: 0;
     right: 0;
-    border-top: 1px solid currentColor;
+    height: 0;
+    border-top-width: 0.1em;
+    border-top-style: solid;
 }
 
 .pronunciation-mora[data-pitch="high"][data-pitch-next="low"] > .pronunciation-mora-line {
-    right: -1px;
+    right: -0.1em;
     height: 0.4em;
-    border-right: 1px solid currentColor;
+    border-right-width: 0.1em;
+    border-right-style: solid;
 }
 
 .pronunciation-mora[data-pitch="high"][data-pitch-next="low"] {
-    padding-right: 1px;
-    margin-right: 1px;
+    padding-right: 0.1em;
+    margin-right: 0.1em;
+}
+
+.pronunciation-devoice-indicator {
+    position: absolute;
+    z-index: 1;
+    top: 50%;
+    left: 50%;
+    display: block;
+    width: 1.125em;
+    height: 1.125em;
+    border: calc(1.5em / var(--font-size-no-units)) dotted var(--danger-color);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.pronunciation-nasal-indicator {
+    position: absolute;
+    z-index: 1;
+    top: 0.125em;
+    right: -0.125em;
+    display: block;
+    width: 0.375em;
+    height: 0.375em;
+    border: calc(1.5em / var(--font-size-no-units)) solid var(--danger-color);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.pronunciation-nasal-diacritic {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+}
+
+.pronunciation-character-group {
+    position: relative;
+    display: inline-block;
 }
 
 ::highlight(hoshi-selection) {
@@ -475,6 +568,8 @@ a {
         --text-color-light3: #888888;
         --text-color-light4: #777777;
         --background-color-dark1: #333333;
+        --danger-color: #dd6755;
+        --pronunciation-annotation-color: #ffffff;
     }
     
     .overlay {

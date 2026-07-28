@@ -44,6 +44,25 @@ test('accepts valid frame lifecycle and request messages', () => {
     method: 'showNotes',
     payload: '食べる'
   }, nonce)?.method, 'showNotes')
+  assert.equal(parseMiningPopupFrameMessage({
+    ...base,
+    type: 'request',
+    popupId: 'popup-1',
+    resultSetId: 'results-1',
+    requestId: 'request-4',
+    method: 'kanjiRedirect',
+    payload: '食'
+  }, nonce)?.method, 'kanjiRedirect')
+
+  assert.equal(parseMiningPopupFrameMessage({
+    ...base,
+    type: 'request',
+    popupId: 'popup',
+    resultSetId: 'result',
+    requestId: 'kanji-availability',
+    method: 'kanjiLookup',
+    payload: '食'
+  }, nonce)?.method, 'kanjiLookup')
 })
 
 test('rejects wrong versions, nonces, methods, and malformed selections', () => {

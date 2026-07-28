@@ -5,7 +5,7 @@
 
   import type { MiningAnkiConnectionResult, MiningAnkiPopupPayload, MiningAnkiResult } from '$lib/modules/mining/anki'
   import type { MiningAudioPlaybackMode } from '$lib/modules/mining/audio'
-  import type { MiningDictionaryEntry, MiningDictionaryLookupResult, MiningPopupPosition } from '$lib/modules/mining/dictionary'
+  import type { MiningDictionaryEntry, MiningDictionaryKanjiResult, MiningDictionaryLookupResult, MiningPopupPosition } from '$lib/modules/mining/dictionary'
   import type { MiningPopupSelection } from '$lib/modules/mining/popup/protocol'
 
   import { calculateMiningPopupPosition } from '$lib/modules/mining/dictionary'
@@ -26,6 +26,7 @@
   export let scanNonJapaneseText = false
   export let scanLength = 16
   export let lookupRedirect: ((query: string) => Promise<MiningDictionaryLookupResult>) | undefined = undefined
+  export let lookupKanji: ((character: string) => Promise<MiningDictionaryKanjiResult>) | undefined = undefined
   export let audioSources: string[] = []
   export let audioAutoplay = false
   export let audioPlaybackMode: MiningAudioPlaybackMode = 'interrupt'
@@ -188,6 +189,7 @@
   {scanNonJapaneseText}
   {scanLength}
   {lookupRedirect}
+  {lookupKanji}
   {audioSources}
   {audioAutoplay}
   {audioPlaybackMode}
@@ -231,6 +233,7 @@
     {scanNonJapaneseText}
     {scanLength}
     {lookupRedirect}
+    {lookupKanji}
     {audioSources}
     {audioAutoplay}
     {audioPlaybackMode}

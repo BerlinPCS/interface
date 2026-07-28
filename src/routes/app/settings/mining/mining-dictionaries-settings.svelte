@@ -4,6 +4,7 @@
   import CodeXml from 'lucide-svelte/icons/code-xml'
   import LoaderCircle from 'lucide-svelte/icons/loader-circle'
   import Trash2 from 'lucide-svelte/icons/trash-2'
+  import TriangleAlert from 'lucide-svelte/icons/triangle-alert'
   import Upload from 'lucide-svelte/icons/upload'
   import { createEventDispatcher, onMount } from 'svelte'
 
@@ -23,7 +24,8 @@
   const kinds: Array<{ kind: MiningDictionaryKind, title: string }> = [
     { kind: 'term', title: 'Term' },
     { kind: 'frequency', title: 'Frequency' },
-    { kind: 'pitch', title: 'Pitch' }
+    { kind: 'pitch', title: 'Pitch' },
+    { kind: 'kanji', title: 'Kanji' }
   ]
   const dispatch = createEventDispatcher<{ editcss: null }>()
 
@@ -34,6 +36,7 @@
   let progress: MiningDictionaryImportProgress[] = []
   let importErrors: MiningDictionaryImportError[] = []
   let removeTarget: MiningDictionaryRecord | undefined
+  $: warningDictionaries = state.dictionaries.filter(dictionary => dictionary.warnings?.length)
 
   function applyState (next: MiningDictionaryState) {
     state = next
@@ -125,7 +128,7 @@
   <div class='flex flex-wrap items-start justify-between gap-3'>
     <div>
       <h2 class='font-bold'>Dictionaries</h2>
-      <p class='text-sm text-muted-foreground'>Import Yomitan term, frequency, and pitch dictionary ZIPs for fully offline lookup.</p>
+      <p class='text-sm text-muted-foreground'>Import Yomitan term, frequency, pitch, and kanji dictionary ZIPs for fully offline lookup.</p>
     </div>
     <div class='flex flex-wrap gap-2'>
       <Button variant='secondary' class='gap-2' on:click={() => dispatch('editcss', null)}>
@@ -185,6 +188,16 @@
     <p class='rounded-md border border-dashed p-5 text-center text-sm text-muted-foreground'>No dictionaries installed. Import one or more Yomitan ZIP files to begin.</p>
   {/if}
 
+  {#if warningDictionaries.length}
+    <div class='flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300'>
+      <TriangleAlert class='mt-0.5 shrink-0' size={17} />
+      <span>
+        {warningDictionaries.length} imported {warningDictionaries.length === 1 ? 'dictionary needs' : 'dictionaries need'} attention.
+        Hover the warning beside a dictionary for details.
+      </span>
+    </div>
+  {/if}
+
   {#if state.dictionaries.length}
     <div class='flex flex-col gap-2'>
       {#each kinds as { kind, title } (kind)}
@@ -206,7 +219,16 @@
                 {#each dictionaries as dictionary, index (dictionary.id)}
                   <li class='flex flex-wrap items-center gap-2 rounded-md bg-muted/60 px-3 py-2'>
                     <div class='min-w-48 flex-1'>
-                      <div class='truncate font-medium' title={dictionary.title}>{dictionary.title}</div>
+                      <div class='flex min-w-0 items-center gap-1.5 font-medium'>
+                        <span class='truncate' title={dictionary.title}>{dictionary.title}</span>
+                        {#if dictionary.warnings?.length}
+                          <span
+                            class='shrink-0 text-amber-500'
+                            title={dictionary.warnings.join('\n')}
+                            aria-label={`${dictionary.title}: ${dictionary.warnings.join(' ')}`}
+                          ><TriangleAlert size={16} /></span>
+                        {/if}
+                      </div>
                       <div class='text-xs text-muted-foreground'>
                         {dictionary.counts[kind].toLocaleString()} entries
                         {#if dictionary.revision} · revision {dictionary.revision}{/if}
@@ -261,7 +283,7 @@
     <Dialog.Header>
       <Dialog.Title>Remove {removeTarget?.title}?</Dialog.Title>
       <Dialog.Description>
-        This removes the imported dictionary from every term, frequency, and pitch list it supports.
+        This removes the imported dictionary from every term, frequency, pitch, and kanji list it supports.
       </Dialog.Description>
     </Dialog.Header>
     <Dialog.Footer>

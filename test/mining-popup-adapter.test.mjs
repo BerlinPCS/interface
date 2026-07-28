@@ -45,6 +45,12 @@ test('adapts a Hayase result to the Android Hoshi popup contract', () => {
     pitches: [{
       dictionary: 'Pitch',
       pitchPositions: [2],
+      accents: [{
+        position: 2,
+        pattern: '',
+        nasal: [],
+        devoice: []
+      }],
       transcriptions: ['ta.be.ɾɯ']
     }]
   })

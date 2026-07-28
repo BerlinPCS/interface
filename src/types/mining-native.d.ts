@@ -11,6 +11,7 @@ import type {
 import type { MiningLocalAudioState } from '$lib/modules/mining/audio'
 import type {
   MiningDictionaryEvent,
+  MiningDictionaryKanjiResult,
   MiningDictionaryKind,
   MiningDictionaryLookupRequest,
   MiningDictionaryLookupResult,
@@ -21,6 +22,7 @@ declare module 'native' {
   interface Native {
     miningDictionaryState: () => Promise<MiningDictionaryState>
     miningDictionaryLookup: (request: MiningDictionaryLookupRequest) => Promise<MiningDictionaryLookupResult>
+    miningDictionaryLookupKanji: (character: string) => Promise<MiningDictionaryKanjiResult>
     miningDictionaryImport: () => Promise<MiningDictionaryState>
     miningDictionarySetEnabled: (id: string, kind: MiningDictionaryKind, enabled: boolean) => Promise<MiningDictionaryState>
     miningDictionaryReorder: (kind: MiningDictionaryKind, ids: string[]) => Promise<MiningDictionaryState>

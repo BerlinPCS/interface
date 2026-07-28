@@ -6,7 +6,7 @@
 
   import type { MiningAnkiConnectionResult, MiningAnkiPopupPayload, MiningAnkiResult } from '$lib/modules/mining/anki'
   import type { MiningAudioPlaybackMode } from '$lib/modules/mining/audio'
-  import type { MiningDictionaryEntry, MiningDictionaryLookupResult, MiningPopupPosition } from '$lib/modules/mining/dictionary'
+  import type { MiningDictionaryEntry, MiningDictionaryKanjiResult, MiningDictionaryLookupResult, MiningPopupPosition } from '$lib/modules/mining/dictionary'
 
   import { scopeMiningPopupOuterCss } from '$lib/modules/mining/popup/css'
   import {
@@ -35,6 +35,7 @@
   export let scanNonJapaneseText = false
   export let scanLength = 16
   export let lookupRedirect: ((query: string) => Promise<MiningDictionaryLookupResult>) | undefined = undefined
+  export let lookupKanji: ((character: string) => Promise<MiningDictionaryKanjiResult>) | undefined = undefined
   export let audioSources: string[] = []
   export let audioAutoplay = false
   export let audioPlaybackMode: MiningAudioPlaybackMode = 'interrupt'
@@ -222,6 +223,19 @@
         reply(message.requestId, {
           ok: true,
           value: { resultSetId: redirected.resultSetId, count: redirected.entryCount }
+        })
+        return
+      }
+      if (message.method === 'kanjiLookup' || message.method === 'kanjiRedirect') {
+        if (typeof message.payload !== 'string' || !message.payload.trim()) {
+          throw new Error('Invalid kanji lookup')
+        }
+        const performLookup = lookupKanji ?? native.miningDictionaryLookupKanji
+        const result = await performLookup(message.payload)
+        if (destroyed || !resultSets.has(message.resultSetId)) return
+        reply(message.requestId, {
+          ok: true,
+          value: result.entries.length ? result : null
         })
         return
       }

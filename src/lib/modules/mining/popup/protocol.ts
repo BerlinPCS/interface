@@ -80,6 +80,8 @@ export type MiningPopupHostMessage =
 export type MiningPopupRequestMethod =
   | 'getEntry'
   | 'lookupRedirect'
+  | 'kanjiLookup'
+  | 'kanjiRedirect'
   | 'openExternalLink'
   | 'resolveAudioSource'
   | 'playWordAudio'
@@ -160,6 +162,8 @@ function hasValidBase (value: Record<string, unknown>, nonce: string) {
 const requestMethods = new Set<MiningPopupRequestMethod>([
   'getEntry',
   'lookupRedirect',
+  'kanjiLookup',
+  'kanjiRedirect',
   'openExternalLink',
   'resolveAudioSource',
   'playWordAudio',

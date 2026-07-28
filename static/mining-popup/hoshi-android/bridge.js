@@ -17,6 +17,7 @@
   let forwardCount = 0
   const backResultSets = []
   const forwardResultSets = []
+  const kanjiResults = new Map()
   const pending = new Map()
   const browserFetch = window.fetch.bind(window)
 
@@ -78,6 +79,8 @@
         item.resolve({ status: 'error', message: reason })
       } else if (item.method === 'lookupRedirect') {
         item.resolve({ resultSetId, count: 0 })
+      } else if (item.method === 'kanjiLookup' || item.method === 'kanjiRedirect') {
+        item.resolve(null)
       } else {
         item.resolve(null)
       }
@@ -139,6 +142,30 @@
             historyChanged()
           }
           return count
+        }
+      },
+      kanjiLookup: {
+        postMessage: async character => {
+          if (kanjiResults.has(character)) return kanjiResults.get(character)
+          const data = await request('kanjiLookup', character)
+          const result = data?.entries?.length ? data : null
+          kanjiResults.set(character, result)
+          return result
+        }
+      },
+      kanjiRedirect: {
+        postMessage: async character => {
+          const cached = kanjiResults.get(character)
+          const data = cached ?? await request('kanjiRedirect', character)
+          if (data?.entries?.length) {
+            kanjiResults.set(character, data)
+            backResultSets.push(resultSetId)
+            forwardResultSets.length = 0
+            backCount++
+            forwardCount = 0
+            historyChanged()
+          }
+          return data
         }
       }
     }

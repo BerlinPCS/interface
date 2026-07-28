@@ -11,7 +11,7 @@ const unavailableDictionaryState = (): MiningDictionaryState => ({
   generation: 0,
   error: 'Dictionary lookup is only available in the Hayatan desktop app.',
   dictionaries: [],
-  order: { term: [], frequency: [], pitch: [] },
+  order: { term: [], frequency: [], pitch: [], kanji: [] },
   styles: {}
 })
 
@@ -200,6 +200,7 @@ export default Object.assign<Native, Partial<Native>>({
   pluginPopup: async () => undefined,
   miningDictionaryState: async () => unavailableDictionaryState(),
   miningDictionaryLookup: async () => ({ length: 0, entries: [] }),
+  miningDictionaryLookupKanji: async character => ({ character, entries: [] }),
   miningDictionaryImport: async () => unavailableDictionaryState(),
   miningDictionarySetEnabled: async () => unavailableDictionaryState(),
   miningDictionaryReorder: async () => unavailableDictionaryState(),

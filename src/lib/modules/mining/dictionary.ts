@@ -113,7 +113,7 @@ export const RECOMMENDED_MINING_DICTIONARY_OUTER_CSS = `iframe.hoshi-popup {
     color: rgba(235, 235, 245, 0.92) !important;
 }`
 
-export type MiningDictionaryKind = 'term' | 'frequency' | 'pitch'
+export type MiningDictionaryKind = 'term' | 'frequency' | 'pitch' | 'kanji'
 
 export interface MiningDictionaryTrace {
   name: string
@@ -135,7 +135,15 @@ export interface MiningDictionaryFrequency {
 export interface MiningDictionaryPitch {
   dictionary: string
   pitchPositions: number[]
+  accents: MiningDictionaryPitchAccent[]
   transcriptions: string[]
+}
+
+export interface MiningDictionaryPitchAccent {
+  position: number
+  pattern: string
+  nasal: number[]
+  devoice: number[]
 }
 
 export interface MiningDictionaryEntry {
@@ -157,6 +165,7 @@ export interface MiningDictionaryRecord {
   format: number
   counts: Record<MiningDictionaryKind, number> & { media: number }
   enabled: Record<MiningDictionaryKind, boolean>
+  warnings?: string[]
 }
 
 export interface MiningDictionaryState {
@@ -178,6 +187,20 @@ export interface MiningDictionaryLookupRequest {
 export interface MiningDictionaryLookupResult {
   length: number
   entries: MiningDictionaryEntry[]
+}
+
+export interface MiningDictionaryKanjiEntry {
+  dictionary: string
+  onyomi: string
+  kunyomi: string
+  tags: string
+  definitions: string[]
+  stats: Record<string, string>
+}
+
+export interface MiningDictionaryKanjiResult {
+  character: string
+  entries: MiningDictionaryKanjiEntry[]
 }
 
 export interface MiningDictionaryImportProgress {
@@ -210,7 +233,7 @@ export const UNAVAILABLE_MINING_DICTIONARY_STATE: MiningDictionaryState = {
   available: false,
   generation: 0,
   dictionaries: [],
-  order: { term: [], frequency: [], pitch: [] },
+  order: { term: [], frequency: [], pitch: [], kanji: [] },
   styles: {}
 }
 

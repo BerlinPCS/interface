@@ -655,6 +655,10 @@
     })
   }
 
+  function lookupMiningKanji (character: string) {
+    return native.miningDictionaryLookupKanji(character)
+  }
+
   $: miningAnkiTemplates = Object.values(miningAnkiState.settings.fieldMappings)
   $: miningAnkiNeedsNativeMedia =
     ($settings.miningAnkiCaptureScreenshot && miningAnkiTemplates.some(value => value.includes('{screenshot}'))) ||
@@ -1356,6 +1360,7 @@
       scanNonJapaneseText={$settings.miningDictionaryScanNonJapanese}
       scanLength={$settings.miningDictionaryScanLength}
       lookupRedirect={lookupMiningRedirect}
+      lookupKanji={lookupMiningKanji}
       audioSources={enabledMiningAudioTemplates($settings.miningAudioSources)}
       audioAutoplay={$settings.miningAudioAutoplay}
       audioPlaybackMode={$settings.miningAudioPlaybackMode}
