@@ -7,15 +7,15 @@ import type {
   MiningAnkiSettingsPatch,
   MiningAnkiShowNotesResult,
   MiningAnkiState
-} from '$lib/modules/mining-anki'
-import type { MiningLocalAudioState } from '$lib/modules/mining-audio'
+} from '$lib/modules/mining/anki'
+import type { MiningLocalAudioState } from '$lib/modules/mining/audio'
 import type {
   MiningDictionaryEvent,
   MiningDictionaryKind,
   MiningDictionaryLookupRequest,
   MiningDictionaryLookupResult,
   MiningDictionaryState
-} from '$lib/modules/mining-dictionary'
+} from '$lib/modules/mining/dictionary'
 
 declare module 'native' {
   interface Native {

@@ -16,14 +16,13 @@
   import MiningSubtitle from '$lib/components/ui/player/mining-subtitle.svelte'
   import { Switch } from '$lib/components/ui/switch'
   import { Textarea } from '$lib/components/ui/textarea'
-  import { DEFAULT_MINING_SUBTITLE_CSS, type MiningSelection } from '$lib/modules/mining'
   import {
     parseMiningAnkiPopupPayload,
     UNAVAILABLE_MINING_ANKI_STATE,
     type MiningAnkiPopupPayload,
     type MiningAnkiState
-  } from '$lib/modules/mining-anki'
-  import { enabledMiningAudioTemplates } from '$lib/modules/mining-audio'
+  } from '$lib/modules/mining/anki'
+  import { enabledMiningAudioTemplates } from '$lib/modules/mining/audio'
   import {
     calculateMiningPopupPosition,
     DEFAULT_MINING_DICTIONARY_CSS,
@@ -34,7 +33,8 @@
     type MiningDictionaryEntry,
     type MiningDictionaryState,
     type MiningPopupPosition
-  } from '$lib/modules/mining-dictionary'
+  } from '$lib/modules/mining/dictionary'
+  import { DEFAULT_MINING_SUBTITLE_CSS, type MiningSelection } from '$lib/modules/mining/subtitle'
   import native from '$lib/modules/native'
   import { settings } from '$lib/modules/settings'
 

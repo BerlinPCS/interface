@@ -4,8 +4,9 @@ import test from 'node:test'
 import {
   appendNestedPopup,
   closeNestedChildren,
-  dismissNestedPopup
-} from '../src/lib/modules/mining-popup-stack.ts'
+  dismissNestedPopup,
+  MAX_NESTED_POPUP_DEPTH
+} from '../src/lib/modules/mining/popup/stack.ts'
 
 const children = ['child-1', 'child-2', 'child-3']
 
@@ -24,4 +25,5 @@ test('dismissing a child returns to its immediate parent', () => {
 test('a new child replaces the selected parent popup descendants', () => {
   assert.deepEqual(appendNestedPopup(children, 0, 'replacement'), ['replacement'])
   assert.deepEqual(appendNestedPopup(children, 1, 'replacement'), ['child-1', 'replacement'])
+  assert.deepEqual(appendNestedPopup(children, MAX_NESTED_POPUP_DEPTH, 'too-deep'), children)
 })

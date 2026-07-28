@@ -63,14 +63,13 @@
   import { W2GChatPanel } from '$lib/components/ui/chat'
   import { authAggregator } from '$lib/modules/auth'
   import { isPlaying } from '$lib/modules/idle'
-  import { beginMiningPlaybackSession, miningCueSeekTime, navigateMiningCue, shouldResumeAfterMining, type MiningCue, type MiningPlaybackSession, type MiningSelection } from '$lib/modules/mining'
   import {
     parseMiningAnkiPopupPayload,
     UNAVAILABLE_MINING_ANKI_STATE,
     type MiningAnkiPopupPayload,
     type MiningAnkiState
-  } from '$lib/modules/mining-anki'
-  import { enabledMiningAudioTemplates } from '$lib/modules/mining-audio'
+  } from '$lib/modules/mining/anki'
+  import { enabledMiningAudioTemplates } from '$lib/modules/mining/audio'
   import {
     calculateMiningPopupPosition,
     getMiningLookupRequest,
@@ -79,7 +78,8 @@
     type MiningDictionaryLookupResult,
     type MiningDictionaryState,
     type MiningPopupPosition
-  } from '$lib/modules/mining-dictionary'
+  } from '$lib/modules/mining/dictionary'
+  import { beginMiningPlaybackSession, miningCueSeekTime, navigateMiningCue, shouldResumeAfterMining, type MiningCue, type MiningPlaybackSession, type MiningSelection } from '$lib/modules/mining/subtitle'
   import native from '$lib/modules/native'
   import { click, customDoubleClick, inputType, keywrap } from '$lib/modules/navigate'
   import { settings, SUPPORTS } from '$lib/modules/settings'
@@ -120,7 +120,7 @@
   $: exponentialVolume = SUPPORTS.isMobile ? 1 : $volume ** 3
   let muted = false
 
-  let miningMode = $settings.miningModeActive
+  let miningMode = false
   let miningCue: MiningCue | undefined
   let miningDisplayCues: MiningCue[] = []
   let miningTrackId: string | undefined
@@ -128,6 +128,7 @@
   let miningRevisionSeen = -1
   let miningEffectiveTimeSeen = Number.NaN
   let miningPlaybackSession: MiningPlaybackSession | undefined
+  let miningAutoPauseObserved = false
   let miningDictionaryEntries: MiningDictionaryEntry[] = []
   let miningDictionaryPosition: MiningPopupPosition | undefined
   let miningDictionaryPending = false
@@ -211,6 +212,13 @@
   let seeking = false
   let ended = false
   let paused = true
+  $: if (miningMode && miningPlaybackSession?.autoPaused) {
+    if (paused) {
+      miningAutoPauseObserved = true
+    } else if (miningAutoPauseObserved) {
+      miningPlaybackSession = { autoPaused: false }
+    }
+  }
   $: if (miningMode && miningDictionaryPosition && $settings.miningPauseOnLookup && !paused) {
     pauseForMiningLookup()
   }
@@ -273,6 +281,7 @@
 
   onMount(() => {
     if (SUPPORTS.isMobile && !SUPPORTS.isIPad && !fullscreenElement && !isMiniplayer) fullscreen()
+    if ($settings.miningModeActive) enterMiningMode()
     if (!native.isApp) return
     const applyDictionaryState = (state: MiningDictionaryState) => {
       if (state.generation !== miningDictionaryState.generation) miningDictionaryCache.clear()
@@ -313,6 +322,7 @@
   onDestroy(() => {
     subtitles?.setMiningMode(false)
     closeMiningDictionary()
+    miningDictionaryCache.clear()
   })
 
   // exiting fullscreen on mobile navigates back since its a "back" gesture
@@ -391,6 +401,7 @@
     const activeCues = subtitles.getActiveMiningCues(effectiveTime, trackNumber)
 
     if (trackChanged) {
+      miningDictionaryCache.clear()
       miningNavigationCueId = undefined
       miningCue = subtitles.getMiningCueAt(effectiveTime, trackNumber)
       miningDisplayCues = activeCues.length ? activeCues : (miningCue ? [miningCue] : [])
@@ -427,6 +438,7 @@
   function enterMiningMode () {
     if (miningMode || isMiniplayer || SUPPORTS.isMobile) return
     miningPlaybackSession = beginMiningPlaybackSession(paused, $settings.miningPauseOnEnter)
+    miningAutoPauseObserved = false
     miningMode = true
     persistMiningMode(true)
     miningTrackId = undefined
@@ -447,7 +459,7 @@
 
   function exitMiningMode () {
     if (!miningMode) return
-    const resume = shouldResumeAfterMining(miningPlaybackSession)
+    const resume = shouldResumeAfterMining(miningPlaybackSession, paused)
     miningMode = false
     persistMiningMode(false)
     miningCue = undefined
@@ -458,12 +470,10 @@
     miningEffectiveTimeSeen = Number.NaN
     subtitles?.setMiningMode(false)
     miningPlaybackSession = undefined
+    miningAutoPauseObserved = false
     closeMiningDictionary()
     if (resume) {
       Promise.allSettled([video.play(), pip.element.value?.play()])
-    } else {
-      video.pause()
-      pip.element.value?.pause()
     }
   }
 
@@ -611,7 +621,12 @@
       try {
         const result = await native.miningDictionaryLookup(request)
         if (requestGeneration !== miningDictionaryRequestGeneration) return
+        miningDictionaryCache.delete(requestKey)
         miningDictionaryCache.set(requestKey, result)
+        if (miningDictionaryCache.size > 100) {
+          const oldest = miningDictionaryCache.keys().next().value
+          if (oldest !== undefined) miningDictionaryCache.delete(oldest)
+        }
         miningDictionaryEntries = result.entries
         miningSelectionLength = result.length
       } catch (error) {
@@ -707,7 +722,7 @@
         }
       })
       if (result.status === 'success') {
-        toast.success('Added note to Anki')
+        toast.success('Added note to Anki', result.warning ? { description: result.warning } : undefined)
       } else if (result.status === 'duplicate') {
         toast.info('This note is already in Anki')
       } else {

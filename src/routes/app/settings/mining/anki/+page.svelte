@@ -15,8 +15,8 @@
     UNAVAILABLE_MINING_ANKI_STATE,
     type MiningAnkiSettingsPatch,
     type MiningAnkiState
-  } from '$lib/modules/mining-anki'
-  import { estimateMiningMedia, formatEstimatedBytes, formatEstimatedDuration } from '$lib/modules/mining-media-estimate'
+  } from '$lib/modules/mining/anki'
+  import { estimateMiningMedia, formatEstimatedBytes, formatEstimatedDuration } from '$lib/modules/mining/media/estimate'
   import native from '$lib/modules/native'
   import { settings } from '$lib/modules/settings'
 
@@ -45,6 +45,8 @@
   let loading = true
   let changing = false
   let connected = false
+  let pendingUpdates = 0
+  let updateQueue = Promise.resolve()
 
   $: deckItems = Object.fromEntries(state.decks.map(name => [name, name]))
   $: modelItems = Object.fromEntries(state.models.map(model => [model.name, model.name]))
@@ -84,14 +86,17 @@
   }
 
   async function update (patch: MiningAnkiSettingsPatch) {
+    ++pendingUpdates
     changing = true
     try {
-      state = await native.miningAnkiUpdateSettings(patch)
+      const operation = updateQueue.then(() => native.miningAnkiUpdateSettings(patch))
+      updateQueue = operation.then(() => undefined, () => undefined)
+      state = await operation
       if ('endpoint' in patch || 'apiKey' in patch) connected = false
     } catch (error) {
       toast.error('Unable to save Anki settings', { description: errorMessage(error) })
     } finally {
-      changing = false
+      changing = --pendingUpdates > 0
     }
   }
 
@@ -133,7 +138,9 @@
   }
 
   function updateMapping (field: string, value: string) {
-    update({ fieldMappings: { ...state.settings.fieldMappings, [field]: value } })
+    const fieldMappings = { ...state.settings.fieldMappings, [field]: value }
+    state = { ...state, settings: { ...state.settings, fieldMappings } }
+    update({ fieldMappings })
   }
 
   function updateDuplicateScope (duplicateScope: string) {

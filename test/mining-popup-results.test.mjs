@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { MiningPopupResultRegistry } from '../src/lib/modules/mining-popup-results.ts'
+import { MiningPopupResultRegistry } from '../src/lib/modules/mining/popup/results.ts'
 
 function entry (expression) {
   return {

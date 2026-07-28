@@ -1,4 +1,4 @@
-import type { HoshiPopupEntry } from './mining-popup-adapter'
+import type { HoshiPopupEntry } from './adapter'
 
 export const MINING_POPUP_PROTOCOL_VERSION = 1 as const
 export const MINING_POPUP_MESSAGE_SOURCE = 'hayase-mining-popup' as const

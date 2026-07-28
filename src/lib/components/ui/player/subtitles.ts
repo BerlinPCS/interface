@@ -15,7 +15,7 @@ import type { ASSEvent, ASSStyle } from 'jassub/dist/worker/util'
 import type { SubtitleTrack, TorrentFile } from 'native'
 
 import { extensions } from '$lib/modules/extensions'
-import { createMiningCue, findActiveMiningCues, findMiningCueAt, parseAssMiningCues, sortAndDeduplicateMiningCues, type MiningCue } from '$lib/modules/mining'
+import { createMiningCue, findActiveMiningCues, findMiningCueAt, parseAssMiningCues, sortAndDeduplicateMiningCues, type MiningCue } from '$lib/modules/mining/subtitle'
 import native from '$lib/modules/native'
 import { type defaults, settings } from '$lib/modules/settings'
 import { anitomyscript, fontRx, HashMap, subRx, subtitleExtensions, toTS } from '$lib/utils'

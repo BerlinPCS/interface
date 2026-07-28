@@ -20,7 +20,7 @@
     withLocalMiningAudioSource,
     type MiningAudioSource,
     type MiningLocalAudioState
-  } from '$lib/modules/mining-audio'
+  } from '$lib/modules/mining/audio'
   import native from '$lib/modules/native'
   import { settings } from '$lib/modules/settings'
 

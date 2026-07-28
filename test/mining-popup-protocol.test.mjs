@@ -6,7 +6,7 @@ import {
   MINING_POPUP_MESSAGE_SOURCE,
   MINING_POPUP_PROTOCOL_VERSION,
   parseMiningPopupFrameMessage
-} from '../src/lib/modules/mining-popup-protocol.ts'
+} from '../src/lib/modules/mining/popup/protocol.ts'
 
 const nonce = 'frame-nonce'
 const base = {

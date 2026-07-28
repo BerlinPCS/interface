@@ -17,7 +17,7 @@
     type MiningDictionaryKind,
     type MiningDictionaryRecord,
     type MiningDictionaryState
-  } from '$lib/modules/mining-dictionary'
+  } from '$lib/modules/mining/dictionary'
   import native from '$lib/modules/native'
 
   const kinds: Array<{ kind: MiningDictionaryKind, title: string }> = [

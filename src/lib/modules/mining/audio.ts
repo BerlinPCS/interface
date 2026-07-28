@@ -1,3 +1,4 @@
+/** Audio-source configuration shared by mining settings and the player. */
 export const HOSHI_DEFAULT_AUDIO_SOURCE_URL = 'https://hoshi-reader.manhhaoo-do.workers.dev/?term={term}&reading={reading}'
 export const HAYASE_LOCAL_AUDIO_SOURCE_URL = 'hayase-local-audio-source://get/?term={term}&reading={reading}'
 

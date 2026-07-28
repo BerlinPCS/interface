@@ -1,9 +1,9 @@
 <script lang='ts'>
   import { createEventDispatcher } from 'svelte'
 
-  import type { MiningCue, MiningSelection } from '$lib/modules/mining'
+  import type { MiningCue, MiningSelection } from '$lib/modules/mining/subtitle'
 
-  import { segmentMiningGraphemes } from '$lib/modules/mining'
+  import { segmentMiningGraphemes } from '$lib/modules/mining/subtitle'
 
   export let cues: MiningCue[] = []
   export let css = ''

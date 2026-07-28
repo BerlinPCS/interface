@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { scopeMiningPopupOuterCss } from '../src/lib/modules/mining-popup-outer-css.ts'
+import { scopeMiningPopupOuterCss } from '../src/lib/modules/mining/popup/css.ts'
 
 test('outer popup CSS scopes the Hoshi selector to one popup', () => {
   const result = scopeMiningPopupOuterCss(`

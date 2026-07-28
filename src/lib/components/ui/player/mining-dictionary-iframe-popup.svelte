@@ -3,13 +3,13 @@
 
   import MiningDictionaryIframeFrame from './mining-dictionary-iframe-frame.svelte'
 
-  import type { MiningAnkiConnectionResult, MiningAnkiPopupPayload, MiningAnkiResult } from '$lib/modules/mining-anki'
-  import type { MiningAudioPlaybackMode } from '$lib/modules/mining-audio'
-  import type { MiningDictionaryEntry, MiningDictionaryLookupResult, MiningPopupPosition } from '$lib/modules/mining-dictionary'
-  import type { MiningPopupSelection } from '$lib/modules/mining-popup-protocol'
+  import type { MiningAnkiConnectionResult, MiningAnkiPopupPayload, MiningAnkiResult } from '$lib/modules/mining/anki'
+  import type { MiningAudioPlaybackMode } from '$lib/modules/mining/audio'
+  import type { MiningDictionaryEntry, MiningDictionaryLookupResult, MiningPopupPosition } from '$lib/modules/mining/dictionary'
+  import type { MiningPopupSelection } from '$lib/modules/mining/popup/protocol'
 
-  import { calculateMiningPopupPosition } from '$lib/modules/mining-dictionary'
-  import { appendNestedPopup, closeNestedChildren, dismissNestedPopup } from '$lib/modules/mining-popup-stack'
+  import { calculateMiningPopupPosition } from '$lib/modules/mining/dictionary'
+  import { appendNestedPopup, closeNestedChildren, dismissNestedPopup, MAX_NESTED_POPUP_DEPTH } from '$lib/modules/mining/popup/stack'
 
   export let entries: MiningDictionaryEntry[] = []
   export let loading = false
@@ -138,6 +138,7 @@
 
   async function openChild (popupIndex: number, detail: SelectionDetail) {
     closeChildrenAfter(popupIndex, false)
+    if (popupIndex >= MAX_NESTED_POPUP_DEPTH) return
     const generation = ++lookupGeneration
     const query = detail.selection.text.trim()
     if (!lookupRedirect || !query) {

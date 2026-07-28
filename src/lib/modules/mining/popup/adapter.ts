@@ -4,7 +4,7 @@ import type {
   MiningDictionaryGlossary,
   MiningDictionaryPitch,
   MiningDictionaryTrace
-} from './mining-dictionary'
+} from '../dictionary'
 
 export interface HoshiPopupEntry {
   expression: string

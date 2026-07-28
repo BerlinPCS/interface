@@ -4,11 +4,11 @@
   import X from 'lucide-svelte/icons/x'
   import { createEventDispatcher, onDestroy, onMount } from 'svelte'
 
-  import type { MiningAnkiConnectionResult, MiningAnkiPopupPayload, MiningAnkiResult } from '$lib/modules/mining-anki'
-  import type { MiningAudioPlaybackMode } from '$lib/modules/mining-audio'
-  import type { MiningDictionaryEntry, MiningDictionaryLookupResult, MiningPopupPosition } from '$lib/modules/mining-dictionary'
+  import type { MiningAnkiConnectionResult, MiningAnkiPopupPayload, MiningAnkiResult } from '$lib/modules/mining/anki'
+  import type { MiningAudioPlaybackMode } from '$lib/modules/mining/audio'
+  import type { MiningDictionaryEntry, MiningDictionaryLookupResult, MiningPopupPosition } from '$lib/modules/mining/dictionary'
 
-  import { scopeMiningPopupOuterCss } from '$lib/modules/mining-popup-outer-css'
+  import { scopeMiningPopupOuterCss } from '$lib/modules/mining/popup/css'
   import {
     makeMiningPopupHostMessage,
     parseMiningPopupFrameMessage,
@@ -16,8 +16,8 @@
     type MiningPopupFrameMessage,
     type MiningPopupHostMessage,
     type MiningPopupRuntimeSettings
-  } from '$lib/modules/mining-popup-protocol'
-  import { MiningPopupResultRegistry } from '$lib/modules/mining-popup-results'
+  } from '$lib/modules/mining/popup/protocol'
+  import { MiningPopupResultRegistry } from '$lib/modules/mining/popup/results'
   import native from '$lib/modules/native'
 
   export let entries: MiningDictionaryEntry[] = []

@@ -7,7 +7,7 @@ import {
   HAYASE_LOCAL_AUDIO_SOURCE_URL,
   normalizeMiningAudioSources,
   withLocalMiningAudioSource
-} from '../src/lib/modules/mining-audio.ts'
+} from '../src/lib/modules/mining/audio.ts'
 
 test('repairs duplicate sources and preserves the built-in default', () => {
   const sources = normalizeMiningAudioSources([

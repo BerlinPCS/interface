@@ -5,7 +5,7 @@ import {
   estimateMiningMedia,
   formatEstimatedBytes,
   formatEstimatedDuration
-} from '../src/lib/modules/mining-media-estimate.ts'
+} from '../src/lib/modules/mining/media/estimate.ts'
 
 const base = {
   captureImage: true,

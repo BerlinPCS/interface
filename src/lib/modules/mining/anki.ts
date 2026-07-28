@@ -1,3 +1,4 @@
+/** Shared contracts and helpers for Anki mining integration. */
 export type MiningAnkiDuplicateScope = 'collection' | 'deck' | 'deckRoot'
 export type MiningCaptureMode = 'static' | 'animated'
 export type MiningStaticImageFormat = 'png' | 'jpeg' | 'webp' | 'avif'
@@ -90,7 +91,7 @@ export interface MiningAnkiContext {
 }
 
 export type MiningAnkiAddResult =
-  | { status: 'success', noteId?: number }
+  | { status: 'success', noteId?: number, warning?: string }
   | { status: 'duplicate' }
   | { status: 'error', message: string }
 

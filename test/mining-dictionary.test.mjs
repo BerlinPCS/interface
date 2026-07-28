@@ -5,7 +5,7 @@ import test from 'node:test'
 import {
   calculateMiningPopupPosition,
   getMiningLookupRequest
-} from '../src/lib/modules/mining-dictionary.ts'
+} from '../src/lib/modules/mining/dictionary.ts'
 
 const cue = {
   id: 'cue',
@@ -34,7 +34,7 @@ test('can reject lookup tails without Japanese text', () => {
 })
 
 test('never contains a web dictionary or network fallback', async () => {
-  const source = await readFile(new URL('../src/lib/modules/mining-dictionary.ts', import.meta.url), 'utf8')
+  const source = await readFile(new URL('../src/lib/modules/mining/dictionary.ts', import.meta.url), 'utf8')
   assert.doesNotMatch(source, /\bfetch\s*\(/)
   assert.doesNotMatch(source, /jisho\.org/i)
 })

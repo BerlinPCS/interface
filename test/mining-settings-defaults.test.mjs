@@ -4,7 +4,7 @@ import test from 'node:test'
 import {
   DEFAULT_MINING_MEDIA_SETTINGS,
   migrateMiningMediaSettings
-} from '../src/lib/modules/mining-media-settings.ts'
+} from '../src/lib/modules/mining/media/settings.ts'
 
 test('new mining media settings migrate through persisted-settings defaults', () => {
   const previousSettings = {
@@ -23,13 +23,13 @@ test('new mining media settings migrate through persisted-settings defaults', ()
     ...previousSettings
   }
 
-  assert.equal(migrated.miningAnkiImageMode, 'static')
+  assert.equal(migrated.miningAnkiImageMode, 'animated')
   assert.equal(migrated.miningAnkiStaticImageFormat, 'webp')
   assert.equal(migrated.miningAnkiAnimatedImageFormat, 'webp')
-  assert.equal(migrated.miningAnkiMediaQuality, 'balanced')
+  assert.equal(migrated.miningAnkiMediaQuality, 'fast')
   assert.equal(migrated.miningAnkiImageMaxHeight, 720)
-  assert.equal(migrated.miningAnkiAnimationFps, 12)
-  assert.equal(migrated.miningAnkiSyncAnimationToWordAudio, false)
+  assert.equal(migrated.miningAnkiAnimationFps, 8)
+  assert.equal(migrated.miningAnkiSyncAnimationToWordAudio, true)
   assert.equal(migrated.miningAnkiCaptureAudio, false)
 })
 

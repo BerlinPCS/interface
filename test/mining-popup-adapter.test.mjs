@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { toHoshiPopupEntry } from '../src/lib/modules/mining-popup-adapter.ts'
+import { toHoshiPopupEntry } from '../src/lib/modules/mining/popup/adapter.ts'
 
 test('adapts a Hayase result to the Android Hoshi popup contract', () => {
   const source = {

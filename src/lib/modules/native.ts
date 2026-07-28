@@ -1,10 +1,10 @@
 import ChromeCast from './chromecast.ts'
 import SUPPORTS from './settings/supports'
 
-import type { MiningDictionaryState } from '$lib/modules/mining-dictionary'
+import type { MiningDictionaryState } from '$lib/modules/mining/dictionary'
 import type { AuthResponse, Native, TorrentInfo } from 'native'
 
-import { UNAVAILABLE_MINING_ANKI_STATE } from '$lib/modules/mining-anki'
+import { UNAVAILABLE_MINING_ANKI_STATE } from '$lib/modules/mining/anki'
 
 const unavailableDictionaryState = (): MiningDictionaryState => ({
   available: false,

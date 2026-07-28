@@ -1,6 +1,6 @@
-import { toHoshiPopupEntry, type HoshiPopupEntry } from './mining-popup-adapter.ts'
+import { toHoshiPopupEntry, type HoshiPopupEntry } from './adapter.ts'
 
-import type { MiningDictionaryEntry } from './mining-dictionary'
+import type { MiningDictionaryEntry } from '../dictionary'
 
 export interface MiningPopupRenderData {
   resultSetId: string

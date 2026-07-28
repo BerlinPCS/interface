@@ -13,7 +13,7 @@ import {
   segmentMiningGraphemes,
   shouldResumeAfterMining,
   sortAndDeduplicateMiningCues
-} from '../src/lib/modules/mining.ts'
+} from '../src/lib/modules/mining/subtitle.ts'
 
 const cue = (start, end, readOrder, rawText = `cue ${readOrder}`) => createMiningCue({
   trackId: '1',
@@ -30,6 +30,7 @@ test('extracts visible subtitle text without normalizing Japanese', () => {
   )
   assert.equal(extractMiningPlainText('{\\p1}m 0 0 l 10 10{\\p0}字幕'), '字幕')
   assert.equal(extractMiningPlainText('ＡＢＣ'), 'ＡＢＣ')
+  assert.equal(extractMiningPlainText('literal &lt;猫&gt; text'), 'literal <猫> text')
 })
 
 test('parses reordered ASS fields and ignores comments and empty events', () => {
@@ -65,6 +66,7 @@ test('sorts, deduplicates, resolves overlaps, and falls back around gaps', () =>
   assert.deepEqual(cues.map(value => value.readOrder), [0, 1, 2])
   assert.equal(findMiningCueAt(cues, 5.5)?.readOrder, 1)
   assert.equal(findMiningCueAt(cues, 4)?.readOrder, 0)
+  assert.equal(findMiningCueAt(cues, 100), undefined)
   assert.equal(findMiningCueAt(cues, 0)?.readOrder, 0)
   assert.deepEqual(findActiveMiningCues(cues, 5.5).map(value => value.readOrder), [1, 2])
   assert.deepEqual(findActiveMiningCues(cues, 4), [])
@@ -86,13 +88,13 @@ test('navigates one cue at a time and clamps at both ends', () => {
   assert.equal(miningCueSeekTime(cues[0], 2), 0)
 })
 
-test('restores the playback state from before mining mode', () => {
+test('only resumes playback that mining mode auto-paused', () => {
   const session = beginMiningPlaybackSession(false, true)
-  assert.equal(session.wasPlaying, true)
   assert.equal(session.autoPaused, true)
-  assert.equal(shouldResumeAfterMining(session), true)
-  assert.equal(shouldResumeAfterMining(beginMiningPlaybackSession(true, true)), false)
-  assert.equal(shouldResumeAfterMining(beginMiningPlaybackSession(false, false)), true)
+  assert.equal(shouldResumeAfterMining(session, true), true)
+  assert.equal(shouldResumeAfterMining(session, false), false)
+  assert.equal(shouldResumeAfterMining(beginMiningPlaybackSession(true, true), true), false)
+  assert.equal(shouldResumeAfterMining(beginMiningPlaybackSession(false, false), true), false)
 })
 
 test('segments graphemes while retaining UTF-16 offsets', () => {

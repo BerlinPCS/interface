@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import type { MiningCue, MiningSelection } from './mining'
+import type { MiningCue, MiningSelection } from './subtitle'
 
 export const DEFAULT_MINING_DICTIONARY_CSS = ''
 
@@ -266,7 +266,7 @@ export function calculateMiningPopupPosition (
   const width = Math.min(Math.max(100, requestedWidth), Math.max(100, viewport.width - screenInset * 2))
   const spaceAbove = anchor.top - screenInset
   const spaceBelow = viewport.height - anchor.bottom - screenInset
-  const placement = spaceBelow >= Math.min(requestedHeight, spaceBelow) && (spaceBelow >= requestedHeight || spaceBelow >= spaceAbove)
+  const placement = spaceBelow >= requestedHeight || spaceBelow >= spaceAbove
     ? 'below'
     : 'above'
   const availableHeight = placement === 'below' ? spaceBelow - selectionGap : spaceAbove - selectionGap

@@ -1,3 +1,4 @@
+/** Subtitle parsing, selection, navigation, and playback helpers for mining. */
 export const DEFAULT_MINING_SUBTITLE_CSS = `font-family: "Klee One SemiBold", "Noto Sans JP", sans-serif;
 font-size: 3rem;
 font-weight: 700;
@@ -36,7 +37,6 @@ export interface MiningGrapheme {
 }
 
 export interface MiningPlaybackSession {
-  wasPlaying: boolean
   autoPaused: boolean
 }
 
@@ -137,8 +137,7 @@ export function extractMiningPlainText (rawText: string): string {
   }
   if (drawingScale === 0) visible += rawText.slice(cursor)
 
-  return decodeHtmlEntities(visible)
-    .replace(/<[^>]*>/g, '')
+  return decodeHtmlEntities(visible.replace(/<[^>]*>/g, ''))
     .replace(/\\[Nn]/g, '\n')
     .replace(/\\h/g, '\u00a0')
     .trim()
@@ -213,17 +212,20 @@ export function findMiningCueAt (cues: MiningCue[], time: number): MiningCue | u
   const active = findActiveMiningCues(cues, time)[0]
   if (active) return active
 
-  for (let index = cues.length - 1; index >= 0; --index) {
-    const cue = cues[index]
-    if (cue && cue.end <= time) return cue
-  }
-  return cues.find(cue => cue.start >= time)
+  const nextIndex = lowerBoundCueStart(cues, time)
+  const previous = cues[nextIndex - 1]
+  if (previous && time - previous.end <= 5) return previous
+  return cues[nextIndex]
 }
 
 export function findActiveMiningCues (cues: MiningCue[], time: number): MiningCue[] {
-  return cues
-    .filter(cue => cue.start <= time && time < cue.end)
-    .sort((a, b) => b.start - a.start || a.readOrder - b.readOrder)
+  const result: MiningCue[] = []
+  const { prefixMaxEnds } = miningCueSearchIndex(cues)
+  for (let index = upperBoundCueStart(cues, time) - 1; index >= 0 && prefixMaxEnds[index]! > time; --index) {
+    const cue = cues[index]!
+    if (time < cue.end) result.push(cue)
+  }
+  return result.sort((a, b) => b.start - a.start || a.readOrder - b.readOrder)
 }
 
 export function navigateMiningCue (cues: MiningCue[], currentId: string | undefined, direction: -1 | 1, time?: number): MiningCue | undefined {
@@ -247,25 +249,26 @@ export function miningCueSeekTime (cue: MiningCue, subtitleDelay: number): numbe
 
 export function beginMiningPlaybackSession (paused: boolean, pauseOnEnter: boolean): MiningPlaybackSession {
   return {
-    wasPlaying: !paused,
     autoPaused: pauseOnEnter && !paused
   }
 }
 
-export function shouldResumeAfterMining (session: MiningPlaybackSession | undefined): boolean {
-  return !!session?.wasPlaying
+export function shouldResumeAfterMining (session: MiningPlaybackSession | undefined, paused: boolean): boolean {
+  return Boolean(session?.autoPaused && paused)
 }
 
 export function segmentMiningGraphemes (text: string): MiningGrapheme[] {
   const segmenter = typeof Intl.Segmenter === 'function'
     ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
     : undefined
+  let fallbackOffset = 0
   const segments = segmenter
     ? [...segmenter.segment(text)].map(segment => ({ text: segment.segment, index: segment.index }))
-    : Array.from(text, (segment, index) => ({
-      text: segment,
-      index: Array.from(text).slice(0, index).join('').length
-    }))
+    : Array.from(text, segment => {
+      const result = { text: segment, index: fallbackOffset }
+      fallbackOffset += segment.length
+      return result
+    })
 
   return segments.map(({ text: segment, index }) => ({
     text: segment,
@@ -274,4 +277,42 @@ export function segmentMiningGraphemes (text: string): MiningGrapheme[] {
     lineBreak: segment === '\n' || segment === '\r' || segment === '\r\n',
     whitespace: /^\s+$/u.test(segment)
   }))
+}
+
+const miningCueSearchIndexes = new WeakMap<MiningCue[], { prefixMaxEnds: number[] }>()
+
+function miningCueSearchIndex (cues: MiningCue[]) {
+  const cached = miningCueSearchIndexes.get(cues)
+  if (cached) return cached
+  let maximumEnd = Number.NEGATIVE_INFINITY
+  const index = {
+    prefixMaxEnds: cues.map(cue => {
+      maximumEnd = Math.max(maximumEnd, cue.end)
+      return maximumEnd
+    })
+  }
+  miningCueSearchIndexes.set(cues, index)
+  return index
+}
+
+function lowerBoundCueStart (cues: MiningCue[], time: number) {
+  let low = 0
+  let high = cues.length
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    if (cues[middle]!.start < time) low = middle + 1
+    else high = middle
+  }
+  return low
+}
+
+function upperBoundCueStart (cues: MiningCue[], time: number) {
+  let low = 0
+  let high = cues.length
+  while (low < high) {
+    const middle = (low + high) >>> 1
+    if (cues[middle]!.start <= time) low = middle + 1
+    else high = middle
+  }
+  return low
 }

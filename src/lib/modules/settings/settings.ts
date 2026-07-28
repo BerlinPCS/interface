@@ -3,7 +3,7 @@ import { derived } from 'svelte/store'
 import { persisted } from 'svelte-persisted-store'
 import { toast } from 'svelte-sonner'
 
-import { migrateMiningMediaSettings } from '../mining-media-settings'
+import { migrateMiningMediaSettings } from '../mining/media/settings'
 import native from '../native'
 
 import SUPPORTS from './supports'

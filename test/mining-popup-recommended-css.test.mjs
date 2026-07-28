@@ -4,7 +4,7 @@ import test from 'node:test'
 import {
   RECOMMENDED_MINING_DICTIONARY_CSS,
   RECOMMENDED_MINING_DICTIONARY_OUTER_CSS
-} from '../src/lib/modules/mining-dictionary.ts'
+} from '../src/lib/modules/mining/dictionary.ts'
 
 test('recommended popup CSS keeps dictionary labels unchanged', () => {
   assert.doesNotMatch(RECOMMENDED_MINING_DICTIONARY_CSS, /\.dict-label/)
