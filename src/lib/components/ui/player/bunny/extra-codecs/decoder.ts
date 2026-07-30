@@ -19,6 +19,8 @@ import {
   registerDecoder
 } from 'mediabunny'
 
+import { hasBundledAudioDecoder } from '../../audio-codec-support'
+
 import { sendCommand, refWorker, unrefWorker } from './worker-client'
 
 import SUPPORTS from '$lib/modules/settings/supports'
@@ -31,10 +33,7 @@ class CombinedDecoder extends CustomAudioDecoder {
       return config.numberOfChannels > 2 && SUPPORTS.isIOS
     }
 
-    return codec === 'dts' ||
-      codec === 'truehd' ||
-      codec === 'ac3' ||
-      codec === 'eac3' ||
+    return hasBundledAudioDecoder(codec) ||
       (codec === 'flac' && SUPPORTS.isIOS)
   }
 

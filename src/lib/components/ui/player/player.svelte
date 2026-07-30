@@ -30,6 +30,7 @@
   import ProgressButton from '../button/progress-button.svelte'
 
   import Animations, { playAnimation } from './animations.svelte'
+  import { shouldTryCompatibilityPlayer } from './audio-codec-support'
   import { activeDisplay, displays } from './castplayer.svelte'
   import Chapters, { findChapter, getChapterTitle, type Chapter } from './chapters'
   import DownloadStats from './downloadstats.svelte'
@@ -173,6 +174,7 @@
   }
 
   let useMediaBunnyPlayback = $settings.playerCustom || dev
+  let automaticCompatibilityFallbackAttempted = useMediaBunnyPlayback
 
   let subtitles: Subs | undefined
   $: subtitleAlignmentStatus = subtitles?.alignmentStatus
@@ -201,7 +203,7 @@
 
   function handleMediaBunnyFallback ({ detail }: CustomEvent<Error>) {
     useMediaBunnyPlayback = false
-    toast.error('Mobile playback setup failed', {
+    toast.error('Compatibility playback failed', {
       description: detail.message || 'Falling back to native playback for this file.', duration: 15_000
     })
   }
@@ -333,10 +335,7 @@
   function checkAudio () {
     if (video.audioTracks) {
       if (!video.audioTracks.length) {
-        toast.error('Audio Codec Unsupported', {
-          description: "This torrent's audio codec is not supported, try a different release by disabling Autoplay Torrents in Torrent settings. You can also use external players like MPV.",
-          duration: 15_000
-        })
+        handleUnsupportedAudio()
       } else if (video.audioTracks.length > 1) {
         const preferredTrack = [...video.audioTracks].find(({ language }) => language === $settings.audioLanguage)
         if (preferredTrack) return selectAudio(preferredTrack.id)
@@ -348,13 +347,25 @@
       video.requestVideoFrameCallback(() => {
         // using capturestream.getAudioTracks() could work too
         if ('webkitAudioDecodedByteCount' in video && video.webkitAudioDecodedByteCount === 0) {
-          toast.error('Audio Codec Unsupported', {
-            description: "This torrent's audio codec is not supported, try a different release by disabling Autoplay Torrents in Torrent settings. You can also use external players like MPV.",
-            duration: 15_000
-          })
+          handleUnsupportedAudio()
         }
       })
     }
+  }
+  function handleUnsupportedAudio () {
+    if (shouldTryCompatibilityPlayer(useMediaBunnyPlayback, automaticCompatibilityFallbackAttempted)) {
+      automaticCompatibilityFallbackAttempted = true
+      useMediaBunnyPlayback = true
+      toast.info('Using compatibility audio decoder', {
+        description: 'Native playback could not decode this audio track. Switching to the bundled software decoder.'
+      })
+      return
+    }
+
+    toast.error('Audio Codec Unsupported', {
+      description: "This torrent's audio codec could not be decoded. Try a different release by disabling Autoplay Torrents in Torrent settings, or use an external player like MPV.",
+      duration: 15_000
+    })
   }
   function changeVolume (delta: number) {
     playAnimation(delta > 0 ? 'volumeup' : 'volumedown')

@@ -6,6 +6,7 @@
   import { version } from '$app/environment'
   import SettingCard from '$lib/components/SettingCard.svelte'
   import { Button } from '$lib/components/ui/button'
+  import { BUNDLED_AUDIO_CODECS, hasBundledAudioDecoder } from '$lib/components/ui/player/audio-codec-support'
   import * as Table from '$lib/components/ui/table'
   import native from '$lib/modules/native'
   import { settings, SUPPORTS } from '$lib/modules/settings'
@@ -76,6 +77,7 @@
     { codec: 'flac', name: 'FLAC' },
     { codec: 'alac', name: 'ALAC' },
     { codec: 'ac-3', name: 'AC-3' },
+    { codec: 'ec-3', name: 'E-AC-3' },
     { codec: 'dtsc', name: 'DTS Core' },
     { codec: 'truehd', name: 'TrueHD' }
   ] as const
@@ -335,7 +337,7 @@
 
     const [audioMatrix, videoMatrix] = await mediaPromise
 
-    await saveFile({ video, audioMatrix, videoMatrix }, 'hayatan-media-capabilities')
+    await saveFile({ video, bundledAudioCodecs: BUNDLED_AUDIO_CODECS, audioMatrix, videoMatrix }, 'hayatan-media-capabilities')
   }
 </script>
 
@@ -369,12 +371,12 @@
   {:then [audioMatrix, videoMatrix]}
     <div class='space-y-1.5'>
       <h3 class='text-lg font-bold'>Audio Codec Support</h3>
-      <p class='text-muted-foreground text-xs pb-1'>Maximum supported channels per sample rate. <span class='text-green-500 font-medium'>≥6ch</span> · <span class='text-foreground'>2–4ch</span> · <span class='text-muted-foreground/40'>unsupported</span></p>
+      <p class='text-muted-foreground text-xs pb-1'>Native WebCodecs support per sample rate. <span class='text-green-500 font-medium'>≥6ch</span> · <span class='text-foreground'>2–4ch</span> · <span class='text-muted-foreground/40'>native unsupported</span> · <span class='text-cyan-500 font-medium'>software fallback</span></p>
       <div class='rounded-md border overflow-auto'>
         <Table.Root class='table-fixed'>
           <Table.Header>
             <Table.Row>
-              <Table.Head class='sticky left-0 z-20 bg-background text-[11px]/4 font-semibold uppercase tracking-wider text-muted-foreground border-r border-border/50 w-[140px]'>Codec</Table.Head>
+              <Table.Head class='sticky left-0 z-20 bg-background text-[11px]/4 font-semibold uppercase tracking-wider text-muted-foreground border-r border-border/50 w-[170px]'>Codec</Table.Head>
               {#each SAMPLE_RATES as rate (rate)}
                 <Table.Head class='text-right text-[11px]/4 font-semibold uppercase tracking-wider text-muted-foreground last:pr-5'>{(rate / 1000).toFixed(0)}k</Table.Head>
               {/each}
@@ -383,7 +385,12 @@
           <Table.Body>
             {#each AUDIO_CODECS as { codec, name }, i (i)}
               <Table.Row class={i % 2 === 1 ? 'bg-muted/20' : ''}>
-                <Table.Cell class='sticky left-0 z-10 bg-background font-medium text-xs border-r border-border/50 w-[140px]'>{name}</Table.Cell>
+                <Table.Cell class='sticky left-0 z-10 bg-background font-medium text-xs border-r border-border/50 w-[170px]'>
+                  <span>{name}</span>
+                  {#if hasBundledAudioDecoder(codec)}
+                    <span class='ml-1.5 whitespace-nowrap rounded bg-cyan-500/10 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-cyan-500'>software</span>
+                  {/if}
+                </Table.Cell>
                 {#each SAMPLE_RATES as rate (rate)}
                   {@const ch = audioMatrix[codec][rate]}
                   <Table.Cell class={'text-right text-xs tabular-nums last:pr-5' + (ch >= 6 ? ' text-green-500 font-medium' : ch >= 2 ? ' text-foreground' : ch >= 1 ? ' text-amber-400' : ' text-muted-foreground/30')}>{ch ? `${ch}ch` : '—'}</Table.Cell>
