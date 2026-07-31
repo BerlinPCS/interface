@@ -30,6 +30,7 @@
   export let audioSources: string[] = []
   export let audioAutoplay = false
   export let audioPlaybackMode: MiningAudioPlaybackMode = 'interrupt'
+  export let audioVolume = 1
   export let nestedLookupOnHover = true
   export let miningEnabled = false
   export let miningAllowDuplicates = false
@@ -193,6 +194,7 @@
   {audioSources}
   {audioAutoplay}
   {audioPlaybackMode}
+  {audioVolume}
   {nestedLookupOnHover}
   {miningEnabled}
   {miningAllowDuplicates}
@@ -237,6 +239,7 @@
     {audioSources}
     {audioAutoplay}
     {audioPlaybackMode}
+    {audioVolume}
     {nestedLookupOnHover}
     {miningEnabled}
     {miningAllowDuplicates}

@@ -36,6 +36,7 @@
   } from '$lib/modules/mining/dictionary'
   import { DEFAULT_MINING_SUBTITLE_CSS, type MiningSelection } from '$lib/modules/mining/subtitle'
   import native from '$lib/modules/native'
+  import { playerOutputVolume, scaleVolume } from '$lib/modules/player/volume'
   import { settings } from '$lib/modules/settings'
 
   const previewCue = {
@@ -334,6 +335,7 @@
       audioSources={enabledMiningAudioTemplates($settings.miningAudioSources)}
       audioAutoplay={$settings.miningAudioAutoplay}
       audioPlaybackMode={$settings.miningAudioPlaybackMode}
+      audioVolume={$settings.miningAudioUsePlayerVolume ? $playerOutputVolume : scaleVolume($settings.miningAudioVolume)}
       nestedLookupOnHover={$settings.miningNestedPopupOnHover}
       miningEnabled={native.isApp && previewAnkiState.available}
       miningAllowDuplicates={previewAnkiState.settings.allowDuplicates}

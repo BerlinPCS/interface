@@ -39,6 +39,7 @@
   export let audioSources: string[] = []
   export let audioAutoplay = false
   export let audioPlaybackMode: MiningAudioPlaybackMode = 'interrupt'
+  export let audioVolume = 1
   export let nestedLookupOnHover = true
   export let miningEnabled = false
   export let miningAllowDuplicates = false
@@ -143,6 +144,7 @@
     lastRecheckMiningSignal = recheckMiningSignal
     post(makeMiningPopupHostMessage(nonce, { type: 'recheckMining', popupId }))
   }
+  $: if (wordAudio) wordAudio.volume = Math.min(1, Math.max(0, audioVolume))
 
   function post (message: MiningPopupHostMessage) {
     iframe.contentWindow?.postMessage(message, '*')

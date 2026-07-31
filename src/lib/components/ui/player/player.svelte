@@ -83,6 +83,7 @@
   import { beginMiningPlaybackSession, miningCueSeekTime, navigateMiningCue, shouldResumeAfterMining, type MiningCue, type MiningPlaybackSession, type MiningSelection } from '$lib/modules/mining/subtitle'
   import native from '$lib/modules/native'
   import { click, customDoubleClick, inputType, keywrap } from '$lib/modules/navigate'
+  import { playerOutputVolume, playerVolume, scaleVolume } from '$lib/modules/player/volume'
   import { settings, SUPPORTS } from '$lib/modules/settings'
   import { server } from '$lib/modules/torrent'
   import { w2globby } from '$lib/modules/w2g/lobby'
@@ -117,8 +118,7 @@
   $: buffer = Math.max(...buffered.map(({ end }) => end))
   let readyState = 0
   $: safeduration = isFinite(duration) ? duration : currentTime
-  const volume = persisted('volume', 1)
-  $: exponentialVolume = SUPPORTS.isMobile ? 1 : $volume ** 3
+  $: exponentialVolume = $playerOutputVolume
   let muted = false
 
   let miningMode = false
@@ -369,7 +369,7 @@
   }
   function changeVolume (delta: number) {
     playAnimation(delta > 0 ? 'volumeup' : 'volumedown')
-    $volume = Math.min(1, Math.max(0, $volume + delta))
+    $playerVolume = Math.min(1, Math.max(0, $playerVolume + delta))
   }
   function selectAudio (id: string) {
     if (id) {
@@ -1375,6 +1375,7 @@
       audioSources={enabledMiningAudioTemplates($settings.miningAudioSources)}
       audioAutoplay={$settings.miningAudioAutoplay}
       audioPlaybackMode={$settings.miningAudioPlaybackMode}
+      audioVolume={$settings.miningAudioUsePlayerVolume ? $playerOutputVolume : scaleVolume($settings.miningAudioVolume)}
       nestedLookupOnHover={$settings.miningNestedPopupOnHover}
       miningEnabled={native.isApp && miningAnkiState.available && (!miningAnkiNeedsNativeMedia || miningAnkiState.mediaCapture.available)}
       miningAllowDuplicates={miningAnkiState.settings.allowDuplicates}
@@ -1402,7 +1403,7 @@
         {/await}
       {/if}
       {#if showStats}
-        <StatsForNerds {subtitleDelay} {currentTime} {safeduration} {readyState} volume={$volume} {video} {buffered} {videoWidth} {videoHeight} close={() => { showStats = false }} />
+        <StatsForNerds {subtitleDelay} {currentTime} {safeduration} {readyState} volume={$playerVolume} {video} {buffered} {videoWidth} {videoHeight} close={() => { showStats = false }} />
       {/if}
       {#if $settings.minimalPlayerUI || (SUPPORTS.isMobile && !SUPPORTS.isAndroidTV)}
         {#if !SUPPORTS.isMobile}
@@ -1498,7 +1499,7 @@
                 <SkipForward size='24px' fill='currentColor' strokeWidth='1' />
               </Button>
             {/if}
-            <Volume bind:volume={$volume} bind:muted />
+            <Volume bind:volume={$playerVolume} bind:muted />
           </div>
           <div class='flex gap-2'>
             {#if $playbackRate !== 1 && $playbackRate}

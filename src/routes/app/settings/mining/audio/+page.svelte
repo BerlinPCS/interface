@@ -13,6 +13,7 @@
   import { SingleCombo } from '$lib/components/ui/combobox'
   import * as Dialog from '$lib/components/ui/dialog'
   import { Input } from '$lib/components/ui/input'
+  import { Slider } from '$lib/components/ui/slider'
   import { Switch } from '$lib/components/ui/switch'
   import {
     HAYASE_LOCAL_AUDIO_SOURCE_URL,
@@ -42,6 +43,9 @@
   let loadingLocal = true
   let changingLocal = false
   let removeLocalOpen = false
+  let audioVolume = [$settings.miningAudioVolume]
+
+  $: $settings.miningAudioVolume = audioVolume[0] ?? 1
 
   onMount(async () => {
     await refreshLocalState()
@@ -251,6 +255,17 @@
   <SettingCard title='Background Audio' description='Choose how word audio interacts with the playing video.'>
     <SingleCombo bind:value={$settings.miningAudioPlaybackMode} items={playbackModes} class='w-44 shrink-0 border-input border' />
   </SettingCard>
+  <SettingCard let:id title='Use Player Volume' description='Match pronunciation audio to the global player volume.'>
+    <Switch {id} bind:checked={$settings.miningAudioUsePlayerVolume} />
+  </SettingCard>
+  {#if !$settings.miningAudioUsePlayerVolume}
+    <SettingCard let:id title='Audio Volume' description='Set the volume used for pronunciation audio.'>
+      <div class='flex w-52 shrink-0 items-center gap-3'>
+        <Slider {id} bind:value={audioVolume} min={0} max={1} step={0.01} aria-label='Pronunciation audio volume' />
+        <span class='w-10 text-right text-xs text-muted-foreground'>{Math.round((audioVolume[0] ?? 1) * 100)}%</span>
+      </div>
+    </SettingCard>
+  {/if}
 </section>
 
 <section class='space-y-3 rounded-lg border bg-card p-4'>

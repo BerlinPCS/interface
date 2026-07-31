@@ -44,6 +44,8 @@ export default {
   miningAudioSources: DEFAULT_MINING_AUDIO_SOURCES.map(source => ({ ...source })) as MiningAudioSource[],
   miningAudioAutoplay: false,
   miningAudioPlaybackMode: 'interrupt' as MiningAudioPlaybackMode,
+  miningAudioUsePlayerVolume: false,
+  miningAudioVolume: 1,
   miningAnkiCaptureScreenshot: true,
   miningAnkiImageMode: DEFAULT_MINING_MEDIA_SETTINGS.imageMode as 'static' | 'animated',
   miningAnkiStaticImageFormat: DEFAULT_MINING_MEDIA_SETTINGS.staticImageFormat as 'png' | 'jpeg' | 'webp' | 'avif',
