@@ -101,11 +101,20 @@ test('cached offsets are provisional until a live estimate verifies them', () =>
   assert.equal(alignmentStatus(progress), 'provisional')
 
   progress = advanceAlignment(progress, 0, 4).progress
-  assert.equal(alignmentStatus(progress), 'provisional')
+  assert.equal(alignmentStatus(progress), 'confirmed')
 
   const update = advanceAlignment(progress, 0.1, 8)
-  assert.equal(update.confirmedNow, true)
+  assert.equal(update.confirmedNow, false)
   assert.equal(update.applyOffset, false)
+  assert.equal(alignmentStatus(update.progress), 'confirmed')
+})
+
+test('immediately finishes alignment when subtitles are already timed', () => {
+  const update = advanceAlignment(initialAlignmentProgress(), 0, 4)
+
+  assert.equal(update.progress.offset, 0)
+  assert.equal(update.applyOffset, false)
+  assert.equal(update.confirmedNow, true)
   assert.equal(alignmentStatus(update.progress), 'confirmed')
 })
 

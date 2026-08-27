@@ -152,24 +152,29 @@ export function advanceAlignment (progress: SubtitleAlignmentProgress, estimate:
     return { progress, applyOffset: false, confirmedNow: false }
   }
 
-  const agrees = progress.candidateOffset !== undefined && Math.abs(progress.candidateOffset - estimate) <= ALIGNMENT_TOLERANCE + Number.EPSILON * 10
+  // Sub-resolution offsets are effectively already aligned. Treat them as an
+  // immediate zero-offset confirmation because a short embedded track may never
+  // reach a second cue milestone to stop the timing indicator.
+  const normalizedEstimate = Math.abs(estimate) <= ALIGNMENT_TOLERANCE + Number.EPSILON * 10 ? 0 : estimate
+  const agrees = progress.candidateOffset !== undefined && Math.abs(progress.candidateOffset - normalizedEstimate) <= ALIGNMENT_TOLERANCE + Number.EPSILON * 10
   if (!agrees) {
+    const confirmed = normalizedEstimate === 0
     const next = {
-      offset: estimate,
-      candidateOffset: estimate,
+      offset: normalizedEstimate,
+      candidateOffset: normalizedEstimate,
       matchingEstimates: 1,
       lastCueCount: cueCount,
-      confirmed: false
+      confirmed
     }
     return {
       progress: next,
-      applyOffset: progress.offset === undefined || Math.abs(progress.offset - estimate) > ALIGNMENT_TOLERANCE,
-      confirmedNow: false
+      applyOffset: !confirmed && (progress.offset === undefined || Math.abs(progress.offset - normalizedEstimate) > ALIGNMENT_TOLERANCE),
+      confirmedNow: confirmed && !progress.confirmed
     }
   }
 
   const matchingEstimates = progress.matchingEstimates + 1
-  const confirmed = progress.confirmed || (cueCount >= 8 && matchingEstimates >= 2)
+  const confirmed = progress.confirmed || normalizedEstimate === 0 || (cueCount >= 8 && matchingEstimates >= 2)
   return {
     progress: {
       ...progress,

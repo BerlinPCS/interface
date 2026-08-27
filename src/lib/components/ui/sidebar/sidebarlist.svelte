@@ -1,4 +1,5 @@
 <script lang='ts'>
+  import ChartNoAxesColumnIncreasing from 'lucide-svelte/icons/chart-no-axes-column-increasing'
   import Heart from 'lucide-svelte/icons/heart'
   import Play from 'lucide-svelte/icons/play'
 
@@ -62,6 +63,9 @@
 {/if}
 <SidebarButton href='/#/app/home' class='animated-icon' {size}>
   <Home size={18} />
+</SidebarButton>
+<SidebarButton href='/#/app/stats' class='animated-icon' {size}>
+  <ChartNoAxesColumnIncreasing size={18} />
 </SidebarButton>
 <SidebarButton href='/#/app/search' class='animated-icon' {size}>
   <Search size={18} />

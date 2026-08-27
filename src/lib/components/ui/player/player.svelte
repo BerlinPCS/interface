@@ -21,7 +21,7 @@
   import SkipForward from 'lucide-svelte/icons/skip-forward'
   import Volume1 from 'lucide-svelte/icons/volume-1'
   import VolumeX from 'lucide-svelte/icons/volume-x'
-  import { onDestroy, onMount } from 'svelte'
+  import { onDestroy, onMount, tick } from 'svelte'
   import { fade } from 'svelte/transition'
   import { persisted } from 'svelte-persisted-store'
   import { toast } from 'svelte-sonner'
@@ -80,6 +80,7 @@
     type MiningDictionaryState,
     type MiningPopupPosition
   } from '$lib/modules/mining/dictionary'
+  import { recordDictionaryLookup, recordMinedCard, recordMiningSession, recordWatchTime } from '$lib/modules/mining/statistics'
   import { beginMiningPlaybackSession, miningCueSeekTime, navigateMiningCue, shouldResumeAfterMining, type MiningCue, type MiningPlaybackSession, type MiningSelection } from '$lib/modules/mining/subtitle'
   import native from '$lib/modules/native'
   import { click, customDoubleClick, inputType, keywrap } from '$lib/modules/navigate'
@@ -149,6 +150,7 @@
   let miningDictionaryLoadingTimer = 0
   let miningDictionaryCloseTimer = 0
   let miningLookupShouldResume = false
+  let miningStatisticsSessionCompleted = false
   const miningDictionaryCache = new Map<string, MiningDictionaryLookupResult>()
   $: isMiniplayer = $page.route.id !== '/app/player'
 
@@ -175,6 +177,7 @@
 
   let useMediaBunnyPlayback = $settings.playerCustom || dev
   let automaticCompatibilityFallbackAttempted = useMediaBunnyPlayback
+  let playbackReload: { shouldPlay: boolean, currentTime: number } | undefined
 
   let subtitles: Subs | undefined
   $: subtitleAlignmentStatus = subtitles?.alignmentStatus
@@ -202,6 +205,7 @@
   const thumbnailer = new Thumbnailer(useMediaBunnyPlayback ? '' : mediaInfo.file.url)
 
   function handleMediaBunnyFallback ({ detail }: CustomEvent<Error>) {
+    preparePlaybackReload()
     useMediaBunnyPlayback = false
     toast.error('Compatibility playback failed', {
       description: detail.message || 'Falling back to native playback for this file.', duration: 15_000
@@ -243,6 +247,11 @@
       pointerMoveTimeout = 0
       pointerMoving = false
     }, time)
+  }
+
+  function handlePointerMove (event: PointerEvent) {
+    if (!miningMode || isMiniplayer || event.pointerType !== 'mouse') return resetMove()
+    if (event.clientY >= wrapper.getBoundingClientRect().bottom - 48) resetMove()
   }
 
   // functions
@@ -354,6 +363,7 @@
   }
   function handleUnsupportedAudio () {
     if (shouldTryCompatibilityPlayer(useMediaBunnyPlayback, automaticCompatibilityFallbackAttempted)) {
+      preparePlaybackReload()
       automaticCompatibilityFallbackAttempted = true
       useMediaBunnyPlayback = true
       toast.info('Using compatibility audio decoder', {
@@ -366,6 +376,10 @@
       description: "This torrent's audio codec could not be decoded. Try a different release by disabling Autoplay Torrents in Torrent settings, or use an external player like MPV.",
       duration: 15_000
     })
+  }
+
+  function preparePlaybackReload () {
+    playbackReload = { shouldPlay: !paused, currentTime }
   }
   function changeVolume (delta: number) {
     playAnimation(delta > 0 ? 'volumeup' : 'volumedown')
@@ -448,6 +462,7 @@
 
   function enterMiningMode () {
     if (miningMode || isMiniplayer || SUPPORTS.isMobile) return
+    miningStatisticsSessionCompleted = false
     miningPlaybackSession = beginMiningPlaybackSession(paused, $settings.miningPauseOnEnter)
     miningAutoPauseObserved = false
     miningMode = true
@@ -631,6 +646,7 @@
       miningDictionaryLookupFrame = 0
       try {
         const result = await native.miningDictionaryLookup(request)
+        recordDictionaryLookup()
         if (requestGeneration !== miningDictionaryRequestGeneration) return
         miningDictionaryCache.delete(requestKey)
         miningDictionaryCache.set(requestKey, result)
@@ -663,11 +679,17 @@
       offset: 0,
       scanLength: Math.max(1, Math.min(64, $settings.miningDictionaryScanLength)),
       maxResults: Math.max(1, Math.min(50, $settings.miningDictionaryMaxResults))
+    }).then(result => {
+      recordDictionaryLookup()
+      return result
     })
   }
 
   function lookupMiningKanji (character: string) {
-    return native.miningDictionaryLookupKanji(character)
+    return native.miningDictionaryLookupKanji(character).then(result => {
+      recordDictionaryLookup('kanji')
+      return result
+    })
   }
 
   $: miningAnkiTemplates = Object.values(miningAnkiState.settings.fieldMappings)
@@ -737,6 +759,7 @@
         }
       })
       if (result.status === 'success') {
+        recordMinedCard()
         toast.success('Added note to Anki', result.warning ? { description: result.warning } : undefined)
       } else if (result.status === 'duplicate') {
         toast.info('This note is already in Anki')
@@ -838,9 +861,47 @@
   let visibilityState: DocumentVisibilityState
   $: handleVisibility(visibilityState)
 
-  function autoPlay () {
-    if (!isMiniplayer) video.play()
+  async function handleLoadedMetadata () {
+    const reload = playbackReload
+    if (!reload) loadAnimeProgress()
+    await tick()
+    if (reload) {
+      currentTime = Math.min(reload.currentTime, safeduration)
+      video.currentTime = currentTime
+      playbackReload = undefined
+    }
+    if (reload?.shouldPlay || (!reload && !isMiniplayer)) await video.play()
   }
+
+  let watchStatisticsClock = { active: false, mining: false, playbackRate: Number($playbackRate), sampledAt: performance.now() }
+  function syncWatchStatistics (active: boolean, mining: boolean) {
+    const now = performance.now()
+    const elapsed = Math.min(15, Math.max(0, (now - watchStatisticsClock.sampledAt) / 1000))
+    if (watchStatisticsClock.active && elapsed >= 0.1) {
+      const completedMiningEpisode = recordWatchTime(
+        watchStatisticsClock.mining ? 'mining' : 'standard',
+        elapsed,
+        elapsed * watchStatisticsClock.playbackRate,
+        mediaInfo.media.id,
+        mediaInfo.episode,
+        safeduration
+      )
+      if (watchStatisticsClock.mining && completedMiningEpisode && !miningStatisticsSessionCompleted) {
+        miningStatisticsSessionCompleted = true
+        recordMiningSession()
+      }
+    }
+    watchStatisticsClock = { active, mining, playbackRate: Number($playbackRate), sampledAt: now }
+  }
+  $: syncWatchStatistics(!paused && readyState >= 3 && !seeking && !isMiniplayer && visibilityState !== 'hidden', miningMode)
+
+  const watchStatisticsInterval = setInterval(() => {
+    syncWatchStatistics(!paused && readyState >= 3 && !seeking && !isMiniplayer && visibilityState !== 'hidden', miningMode)
+  }, 10_000)
+  onDestroy(() => {
+    syncWatchStatistics(false, miningMode)
+    clearInterval(watchStatisticsInterval)
+  })
 
   const interval = setInterval(() => {
     video.load()
@@ -1304,21 +1365,20 @@
         on:click={mobilePlayPause}
         on:dblclick={fullscreen}
         on:loadeddata={checkAudio}
-        on:loadedmetadata={loadAnimeProgress}
+        on:loadedmetadata={handleLoadedMetadata}
         on:timeupdate={checkSkippableChapters}
         on:timeupdate={checkCompletion}
-        on:loadedmetadata={autoPlay}
-        on:pointermove={() => resetMove()}
+        on:pointermove={handlePointerMove}
         on:contextmenu={openSettings}
         class={cn('size-full touch-none object-contain min-h-40',
-          immersed && 'cursor-none',
+          immersed && !miningMode && 'cursor-none',
           isMiniplayer && 'cursor-pointer',
           fitWidth && 'object-cover'
         )}
       />
     {/await}
   {:else}
-    <video class='size-full touch-none' preload='metadata' class:cursor-none={immersed} class:cursor-pointer={isMiniplayer} class:object-cover={fitWidth} class:opacity-0={$settings.playerDeband || seeking || pictureInPictureElement} class:absolute={$settings.playerDeband} class:top-0={$settings.playerDeband}
+    <video class='size-full touch-none' preload='metadata' class:cursor-none={immersed && !miningMode} class:cursor-pointer={isMiniplayer} class:object-cover={fitWidth} class:opacity-0={$settings.playerDeband || seeking || pictureInPictureElement} class:absolute={$settings.playerDeband} class:top-0={$settings.playerDeband}
       use:setSource
       use:setPipVideo={{ subtitles, deband }}
       use:createDeband={$settings.playerDeband}
@@ -1339,11 +1399,10 @@
       bind:this={video}
       use:customDoubleClick={{ single: mobilePlayPause, double: fullscreen, condition: !isMiniplayer }}
       on:loadeddata={checkAudio}
-      on:loadedmetadata={loadAnimeProgress}
+      on:loadedmetadata={handleLoadedMetadata}
       on:timeupdate={checkSkippableChapters}
       on:timeupdate={checkCompletion}
-      on:loadedmetadata={autoPlay}
-      on:pointermove={() => resetMove()}
+      on:pointermove={handlePointerMove}
       on:contextmenu={openSettings}
     />
   {/if}
@@ -1538,7 +1597,7 @@
                   aria-label={$subtitleAlignmentStatus === 'timing' ? 'Timing subtitles' : $subtitleAlignmentStatus === 'provisional' ? 'Subtitle timing applied; verifying' : 'Subtitles timed'}
                   title={$subtitleAlignmentStatus === 'timing' ? 'Timing subtitles' : $subtitleAlignmentStatus === 'provisional' ? 'Subtitle timing applied; verifying' : 'Subtitles timed'}
                 >
-                  {#if $subtitleAlignmentStatus === 'confirmed'}
+                  {#if $subtitleAlignmentStatus !== 'timing'}
                     <CircleCheck size='24px' strokeWidth='2.5' />
                   {:else}
                     <LoaderCircle size='24px' strokeWidth='2.5' class='animate-spin' />

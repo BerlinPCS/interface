@@ -5,7 +5,7 @@ import { derived, get, writable, type Writable } from 'svelte/store'
 
 import { nsfw } from '../settings/settings'
 
-import { AnimePage, Comments, DeleteEntry, DeleteThreadComment, Entry, Following, FollowingMany, type FullMedia, type FullMediaList, IDMedia, IDTitle, RecrusiveRelations, SaveThreadComment, Schedule, Search, Threads, ToggleFavourite, ToggleLike, UpdateUser, User, UserLists } from './queries'
+import { AnimePage, AnimeStatistics, Comments, DeleteEntry, DeleteThreadComment, Entry, Following, FollowingMany, type FullMedia, type FullMediaList, IDMedia, IDTitle, RecrusiveRelations, SaveThreadComment, Schedule, Search, Threads, ToggleFavourite, ToggleLike, UpdateUser, User, UserLists } from './queries'
 import urqlClient from './urql-client'
 import { seasonsForDate, removeDiacritics } from './util'
 
@@ -41,6 +41,11 @@ class AnilistClient {
   }
 
   viewerID = derived(this.client.viewer, (store) => store?.viewer?.id)
+
+  animeStatistics = derived<typeof this.viewerID, OperationResultState<ResultOf<typeof AnimeStatistics>> | undefined>(this.viewerID, (id, set) => {
+    if (!id) return
+    return queryStore({ client: this.client, query: AnimeStatistics, variables: { id }, context: { requestPolicy: 'cache-and-network' } }).subscribe(set)
+  })
 
   userlists = derived<typeof this.viewerID, OperationResultState<ResultOf<typeof UserLists>> | undefined>(this.viewerID, (id, set) => {
     if (!id) return

@@ -232,6 +232,61 @@ export const User = gql(`
   }
 `, [UserFrag])
 
+export const AnimeStatistics = gql(`
+  query AnimeStatistics($id: Int!) {
+    User(id: $id) {
+      id,
+      name,
+      avatar { large },
+      statistics {
+        anime {
+          count,
+          episodesWatched,
+          minutesWatched,
+          meanScore,
+          standardDeviation,
+          scores(sort: ID) {
+            score,
+            count,
+            minutesWatched,
+            meanScore
+          },
+          lengths(sort: ID) {
+            length,
+            count,
+            minutesWatched,
+            meanScore
+          },
+          formats(sort: COUNT_DESC) {
+            format,
+            count,
+            minutesWatched,
+            meanScore
+          },
+          statuses(sort: COUNT_DESC) {
+            status,
+            count,
+            minutesWatched,
+            meanScore
+          },
+          countries(sort: COUNT_DESC) {
+            country,
+            count,
+            minutesWatched,
+            meanScore
+          },
+          releaseYears(sort: ID) {
+            releaseYear,
+            count,
+            minutesWatched,
+            meanScore
+          }
+        }
+      }
+    }
+  }
+`)
+
 export const Viewer = gql(`
   query Viewer {
     Viewer {
