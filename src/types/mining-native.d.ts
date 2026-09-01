@@ -41,5 +41,22 @@ declare module 'native' {
     miningAnkiShowNotes: (request: { expression: string }) => Promise<MiningAnkiShowNotesResult>
     onMiningAnkiEvent: (callback: (event: MiningAnkiEvent) => void) => () => void
     onMiningDictionaryEvent: (callback: (event: MiningDictionaryEvent) => void) => () => void
+    immersionRecordSegment: (request: {
+      externalMediaId: string
+      displayName: string
+      episode: number
+      mode: 'mining' | 'standard'
+      wallMilliseconds: number
+      contentStartSeconds: number
+      contentEndSeconds: number
+      durationSeconds: number
+      sampleClamped?: boolean
+    }) => Promise<string>
+    immersionMigrateCurrentDayBaseline: (request: {
+      date: string
+      miningSeconds: number
+      standardSeconds: number
+    }) => Promise<boolean>
+    immersionState: () => Promise<{ pending: number, rejected: number, configured: boolean }>
   }
 }

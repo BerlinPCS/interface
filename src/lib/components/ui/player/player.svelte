@@ -80,7 +80,7 @@
     type MiningDictionaryState,
     type MiningPopupPosition
   } from '$lib/modules/mining/dictionary'
-  import { recordDictionaryLookup, recordMinedCard, recordMiningSession, recordWatchTime } from '$lib/modules/mining/statistics'
+  import { currentDayImmersionBaseline, recordDictionaryLookup, recordMinedCard, recordMiningSession, recordWatchTime } from '$lib/modules/mining/statistics'
   import { beginMiningPlaybackSession, miningCueSeekTime, navigateMiningCue, shouldResumeAfterMining, type MiningCue, type MiningPlaybackSession, type MiningSelection } from '$lib/modules/mining/subtitle'
   import native from '$lib/modules/native'
   import { click, customDoubleClick, inputType, keywrap } from '$lib/modules/navigate'
@@ -294,6 +294,9 @@
     if (SUPPORTS.isMobile && !SUPPORTS.isIPad && !fullscreenElement && !isMiniplayer) fullscreen()
     if ($settings.miningModeActive) enterMiningMode()
     if (!native.isApp) return
+    immersionBaselineReady = native.immersionMigrateCurrentDayBaseline(currentDayImmersionBaseline())
+      .catch(error => console.error('Could not migrate the current-day immersion baseline:', error))
+      .then(() => undefined)
     const applyDictionaryState = (state: MiningDictionaryState) => {
       if (state.generation !== miningDictionaryState.generation) miningDictionaryCache.clear()
       miningDictionaryState = state
@@ -873,10 +876,12 @@
     if (reload?.shouldPlay || (!reload && !isMiniplayer)) await video.play()
   }
 
+  let immersionBaselineReady = Promise.resolve()
   let watchStatisticsClock = { active: false, mining: false, playbackRate: Number($playbackRate), sampledAt: performance.now() }
   function syncWatchStatistics (active: boolean, mining: boolean) {
     const now = performance.now()
-    const elapsed = Math.min(15, Math.max(0, (now - watchStatisticsClock.sampledAt) / 1000))
+    const rawElapsed = Math.max(0, (now - watchStatisticsClock.sampledAt) / 1000)
+    const elapsed = Math.min(15, rawElapsed)
     if (watchStatisticsClock.active && elapsed >= 0.1) {
       const completedMiningEpisode = recordWatchTime(
         watchStatisticsClock.mining ? 'mining' : 'standard',
@@ -886,6 +891,20 @@
         mediaInfo.episode,
         safeduration
       )
+      if (native.isApp) {
+        const segment = {
+          externalMediaId: String(mediaInfo.media.id),
+          displayName: mediaInfo.session.title,
+          episode: mediaInfo.episode,
+          mode: watchStatisticsClock.mining ? 'mining' as const : 'standard' as const,
+          wallMilliseconds: elapsed * 1000,
+          contentStartSeconds: Math.max(0, currentTime - elapsed * watchStatisticsClock.playbackRate),
+          contentEndSeconds: currentTime,
+          durationSeconds: safeduration,
+          sampleClamped: rawElapsed > 15
+        }
+        void immersionBaselineReady.then(() => native.immersionRecordSegment(segment))
+      }
       if (watchStatisticsClock.mining && completedMiningEpisode && !miningStatisticsSessionCompleted) {
         miningStatisticsSessionCompleted = true
         recordMiningSession()
@@ -897,7 +916,7 @@
 
   const watchStatisticsInterval = setInterval(() => {
     syncWatchStatistics(!paused && readyState >= 3 && !seeking && !isMiniplayer && visibilityState !== 'hidden', miningMode)
-  }, 10_000)
+  }, 5_000)
   onDestroy(() => {
     syncWatchStatistics(false, miningMode)
     clearInterval(watchStatisticsInterval)

@@ -1,4 +1,5 @@
 import { persisted } from 'svelte-persisted-store'
+import { get } from 'svelte/store'
 
 export type WatchMode = 'mining' | 'standard'
 export type MiningLookupKind = 'term' | 'kanji'
@@ -243,4 +244,16 @@ export function recordDictionaryLookup (kind: MiningLookupKind = 'term') {
 
 export function recordMinedCard () {
   miningStatistics.update(addMinedCard)
+}
+
+export function currentDayImmersionBaseline () {
+  const date = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(new Date())
+  const daily = get(miningStatistics).daily[date]
+  return {
+    date,
+    miningSeconds: daily?.miningSeconds ?? 0,
+    standardSeconds: daily?.standardSeconds ?? 0
+  }
 }

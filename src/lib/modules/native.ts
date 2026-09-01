@@ -217,6 +217,9 @@ export default Object.assign<Native, Partial<Native>>({
   miningAnkiCheckDuplicate: async () => ({ status: 'error', message: 'AnkiConnect is only available in the desktop app.' }),
   miningAnkiAddNote: async () => ({ status: 'error', message: 'AnkiConnect is only available in the desktop app.' }),
   miningAnkiShowNotes: async () => ({ status: 'error', message: 'AnkiConnect is only available in the desktop app.' }),
+  immersionRecordSegment: async () => '',
+  immersionMigrateCurrentDayBaseline: async () => false,
+  immersionState: async () => ({ pending: 0, rejected: 0, configured: false }),
   onMiningAnkiEvent: () => () => {},
   onMiningDictionaryEvent: () => () => {}
   // @ts-expect-error idk
