@@ -3,24 +3,89 @@
   import CalendarDays from 'lucide-svelte/icons/calendar-days'
   import ChartColumnBig from 'lucide-svelte/icons/chart-column-big'
   import Clock3 from 'lucide-svelte/icons/clock-3'
+  import CloudCog from 'lucide-svelte/icons/cloud-cog'
   import Flame from 'lucide-svelte/icons/flame'
   import NotebookPen from 'lucide-svelte/icons/notebook-pen'
   import Pickaxe from 'lucide-svelte/icons/pickaxe'
   import Sigma from 'lucide-svelte/icons/sigma'
   import TextSearch from 'lucide-svelte/icons/text-search'
+  import { onMount } from 'svelte'
+  import { toast } from 'svelte-sonner'
 
+  import { Button } from '$lib/components/ui/button'
+  import { Input } from '$lib/components/ui/input'
   import * as Tabs from '$lib/components/ui/tabs'
   import { client as anilistClient } from '$lib/modules/anilist'
   import { localDateKey, miningStatistics, type DailyMiningStatistics, type MiningStatistics } from '$lib/modules/mining/statistics'
+  import native from '$lib/modules/native'
   import { dragScroll } from '$lib/modules/navigate'
 
-  type StatisticsTab = 'mining' | 'total'
+  type StatisticsTab = 'mining' | 'total' | 'sync'
+  interface ImmersionConnectionState {
+    pending: number
+    rejected: number
+    configured: boolean
+    endpoint: string
+    tokenConfigured: boolean
+  }
   interface CountStatistic { count: number, minutesWatched: number, meanScore: number }
 
   const animeStatistics = anilistClient.animeStatistics
   const anilistViewerID = anilistClient.viewerID
   const countryNames = new Intl.DisplayNames(undefined, { type: 'region' })
   let activeTab: StatisticsTab = 'mining'
+  let immersionEndpoint = ''
+  let immersionToken = ''
+  let immersionState: ImmersionConnectionState | undefined
+  let immersionLoading = false
+  let immersionTesting = false
+
+  onMount(() => { loadImmersionState().catch(() => undefined) })
+
+  async function loadImmersionState () {
+    if (!native.isApp) return
+    try {
+      immersionState = await native.immersionState()
+      immersionEndpoint = immersionState.endpoint
+    } catch (error) {
+      toast.error('Could not load immersion sync settings', { description: errorMessage(error) })
+    }
+  }
+
+  async function saveImmersionConnection (clearToken = false) {
+    immersionLoading = true
+    try {
+      immersionState = await native.immersionUpdateConnection({
+        endpoint: immersionEndpoint,
+        ...(immersionToken && !clearToken ? { token: immersionToken } : {}),
+        ...(clearToken ? { clearToken: true } : {})
+      })
+      immersionEndpoint = immersionState.endpoint
+      immersionToken = ''
+      toast.success(clearToken ? 'Saved token removed' : 'Immersion sync settings saved')
+    } catch (error) {
+      toast.error('Could not save immersion sync settings', { description: errorMessage(error), duration: 15_000 })
+    } finally {
+      immersionLoading = false
+    }
+  }
+
+  async function testImmersionConnection () {
+    immersionTesting = true
+    try {
+      const result = await native.immersionTestConnection()
+      toast.success(result.message)
+      immersionState = await native.immersionState()
+    } catch (error) {
+      toast.error('Immersion backend connection failed', { description: errorMessage(error), duration: 15_000 })
+    } finally {
+      immersionTesting = false
+    }
+  }
+
+  function errorMessage (error: unknown) {
+    return error instanceof Error ? error.message : String(error)
+  }
 
   function formatDuration (seconds: number) {
     const minutes = Math.floor(seconds / 60)
@@ -108,6 +173,7 @@
         <Tabs.List class='ml-auto'>
           <Tabs.Trigger value='mining' tabindex={0} class='gap-2 px-4'><Pickaxe size={15} /> Mining</Tabs.Trigger>
           <Tabs.Trigger value='total' tabindex={0} class='gap-2 px-4'><Sigma size={15} /> Total</Tabs.Trigger>
+          <Tabs.Trigger value='sync' tabindex={0} class='gap-2 px-4'><CloudCog size={15} /> Sync</Tabs.Trigger>
         </Tabs.List>
       </div>
 
@@ -179,6 +245,51 @@
             {/each}
           </div>
         </section>
+      </Tabs.Content>
+
+      <Tabs.Content value='sync' tabindex={-1} class='m-0 space-y-6'>
+        {#if !native.isApp}
+          <section class='flex min-h-80 flex-col items-center justify-center rounded-xl border border-dashed p-8 text-center'>
+            <CloudCog class='mb-4 text-muted-foreground' size={32} />
+            <h2 class='text-lg font-semibold'>Desktop app required</h2>
+            <p class='mt-1 max-w-md text-sm text-muted-foreground'>Durable immersion delivery and secure token storage are available only in the Hayatan desktop app.</p>
+          </section>
+        {:else}
+          <section class='rounded-xl border p-5 md:p-6'>
+            <div class='mb-6'>
+              <h2 class='font-semibold'>AnkiLock immersion sync</h2>
+              <p class='mt-1 text-sm text-muted-foreground'>Hayatan records playback locally first, then delivers it to the authoritative immersion pipeline. The source token is encrypted by the operating system and is never displayed again.</p>
+            </div>
+
+            <div class='space-y-5'>
+              <label class='block space-y-2'>
+                <span class='text-sm font-medium'>Backend URL</span>
+                <Input type='url' bind:value={immersionEndpoint} placeholder='https://homelab-1-vnic.tail1661de.ts.net' autocomplete='off' spellcheck={false} />
+                <span class='block text-xs text-muted-foreground'>Enter the server origin only, without an API path.</span>
+              </label>
+
+              <label class='block space-y-2'>
+                <span class='text-sm font-medium'>Hayatan source token</span>
+                <Input type='password' bind:value={immersionToken} placeholder={immersionState?.tokenConfigured ? 'Saved securely — leave blank to keep it' : 'Paste source token'} autocomplete='new-password' spellcheck={false} />
+                <span class='block text-xs text-muted-foreground'>Saving a new value replaces the encrypted token. Leaving this blank keeps the current token.</span>
+              </label>
+
+              <div class='flex flex-wrap gap-3'>
+                <Button on:click={() => saveImmersionConnection()} disabled={immersionLoading}>{immersionLoading ? 'Saving…' : 'Save'}</Button>
+                <Button variant='outline' on:click={testImmersionConnection} disabled={immersionTesting || !immersionState?.configured}>{immersionTesting ? 'Testing…' : 'Test connection'}</Button>
+                {#if immersionState?.tokenConfigured}
+                  <Button variant='destructive' on:click={() => saveImmersionConnection(true)} disabled={immersionLoading}>Remove saved token</Button>
+                {/if}
+              </div>
+            </div>
+          </section>
+
+          <section class='grid gap-3 sm:grid-cols-3'>
+            <div class='rounded-xl border bg-muted/25 p-5'><div class='text-sm text-muted-foreground'>Configuration</div><div class='mt-2 font-semibold'>{immersionState?.configured ? 'Ready' : 'Incomplete'}</div></div>
+            <div class='rounded-xl border bg-muted/25 p-5'><div class='text-sm text-muted-foreground'>Pending events</div><div class='mt-2 text-2xl font-bold'>{immersionState?.pending ?? 0}</div></div>
+            <div class='rounded-xl border bg-muted/25 p-5'><div class='text-sm text-muted-foreground'>Rejected events</div><div class='mt-2 text-2xl font-bold'>{immersionState?.rejected ?? 0}</div></div>
+          </section>
+        {/if}
       </Tabs.Content>
 
       <Tabs.Content value='total' tabindex={-1} class='m-0 space-y-8'>

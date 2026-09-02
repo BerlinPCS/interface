@@ -57,6 +57,20 @@ declare module 'native' {
       miningSeconds: number
       standardSeconds: number
     }) => Promise<boolean>
-    immersionState: () => Promise<{ pending: number, rejected: number, configured: boolean }>
+    immersionState: () => Promise<{
+      pending: number
+      rejected: number
+      configured: boolean
+      endpoint: string
+      tokenConfigured: boolean
+    }>
+    immersionUpdateConnection: (patch: { endpoint: string, token?: string, clearToken?: boolean }) => Promise<{
+      pending: number
+      rejected: number
+      configured: boolean
+      endpoint: string
+      tokenConfigured: boolean
+    }>
+    immersionTestConnection: () => Promise<{ ok: boolean, message: string }>
   }
 }

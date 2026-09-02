@@ -219,7 +219,9 @@ export default Object.assign<Native, Partial<Native>>({
   miningAnkiShowNotes: async () => ({ status: 'error', message: 'AnkiConnect is only available in the desktop app.' }),
   immersionRecordSegment: async () => '',
   immersionMigrateCurrentDayBaseline: async () => false,
-  immersionState: async () => ({ pending: 0, rejected: 0, configured: false }),
+  immersionState: async () => ({ pending: 0, rejected: 0, configured: false, endpoint: '', tokenConfigured: false }),
+  immersionUpdateConnection: async () => { throw new Error('Immersion synchronization settings are only available in the desktop app.') },
+  immersionTestConnection: async () => { throw new Error('Immersion synchronization is only available in the desktop app.') },
   onMiningAnkiEvent: () => () => {},
   onMiningDictionaryEvent: () => () => {}
   // @ts-expect-error idk
