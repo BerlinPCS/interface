@@ -903,7 +903,7 @@
           durationSeconds: safeduration,
           sampleClamped: rawElapsed > 15
         }
-        void immersionBaselineReady.then(() => native.immersionRecordSegment(segment))
+        immersionBaselineReady.then(() => native.immersionRecordSegment(segment)).catch(() => undefined)
       }
       if (watchStatisticsClock.mining && completedMiningEpisode && !miningStatisticsSessionCompleted) {
         miningStatisticsSessionCompleted = true

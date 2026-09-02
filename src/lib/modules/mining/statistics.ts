@@ -1,5 +1,5 @@
-import { persisted } from 'svelte-persisted-store'
 import { get } from 'svelte/store'
+import { persisted } from 'svelte-persisted-store'
 
 export type WatchMode = 'mining' | 'standard'
 export type MiningLookupKind = 'term' | 'kanji'
