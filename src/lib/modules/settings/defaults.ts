@@ -25,6 +25,7 @@ export default {
     number?: string
   },
   miningModeActive: false,
+  miningHideSubtitles: false,
   miningPauseOnEnter: false,
   miningPauseOnLookup: true,
   miningNestedPopupOnHover: true,

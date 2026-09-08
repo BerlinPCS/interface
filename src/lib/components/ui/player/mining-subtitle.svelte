@@ -8,11 +8,13 @@
   export let cues: MiningCue[] = []
   export let css = ''
   export let preview = false
+  export let visible = true
   export let selectionLength = 0
   export let activeSelection: Pick<MiningSelection, 'cueId' | 'utf16Offset'> | undefined = undefined
 
   const dispatch = createEventDispatcher<{
     selection: MiningSelection | undefined
+    hover: boolean
   }>()
 
   let selectedCueId: string | undefined
@@ -22,6 +24,7 @@
   $: cueIds = cues.map(cue => cue.id).join('\u0000')
   $: if (lastCueIds !== cueIds) {
     lastCueIds = cueIds
+    if (!cueIds) dispatch('hover', false)
     clearSelection()
   }
 
@@ -49,6 +52,7 @@
 
   function leaveInteractionRegion () {
     dispatch('selection', undefined)
+    dispatch('hover', false)
   }
 
   function isSelected (cueId: string, utf16Offset: number, utf16Length: number) {
@@ -60,11 +64,12 @@
 </script>
 
 {#if cues.length}
-  <div class={preview ? 'relative z-20 flex justify-center px-4' : 'absolute inset-x-0 bottom-28 z-20 flex justify-center px-4 pointer-events-none'}>
+  <div hidden={!visible} class:invisible={!visible} class={preview ? 'relative z-20 flex justify-center px-4' : 'absolute inset-x-0 bottom-28 z-20 flex justify-center px-4 pointer-events-none'}>
     <div
       class='mining-interaction-region max-w-[90%] flex flex-col items-center gap-2 text-center whitespace-pre-wrap pointer-events-auto select-text'
       role='group'
       aria-label={cues.map(cue => cue.plainText).join('\n')}
+      on:pointerenter={() => dispatch('hover', true)}
       on:pointerleave={leaveInteractionRegion}
       on:pointermove={handleInteractionMove}
       on:click|stopPropagation

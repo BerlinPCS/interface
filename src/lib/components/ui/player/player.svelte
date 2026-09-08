@@ -124,6 +124,24 @@
   let muted = false
 
   let miningMode = false
+  let miningHideSubtitles = false
+  let miningPointerActive = false
+  let miningSubtitleHovered = false
+  let miningRevealTimeout = 0
+  $: miningSubtitleVisible = !miningHideSubtitles || paused || miningPointerActive || miningSubtitleHovered || !!miningDictionaryPosition
+  $: miningModeLabel = !miningMode
+    ? 'Mining off — click for normal mining'
+    : miningHideSubtitles
+      ? 'No-sub mining — move mouse to reveal subtitles; click to turn off'
+      : 'Normal mining — click for no-sub mining'
+  $: miningModeColor = !miningMode ? '' : miningHideSubtitles ? '!text-amber-400' : '!text-emerald-400'
+
+  function revealMiningSubtitles (event: PointerEvent) {
+    if (!miningMode || !miningHideSubtitles || event.pointerType !== 'mouse') return
+    clearTimeout(miningRevealTimeout)
+    miningPointerActive = true
+    miningRevealTimeout = setTimeout(() => { miningPointerActive = false }, 2000)
+  }
   let miningCue: MiningCue | undefined
   let miningDisplayCues: MiningCue[] = []
   let miningTrackId: string | undefined
@@ -292,7 +310,7 @@
 
   onMount(() => {
     if (SUPPORTS.isMobile && !SUPPORTS.isIPad && !fullscreenElement && !isMiniplayer) fullscreen()
-    if ($settings.miningModeActive) enterMiningMode()
+    if ($settings.miningModeActive) enterMiningMode($settings.miningHideSubtitles)
     if (!native.isApp) return
     immersionBaselineReady = native.immersionMigrateCurrentDayBaseline(currentDayImmersionBaseline())
       .catch(error => console.error('Could not migrate the current-day immersion baseline:', error))
@@ -337,6 +355,7 @@
     subtitles?.setMiningMode(false)
     closeMiningDictionary()
     miningDictionaryCache.clear()
+    clearTimeout(miningRevealTimeout)
   })
 
   // exiting fullscreen on mobile navigates back since its a "back" gesture
@@ -463,11 +482,12 @@
     miningEffectiveTimeSeen = effectiveTime
   }
 
-  function enterMiningMode () {
+  function enterMiningMode (hideSubtitles = false) {
     if (miningMode || isMiniplayer || SUPPORTS.isMobile) return
     miningPlaybackSession = beginMiningPlaybackSession(paused, $settings.miningPauseOnEnter)
     miningAutoPauseObserved = false
     miningMode = true
+    miningHideSubtitles = hideSubtitles
     persistMiningMode(true)
     miningTrackId = undefined
     miningNavigationCueId = undefined
@@ -489,6 +509,10 @@
     if (!miningMode) return
     const resume = shouldResumeAfterMining(miningPlaybackSession, paused)
     miningMode = false
+    miningHideSubtitles = false
+    miningPointerActive = false
+    miningSubtitleHovered = false
+    clearTimeout(miningRevealTimeout)
     persistMiningMode(false)
     miningCue = undefined
     miningDisplayCues = []
@@ -506,13 +530,18 @@
   }
 
   function toggleMiningMode () {
-    miningMode ? exitMiningMode() : enterMiningMode()
+    if (!miningMode) enterMiningMode()
+    else if (!miningHideSubtitles) {
+      miningHideSubtitles = true
+      miningPointerActive = false
+      persistMiningMode(true)
+    } else exitMiningMode()
   }
 
   function persistMiningMode (active: boolean) {
-    settings.update(value => value.miningModeActive === active
+    settings.update(value => value.miningModeActive === active && value.miningHideSubtitles === miningHideSubtitles
       ? value
-      : { ...value, miningModeActive: active })
+      : { ...value, miningModeActive: active, miningHideSubtitles })
   }
 
   function navigateMiningSubtitle (direction: -1 | 1) {
@@ -1348,6 +1377,7 @@
   on:focusin={stopAnimation}
   on:pointerenter={stopAnimation}
   on:pointermove={stopAnimation}
+  on:pointermove={revealMiningSubtitles}
   on:dragover|preventDefault
   on:paste={e => subtitles?.handleTransfer(e)}
   on:drop={e => subtitles?.handleTransfer(e)}
@@ -1426,6 +1456,8 @@
   {/if}
   {#if miningMode && !isMiniplayer}
     <MiningSubtitle
+      visible={miningSubtitleVisible}
+      on:hover={({ detail }) => { miningSubtitleHovered = detail }}
       cues={miningDisplayCues}
       css={$settings.miningSubtitleCss}
       activeSelection={miningActiveSelection}
@@ -1485,11 +1517,11 @@
       {#if $settings.minimalPlayerUI || (SUPPORTS.isMobile && !SUPPORTS.isAndroidTV)}
         {#if !SUPPORTS.isMobile}
           <Button
-            class='inline-flex p-3 size-12 absolute z-[1] top-4 right-20 bg-background/20 pointer-events-auto transition-opacity desktop:select:opacity-100 {immersed && 'opacity-0'} {!pointerMoveTimeout && 'delay-150'}'
+            class='{miningModeColor} inline-flex p-3 size-12 absolute z-[1] top-4 right-20 bg-background/20 pointer-events-auto transition-opacity desktop:select:opacity-100 {immersed && 'opacity-0'} {!pointerMoveTimeout && 'delay-150'}'
             variant={miningMode ? 'secondary' : 'ghost'}
-            aria-label='Toggle mining mode'
+            aria-label={miningModeLabel}
             aria-pressed={miningMode}
-            title='Toggle mining mode'
+            title={miningModeLabel}
             on:click={toggleMiningMode}
             on:keydown={keywrap(toggleMiningMode)}
           >
@@ -1586,11 +1618,11 @@
             {/if}
             {#if !SUPPORTS.isMobile}
               <Button
-                class='p-3 size-12 relative shrink-0'
+                class='p-3 size-12 relative shrink-0 {miningModeColor}'
                 variant={miningMode ? 'secondary' : 'ghost'}
-                aria-label='Toggle mining mode'
+                aria-label={miningModeLabel}
                 aria-pressed={miningMode}
-                title='Toggle mining mode'
+                title={miningModeLabel}
                 on:click={toggleMiningMode}
                 on:keydown={keywrap(toggleMiningMode)}
               >
