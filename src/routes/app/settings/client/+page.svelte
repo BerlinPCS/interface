@@ -1,4 +1,5 @@
 <script lang='ts'>
+  import { onMount } from 'svelte'
   import { toast } from 'svelte-sonner'
 
   import SettingCard from '$lib/components/SettingCard.svelte'
@@ -17,6 +18,21 @@
         description: error instanceof Error ? error.message : 'Unknown error occurred.',
         duration: 15_000
       })
+    }
+  }
+
+  let torrentMode: Awaited<ReturnType<typeof native.torrentProcessState>> | undefined
+  let savingTorrentMode = false
+  onMount(() => { native.torrentProcessState?.().then(state => { torrentMode = state }).catch(() => {}) })
+  async function toggleTorrentMode () {
+    if (!torrentMode || savingTorrentMode) return
+    savingTorrentMode = true
+    try {
+      torrentMode = await native.setDedicatedTorrentProcess(!torrentMode.enabled)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save torrent mode.')
+    } finally {
+      savingTorrentMode = false
     }
   }
 
@@ -44,6 +60,20 @@
 {/if}
 
 <div class='font-weight-bold text-xl font-bold'>Torrent Client Settings</div>
+
+{#if torrentMode?.available || torrentMode?.enabled}
+  <SettingCard title='Dedicated torrent process (VPN split tunneling)' description='Off by default. Run torrents in a separate application that you can select in your VPN. Changes take effect after restarting Hayatan.'>
+    <Button variant='secondary' disabled={savingTorrentMode} on:click={toggleTorrentMode}>
+      {torrentMode.enabled ? 'Disable' : 'Enable'}
+    </Button>
+  </SettingCard>
+  <div class='text-sm space-y-2 p-4'>
+    <p>Saved: {torrentMode.enabled ? 'On' : 'Off'}. Running: {torrentMode.active ? 'Dedicated process' : 'Default process'}{torrentMode.enabled !== torrentMode.active ? ' — restart required.' : '.'}</p>
+    {#if torrentMode.enabled}
+      <p class='break-all select-all font-mono'>{torrentMode.executable}</p>
+    {/if}
+  </div>
+{/if}
 
 <SettingCard let:id title='Torrent Download Location' description={`Path to the folder used to store torrents. By default this is the OS's TEMP/TMP cache folder, which might lose data when your OS tries to reclaim storage.${SUPPORTS.isAndroid ? '\n\nSD Card saves to the Cards Download folder. If SD Card is not available torrents will automatically be saved to the Phone\'s Downloads folder' : ''}`}>
   <div class='flex'>

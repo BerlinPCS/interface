@@ -221,6 +221,8 @@ export default Object.assign<Native, Partial<Native>>({
   immersionMigrateCurrentDayBaseline: async () => false,
   immersionState: async () => ({ pending: 0, rejected: 0, configured: false, endpoint: '', tokenConfigured: false }),
   immersionUpdateConnection: async () => { throw new Error('Immersion synchronization settings are only available in the desktop app.') },
+  torrentProcessState: async () => ({ enabled: false, active: false, available: false, executable: '' }),
+  setDedicatedTorrentProcess: async () => { throw new Error('Dedicated torrent mode requires a packaged desktop build.') },
   immersionTestConnection: async () => { throw new Error('Immersion synchronization is only available in the desktop app.') },
   onMiningAnkiEvent: () => () => {},
   onMiningDictionaryEvent: () => () => {}
