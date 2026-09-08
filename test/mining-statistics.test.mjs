@@ -91,3 +91,42 @@ test('discards pre-completion episode and mining session counts when migrating v
   assert.equal(statistics.miningSessions, 0)
   assert.deepEqual(statistics.watchSeconds, { mining: 12, standard: 34 })
 })
+
+test('counts a resumed episode from observed playback of its ending, once', () => {
+  let statistics = createMiningStatistics(123)
+  for (let position = 1200; position < 1300; position += 5) {
+    statistics = addWatchTime(statistics, 'mining', 5, 5, 10, 4, 1440, 123, [position, position + 5])
+  }
+  assert.deepEqual(statistics.completedEpisodes, ['10:4'])
+  assert.deepEqual(statistics.episodes.mining, ['10:4'])
+  statistics = normalizeMiningStatistics(statistics, 124)
+  statistics = addWatchTime(statistics, 'mining', 5, 5, 10, 4, 1440, 124, [1300, 1305])
+  assert.deepEqual(statistics.completedEpisodes, ['10:4'])
+  assert.equal(statistics.watchSeconds.mining, 105)
+})
+
+test('a seek without playback evidence or a short sample at the end is not completion', () => {
+  let statistics = createMiningStatistics(123)
+  statistics = addWatchTime(statistics, 'mining', 5, 0, 10, 4, 1440, 123, [0, 0])
+  statistics = addWatchTime(statistics, 'mining', 5, 5, 10, 4, 1440, 123, [1400, 1405])
+  assert.deepEqual(statistics.completedEpisodes, [])
+})
+
+test('three completed episodes on one day count as one completion day', () => {
+  const firstDay = new Date(2026, 8, 8, 12).getTime()
+  const nextDay = new Date(2026, 8, 9, 12).getTime()
+  let statistics = createMiningStatistics(firstDay)
+  for (const episode of [1, 2, 3]) statistics = addWatchTime(statistics, 'mining', 75, 75, 10, episode, 100, firstDay)
+  assert.deepEqual(statistics.completedMiningDates, [localDateKey(firstDay)])
+  statistics = normalizeMiningStatistics(statistics, nextDay)
+  statistics = addWatchTime(statistics, 'mining', 75, 75, 10, 4, 100, nextDay)
+  assert.deepEqual(statistics.completedMiningDates, [localDateKey(firstDay), localDateKey(nextDay)])
+  statistics = addWatchTime(statistics, 'standard', 75, 75, 10, 5, 100, nextDay + 86400000)
+  assert.equal(statistics.completedMiningDates.length, 2)
+})
+
+test('legacy sessions only recover a completion day when its date is unambiguous', () => {
+  const source = { version: 2, miningSessions: 3, activeDates: ['2026-09-08'] }
+  assert.deepEqual(normalizeMiningStatistics(source).completedMiningDates, ['2026-09-08'])
+  assert.deepEqual(normalizeMiningStatistics({ ...source, activeDates: ['2026-09-07', '2026-09-08'] }).completedMiningDates, [])
+})

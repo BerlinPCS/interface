@@ -187,7 +187,7 @@
           <div class='rounded-xl border bg-muted/25 p-5'>
             <div class='mb-5 flex items-center justify-between text-muted-foreground'><span class='text-sm font-medium'>Mining episodes</span><BookOpen size={18} /></div>
             <div class='text-3xl font-bold'>{$miningStatistics.episodes.mining.length}</div>
-            <div class='mt-1 text-xs text-muted-foreground'>75% or more watched in mining mode</div>
+            <div class='mt-1 text-xs text-muted-foreground'>75% watched or ending reached through playback</div>
           </div>
           <div class='rounded-xl border bg-muted/25 p-5'>
             <div class='mb-5 flex items-center justify-between text-muted-foreground'><span class='text-sm font-medium'>Dictionary lookups</span><TextSearch size={18} /></div>
@@ -219,9 +219,9 @@
           <div class='rounded-xl border p-5 md:p-6'>
             <h2 class='mb-5 font-semibold'>Mining activity</h2>
             <div class='grid grid-cols-2 gap-3'>
-              <div class='rounded-lg bg-muted/50 p-4'><Flame class='mb-3 text-amber-400' size={19} /><div class='text-2xl font-bold'>{$miningStatistics.miningSessions.toLocaleString()}</div><div class='text-xs text-muted-foreground'>Sessions with a completed episode</div></div>
+              <div class='rounded-lg bg-muted/50 p-4'><Flame class='mb-3 text-amber-400' size={19} /><div class='text-2xl font-bold'>{$miningStatistics.completedMiningDates.length.toLocaleString()}</div><div class='text-xs text-muted-foreground'>Days with a completed episode</div></div>
               <div class='rounded-lg bg-muted/50 p-4'><CalendarDays class='mb-3 text-violet-400' size={19} /><div class='text-2xl font-bold'>{$miningStatistics.activeDates.length.toLocaleString()}</div><div class='text-xs text-muted-foreground'>Active days</div></div>
-              <div class='rounded-lg bg-muted/50 p-4'><TextSearch class='mb-3 text-sky-400' size={19} /><div class='text-2xl font-bold'>{$miningStatistics.miningSessions ? Math.round($miningStatistics.dictionaryLookups / $miningStatistics.miningSessions) : 0}</div><div class='text-xs text-muted-foreground'>Lookups / completed session</div></div>
+              <div class='rounded-lg bg-muted/50 p-4'><TextSearch class='mb-3 text-sky-400' size={19} /><div class='text-2xl font-bold'>{$miningStatistics.completedMiningDates.length ? Math.round($miningStatistics.dictionaryLookups / $miningStatistics.completedMiningDates.length) : 0}</div><div class='text-xs text-muted-foreground'>Lookups / completion day</div></div>
               <div class='rounded-lg bg-muted/50 p-4'><NotebookPen class='mb-3 text-green-400' size={19} /><div class='text-2xl font-bold'>{$miningStatistics.dictionaryLookups ? Math.round($miningStatistics.cardsMined / $miningStatistics.dictionaryLookups * 100) : 0}%</div><div class='text-xs text-muted-foreground'>Lookup-to-card rate</div></div>
             </div>
           </div>

@@ -14,6 +14,7 @@ export interface DailyMiningStatistics {
 export interface EpisodeWatchProgress {
   duration: number
   watchedSeconds: Record<WatchMode, number>
+  endingRanges?: Partial<Record<WatchMode, [number, number]>>
 }
 
 export interface MiningStatistics {
@@ -24,7 +25,8 @@ export interface MiningStatistics {
   episodes: Record<WatchMode, string[]>
   completedEpisodes: string[]
   episodeProgress: Record<string, EpisodeWatchProgress>
-  miningSessions: number
+  miningSessions: number // Retained legacy value; completion days are tracked separately.
+  completedMiningDates: string[]
   dictionaryLookups: number
   kanjiLookups: number
   cardsMined: number
@@ -61,6 +63,7 @@ export function createMiningStatistics (now = Date.now()): MiningStatistics {
     completedEpisodes: [],
     episodeProgress: {},
     miningSessions: 0,
+    completedMiningDates: [],
     dictionaryLookups: 0,
     kanjiLookups: 0,
     cardsMined: 0,
@@ -94,6 +97,8 @@ export function normalizeMiningStatistics (value: unknown, now = Date.now()): Mi
       if (!duration) return []
       return [[key, {
         duration,
+        endingRanges: Object.fromEntries(Object.entries(entry.endingRanges ?? {}).filter(([, range]) =>
+          Array.isArray(range) && range.length === 2 && range.every(Number.isFinite) && range[0] >= 0 && range[1] > range[0])),
         watchedSeconds: {
           mining: finitePositive(entry.watchedSeconds?.mining),
           standard: finitePositive(entry.watchedSeconds?.standard)
@@ -117,6 +122,11 @@ export function normalizeMiningStatistics (value: unknown, now = Date.now()): Mi
     completedEpisodes: completionBased ? stringArray(source.completedEpisodes) : [],
     episodeProgress,
     miningSessions: completionBased ? finitePositive(source.miningSessions) : 0,
+    // Only a single recorded active date makes the old undated count attributable.
+    completedMiningDates: stringArray(source.completedMiningDates ??
+      (completionBased && finitePositive(source.miningSessions) > 0 && stringArray(source.activeDates).length === 1
+        ? source.activeDates
+        : [])).filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date)).sort(),
     dictionaryLookups: finitePositive(source.dictionaryLookups),
     kanjiLookups: finitePositive(source.kanjiLookups),
     cardsMined: finitePositive(source.cardsMined),
@@ -133,7 +143,8 @@ export function addWatchTime (
   mediaId: number,
   episode: number,
   duration: number,
-  now = Date.now()
+  now = Date.now(),
+  contentRange?: [number, number]
 ): MiningStatistics {
   if (!Number.isFinite(seconds) || seconds <= 0) return statistics
   const date = localDateKey(now)
@@ -143,15 +154,26 @@ export function addWatchTime (
   const safeDuration = finitePositive(duration) || previousProgress?.duration || 0
   const progress: EpisodeWatchProgress = {
     duration: safeDuration,
+    endingRanges: { ...previousProgress?.endingRanges },
     watchedSeconds: {
       mining: previousProgress?.watchedSeconds.mining ?? 0,
       standard: previousProgress?.watchedSeconds.standard ?? 0,
       [mode]: (previousProgress?.watchedSeconds[mode] ?? 0) + finitePositive(watchedSeconds)
     }
   }
+  let watchedEnding = false
+  if (contentRange && contentRange.every(Number.isFinite) && contentRange[1] > contentRange[0]) {
+    const previous = progress.endingRanges?.[mode]
+    const range: [number, number] = previous && contentRange[0] <= previous[1] + 0.5 && contentRange[1] >= previous[0]
+      ? [Math.min(previous[0], contentRange[0]), Math.max(previous[1], contentRange[1])]
+      : contentRange
+    progress.endingRanges![mode] = range
+    watchedEnding = safeDuration > 0 && range[1] - range[0] >= Math.min(30, safeDuration * 0.25) &&
+      range[1] >= safeDuration - Math.min(180, safeDuration * 0.1)
+  }
   const completionThreshold = safeDuration * 0.75
-  const modeCompleted = completionThreshold > 0 && progress.watchedSeconds[mode] >= completionThreshold
-  const totalCompleted = completionThreshold > 0 && progress.watchedSeconds.mining + progress.watchedSeconds.standard >= completionThreshold
+  const modeCompleted = completionThreshold > 0 && (progress.watchedSeconds[mode] >= completionThreshold || watchedEnding)
+  const totalCompleted = completionThreshold > 0 && (progress.watchedSeconds.mining + progress.watchedSeconds.standard >= completionThreshold || watchedEnding)
   const episodes = modeCompleted && !statistics.episodes[mode].includes(episodeKey)
     ? [...statistics.episodes[mode], episodeKey]
     : statistics.episodes[mode]
@@ -168,6 +190,10 @@ export function addWatchTime (
     },
     episodes: { ...statistics.episodes, [mode]: episodes },
     completedEpisodes,
+    completedMiningDates: mode === 'mining' && modeCompleted && !statistics.episodes.mining.includes(episodeKey) &&
+      !statistics.completedMiningDates.includes(date)
+      ? [...statistics.completedMiningDates, date].sort()
+      : statistics.completedMiningDates,
     episodeProgress: { ...statistics.episodeProgress, [episodeKey]: progress },
     activeDates: statistics.activeDates.includes(date) ? statistics.activeDates : [...statistics.activeDates, date].sort(),
     daily: {
@@ -222,12 +248,12 @@ export const miningStatistics = persisted<MiningStatistics>(STORAGE_KEY, createM
   beforeRead: value => normalizeMiningStatistics(value)
 })
 
-export function recordWatchTime (mode: WatchMode, seconds: number, watchedSeconds: number, mediaId: number, episode: number, duration: number) {
+export function recordWatchTime (mode: WatchMode, seconds: number, watchedSeconds: number, mediaId: number, episode: number, duration: number, contentRange?: [number, number]) {
   let completedModeEpisode = false
   miningStatistics.update(statistics => {
     const episodeKey = `${mediaId}:${episode}`
     const wasComplete = statistics.episodes[mode].includes(episodeKey)
-    const next = addWatchTime(statistics, mode, seconds, watchedSeconds, mediaId, episode, duration)
+    const next = addWatchTime(statistics, mode, seconds, watchedSeconds, mediaId, episode, duration, Date.now(), contentRange)
     completedModeEpisode = !wasComplete && next.episodes[mode].includes(episodeKey)
     return next
   })

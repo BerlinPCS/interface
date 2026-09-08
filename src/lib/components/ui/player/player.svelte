@@ -80,8 +80,9 @@
     type MiningDictionaryState,
     type MiningPopupPosition
   } from '$lib/modules/mining/dictionary'
-  import { currentDayImmersionBaseline, recordDictionaryLookup, recordMinedCard, recordMiningSession, recordWatchTime } from '$lib/modules/mining/statistics'
+  import { currentDayImmersionBaseline, recordDictionaryLookup, recordMinedCard, recordWatchTime } from '$lib/modules/mining/statistics'
   import { beginMiningPlaybackSession, miningCueSeekTime, navigateMiningCue, shouldResumeAfterMining, type MiningCue, type MiningPlaybackSession, type MiningSelection } from '$lib/modules/mining/subtitle'
+  import { watchedRange } from '$lib/modules/mining/watch-sample'
   import native from '$lib/modules/native'
   import { click, customDoubleClick, inputType, keywrap } from '$lib/modules/navigate'
   import { playerOutputVolume, playerVolume, scaleVolume } from '$lib/modules/player/volume'
@@ -150,7 +151,6 @@
   let miningDictionaryLoadingTimer = 0
   let miningDictionaryCloseTimer = 0
   let miningLookupShouldResume = false
-  let miningStatisticsSessionCompleted = false
   const miningDictionaryCache = new Map<string, MiningDictionaryLookupResult>()
   $: isMiniplayer = $page.route.id !== '/app/player'
 
@@ -465,7 +465,6 @@
 
   function enterMiningMode () {
     if (miningMode || isMiniplayer || SUPPORTS.isMobile) return
-    miningStatisticsSessionCompleted = false
     miningPlaybackSession = beginMiningPlaybackSession(paused, $settings.miningPauseOnEnter)
     miningAutoPauseObserved = false
     miningMode = true
@@ -877,19 +876,23 @@
   }
 
   let immersionBaselineReady = Promise.resolve()
-  let watchStatisticsClock = { active: false, mining: false, playbackRate: Number($playbackRate), sampledAt: performance.now() }
+  let watchStatisticsClock = { active: false, mining: false, playbackRate: Number($playbackRate), sampledAt: performance.now(), position: currentTime, mediaKey: `${mediaInfo.media.id}:${mediaInfo.episode}` }
   function syncWatchStatistics (active: boolean, mining: boolean) {
     const now = performance.now()
     const rawElapsed = Math.max(0, (now - watchStatisticsClock.sampledAt) / 1000)
     const elapsed = Math.min(15, rawElapsed)
     if (watchStatisticsClock.active && elapsed >= 0.1) {
-      const completedMiningEpisode = recordWatchTime(
+      const mediaKey = `${mediaInfo.media.id}:${mediaInfo.episode}`
+      const contentRange = watchedRange(watchStatisticsClock.position, currentTime, rawElapsed,
+        watchStatisticsClock.playbackRate, seeking, mediaKey === watchStatisticsClock.mediaKey)
+      recordWatchTime(
         watchStatisticsClock.mining ? 'mining' : 'standard',
         elapsed,
-        elapsed * watchStatisticsClock.playbackRate,
+        contentRange[1] - contentRange[0],
         mediaInfo.media.id,
         mediaInfo.episode,
-        safeduration
+        safeduration,
+        contentRange
       )
       if (native.isApp) {
         const segment = {
@@ -898,19 +901,15 @@
           episode: mediaInfo.episode,
           mode: watchStatisticsClock.mining ? 'mining' as const : 'standard' as const,
           wallMilliseconds: elapsed * 1000,
-          contentStartSeconds: Math.max(0, currentTime - elapsed * watchStatisticsClock.playbackRate),
-          contentEndSeconds: currentTime,
+          contentStartSeconds: contentRange[0],
+          contentEndSeconds: contentRange[1],
           durationSeconds: safeduration,
           sampleClamped: rawElapsed > 15
         }
         immersionBaselineReady.then(() => native.immersionRecordSegment(segment)).catch(() => undefined)
       }
-      if (watchStatisticsClock.mining && completedMiningEpisode && !miningStatisticsSessionCompleted) {
-        miningStatisticsSessionCompleted = true
-        recordMiningSession()
-      }
     }
-    watchStatisticsClock = { active, mining, playbackRate: Number($playbackRate), sampledAt: now }
+    watchStatisticsClock = { active, mining, playbackRate: Number($playbackRate), sampledAt: now, position: currentTime, mediaKey: `${mediaInfo.media.id}:${mediaInfo.episode}` }
   }
   $: syncWatchStatistics(!paused && readyState >= 3 && !seeking && !isMiniplayer && visibilityState !== 'hidden', miningMode)
 
