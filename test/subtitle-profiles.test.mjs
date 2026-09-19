@@ -141,3 +141,18 @@ test('ranks cached exact candidates first and explicit ranges last', async () =>
   ])
   assert.equal(rankJimakuCandidates(parsed, cache, 7, true).at(-1).value, 'unparseable subtitle.srt')
 })
+
+test('same-group release profiles distinguish source cuts and revisions across episodes', async () => {
+  const names = ['[ActualGroup] Show - 01 [BD].ass', '[ActualGroup] Show - 02 [Blu-Ray].ass', '[ActualGroup] Show - 01 [WEB-DL].ass', '[ActualGroup] Show - 01 [BD v2].ass']
+  const parsed = await anitomy(names)
+  const profiles = names.map((name, index) => subtitleReleaseProfile(name, parsed[index]))
+  assert.equal(profiles[0], profiles[1])
+  assert.notEqual(profiles[0], profiles[2])
+  assert.notEqual(profiles[0], profiles[3])
+})
+
+test('detects explicit mixed Chinese/Japanese tags without rejecting Japanese-only releases', async () => {
+  const { isMixedChineseJapaneseSubtitle } = await import('../src/lib/components/ui/player/subtitle-profiles.ts')
+  for (const name of ['Show [CHS, JPN].ass', 'Show [CHT_JP].ass', 'Show.zh-ja.ass', 'Show [Japanese, Chinese].ass']) assert.equal(isMixedChineseJapaneseSubtitle(name), true, name)
+  for (const name of ['[Nekomoe kissaten&VCB-Studio] Show [JPN].ass', 'Show.ja.ass', 'Show.chs.ass', 'Japanese History.ass']) assert.equal(isMixedChineseJapaneseSubtitle(name), false, name)
+})

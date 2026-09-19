@@ -142,6 +142,11 @@ export default Object.assign<Native, Partial<Native>>({
   library: async () => [],
   attachments: async () => [],
   tracks: async () => [],
+  subtitleCacheList: async () => [],
+  subtitleCachePut: async () => {},
+  subtitleSampleStart: async (request, callback) => callback({ sessionId: request.sessionId, tracks: [], bytesFetched: 0, bytesParsed: 0, done: true, reason: 'unsupported' }),
+  subtitleSampleUpdate: async () => undefined,
+  subtitleSampleCancel: async () => undefined,
   subtitles: async () => undefined,
   chapters: async () => [
     { start: 5 * 1000, end: 15 * 1000, text: 'OP' },

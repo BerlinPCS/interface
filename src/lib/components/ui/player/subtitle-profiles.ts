@@ -1,6 +1,6 @@
 import type { AnitomyResult } from 'anitomyscript'
 
-export type SubtitleAlignmentStatus = 'hidden' | 'timing' | 'provisional' | 'confirmed'
+export type SubtitleAlignmentStatus = 'hidden' | 'timing' | 'provisional' | 'confirmed' | 'unavailable'
 
 export interface SubtitleAlignmentProgress {
   offset?: number
@@ -60,7 +60,12 @@ function removeParsedTerms (filename: string, terms: Array<string | undefined>) 
 export function subtitleReleaseProfile (filename: string, parsed: Partial<AnitomyResult>): string | undefined {
   const leadingGroup = filename.match(/^\s*\[([^\]]+)]/)?.[1]
   const group = credibleGroup(leadingGroup) ?? credibleGroup(parsed.release_group?.[0])
-  if (group) return `group:${group}`
+  if (group) {
+    // A group can publish different cuts and revisions of the same episode.
+    const variants = filename.toLowerCase().match(/\b(?:bd(?:rip)?|blu[ .-]?ray|web[ .-]?(?:dl|rip)|hdtv|dvd(?:rip)?|remux|uncut|uncensored|censored|v[2-9]\d*)\b/g) ?? []
+    const normalized = [...new Set(variants.map(value => /^(?:bd|blu)/.test(value) ? 'bd' : value.replace(/[ .-]/g, '')))].sort()
+    return `group:${group}${normalized.length ? ':' + normalized.join('+') : ''}`
+  }
 
   const dot = filename.lastIndexOf('.')
   let signature = dot > 0 ? filename.slice(0, dot) : filename
@@ -168,7 +173,7 @@ export function advanceAlignment (progress: SubtitleAlignmentProgress, estimate:
     }
     return {
       progress: next,
-      applyOffset: !confirmed && (progress.offset === undefined || Math.abs(progress.offset - normalizedEstimate) > ALIGNMENT_TOLERANCE),
+      applyOffset: progress.offset !== undefined ? Math.abs(progress.offset - normalizedEstimate) > ALIGNMENT_TOLERANCE : normalizedEstimate !== 0,
       confirmedNow: confirmed && !progress.confirmed
     }
   }
@@ -199,4 +204,11 @@ export function rankJimakuCandidates<T> (candidates: Array<JimakuCandidate<T>>, 
     if (aCached && bCached && aCached.updatedAt !== bCached.updatedAt) return bCached.updatedAt - aCached.updatedAt
     return a.index - b.index
   })
+}
+
+/** Explicit language tags only: release-group names and CJK dialogue are not language evidence. */
+export function isMixedChineseJapaneseSubtitle (name: string) {
+  const tags = name.normalize('NFKC').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+  return tags.some(tag => ['jp', 'ja', 'jpn', 'japanese'].includes(tag)) &&
+    tags.some(tag => ['chs', 'cht', 'chi', 'zho', 'zh', 'chinese', 'sc', 'tc'].includes(tag))
 }

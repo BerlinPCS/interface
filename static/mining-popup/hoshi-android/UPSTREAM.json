@@ -22,5 +22,12 @@
     "icons/start.svg": "3bccf6939ce14da0a15f6bb127d3921bace4d360c34c4d7bb13544aa530159c4",
     "icons/volume_off.svg": "d6f0da8425ad9b9cfc7a707b6c6a537693307fa6b42d809d2bb1d3189634e8fe",
     "icons/volume_up.svg": "d49e21a64c7c3a392f58b34e2efbfd629a2472d76ea3ac33c3abd67cf8d6bc91"
+  },
+  "localModifications": {
+    "description": "Hayatan popup styling, kanji lookup and pitch rendering (commits f11be248 and 6974e987).",
+    "files": {
+      "popup.js": "db598d44455f70bd2ea203db162de323e2191d747b2b7848c858dc3a2563b945",
+      "popup.css": "f6e80fa3650a8a1cbf83c309c69914a15fac6c8701a5a9de8ebe0dacbc51d87a"
+    }
   }
 }

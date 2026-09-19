@@ -6,6 +6,7 @@
 
   import { activeDisplay, displays } from './castplayer.svelte'
   import Keybinds from './keybinds.svelte'
+  import SubtitleDiagnostics from './subtitle-diagnostics.svelte'
   import { normalizeSubs, normalizeTracks } from './util'
 
   import type { Chapter } from './chapters'
@@ -43,8 +44,12 @@
 
   $: tracks = subtitles?._tracks
   $: current = subtitles?.current
+  $: timingStatus = subtitles?.alignmentStatus
+  let episodeTimingOnly = false
+  let showTimingDiagnostics = false
 
   export let open = false
+  $: if (!open) showTimingDiagnostics = false
 
   let treeState: Writable<string[]>
 
@@ -86,7 +91,9 @@
   </Dialog.Trigger>
   <Dialog.Content class='absolute bg-transparent border-none p-0 shadow-none size-full overflow-hidden max-w-full'>
     <div on:pointerdown|self={close} on:wheel|stopPropagation class='size-full flex justify-center items-center flex-col overflow-y-scroll text-[6px] lg:text-xs' use:dragScroll>
-      {#if showKeybinds}
+      {#if showTimingDiagnostics && subtitles}
+        <SubtitleDiagnostics {subtitles} close={() => { showTimingDiagnostics = false }} />
+      {:else if showKeybinds}
         <div class='bg-background py-3 px-4 rounded-md text-sm lg:text-lg font-bold mb-4 capitalize'>
           {keybindDesc ?? 'Drag and drop binds to change them'}
         </div>
@@ -145,7 +152,7 @@
             <Tree.Item id='subs'>
               <span slot='trigger'>Subtitles</span>
               <Tree.Sub>
-                <Tree.Item active={Number($current) === -1} on:click={() => { $current = -1; close() }}>
+                <Tree.Item active={Number($current) === -1} on:click={() => { subtitles.selectCaptions(-1, true); close() }}>
                   <span>OFF</span>
                 </Tree.Item>
                 {#each Object.entries(normalizeSubs($tracks)) as [lang, _tracks] (lang)}
@@ -153,7 +160,7 @@
                     <span slot='trigger' class='capitalize'>{lang}</span>
                     <Tree.Sub>
                       {#each _tracks as { number, name }, i (i)}
-                        <Tree.Item active={Number(number) === Number($current)} on:click={() => { $current = number; close() }}>
+                        <Tree.Item active={Number(number) === Number($current)} on:click={() => { subtitles.selectCaptions(number, true); close() }}>
                           <span>{name}</span>
                         </Tree.Item>
                       {/each}
@@ -163,9 +170,19 @@
                 <Tree.Item on:click={() => { subtitles.pickFile(); close() }}>
                   <span>Add Subtitle File</span>
                 </Tree.Item>
+                <div role='status' class='flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground'>
+                  {#if $timingStatus === 'timing'}
+                    <span aria-hidden='true' class='size-3 shrink-0 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin motion-reduce:animate-none' />
+                  {/if}
+                  {$timingStatus === 'provisional' ? 'Early timing applied; verifying' : $timingStatus === 'timing' ? 'Analysing subtitle timing' : $timingStatus === 'unavailable' ? 'Unable to verify timing' : $timingStatus === 'confirmed' ? 'Automatic timing' : 'Subtitle timing'}
+                </div>
+                <Tree.Item on:click={() => { showTimingDiagnostics = true }}><span>Retiming diagnostics</span></Tree.Item>
+                <Tree.Item on:click={() => subtitles.retryTiming()}><span>Retry automatic timing</span></Tree.Item>
+                <Tree.Item on:click={() => subtitles.resetTiming()}><span>Reset timing</span></Tree.Item>
+                <label class='flex gap-2 px-4 py-2 text-sm'><input type='checkbox' bind:checked={episodeTimingOnly} />Adjust this episode only</label>
                 <div class='flex items-center relative scale-parent font-bold'>
                   <div class='shrink-0 absolute left-4 z-10 pointer-events-none text-sm leading-5'>Delay</div>
-                  <Input type='number' inputmode='numeric' pattern='[0-9]*.?[0-9]*' step='0.1' bind:value={subtitleDelay} {id} class='w-full shrink-0 px-12 border-0 !ring-0 no-scale text-right hover:bg-accent hover:text-accent-foreground rounded-sm' />
+                  <Input type='number' inputmode='numeric' pattern='[0-9]*.?[0-9]*' step='0.1' bind:value={subtitleDelay} on:input={event => subtitles.setManualDelay(Number(event.currentTarget.value), episodeTimingOnly)} {id} class='w-full shrink-0 px-12 border-0 !ring-0 no-scale text-right hover:bg-accent hover:text-accent-foreground rounded-sm' />
                   <div class='shrink-0 absolute right-3 z-10 pointer-events-none text-sm leading-5'>sec</div>
                 </div>
               </Tree.Sub>

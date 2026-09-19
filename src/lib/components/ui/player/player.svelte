@@ -1,6 +1,7 @@
 <script lang='ts'>
   import Captions from 'lucide-svelte/icons/captions'
   import Cast from 'lucide-svelte/icons/cast'
+  import CircleAlert from 'lucide-svelte/icons/circle-alert'
   import CircleCheck from 'lucide-svelte/icons/circle-check'
   import Contrast from 'lucide-svelte/icons/contrast'
   import DecimalsArrowLeft from 'lucide-svelte/icons/decimals-arrow-left'
@@ -128,12 +129,7 @@
   let miningPointerActive = false
   let miningSubtitleHovered = false
   let miningRevealTimeout = 0
-  $: miningSubtitleVisible = !miningHideSubtitles || paused || miningPointerActive || miningSubtitleHovered || !!miningDictionaryPosition
-  $: miningModeLabel = !miningMode
-    ? 'Mining off — click for normal mining'
-    : miningHideSubtitles
-      ? 'No-sub mining — move mouse to reveal subtitles; click to turn off'
-      : 'Normal mining — click for no-sub mining'
+  $: miningModeLabel = !miningMode ? 'Mining off — click for normal mining' : (miningHideSubtitles ? 'No-sub mining — move mouse to reveal subtitles; click to turn off' : 'Normal mining — click for no-sub mining')
   $: miningModeColor = !miningMode ? '' : miningHideSubtitles ? '!text-amber-400' : '!text-emerald-400'
 
   function revealMiningSubtitles (event: PointerEvent) {
@@ -198,7 +194,9 @@
   let playbackReload: { shouldPlay: boolean, currentTime: number } | undefined
 
   let subtitles: Subs | undefined
-  $: subtitleAlignmentStatus = subtitles?.alignmentStatus
+  $: subtitleTimingStatus = subtitles?.alignmentStatus
+  $: subtitleManualDelay = subtitles?.manualDelay
+  $: subtitleDelay = $subtitleManualDelay ?? 0
   $: miningRevision = subtitles?.miningRevision
   $: miningTrack = subtitles?.current
   $: subtitles?.setMiningMode(miningMode && !isMiniplayer)
@@ -230,12 +228,12 @@
     })
   }
 
-  $: if (subtitles?.jassub) subtitles.jassub.timeOffset = Number(subtitleDelay)
-
   // state
   let seeking = false
   let ended = false
   let paused = true
+  $: miningSubtitleVisible = !miningHideSubtitles || paused || miningPointerActive || miningSubtitleHovered || !!miningDictionaryPosition
+  $: subtitles?.updatePlayback({ time: currentTime, duration: safeduration, buffered: Math.max(0, (buffered.find(range => range.start <= currentTime && range.end >= currentTime)?.end ?? currentTime) - currentTime), stalled: (!paused && readyState < 3) || seeking }, paused, seeking)
   $: if (miningMode && miningPlaybackSession?.autoPaused) {
     if (paused) {
       miningAutoPauseObserved = true
@@ -1043,7 +1041,7 @@
     const index = entries.findIndex(([index]) => index === subtitles!.current.value) + offset
     const [id, info] = entries.at(index) ?? [-1, { meta: { name: 'Off', language: 'Eng' } }]
     playAnimation(info.meta.name ?? info.meta.language ?? 'Eng')
-    subtitles.current.set(id)
+    subtitles.selectCaptions(id, true)
   }
 
   function seekBarKey (event: KeyboardEvent) {
@@ -1251,14 +1249,14 @@
       desc: 'Reset Playback Rate'
     },
     Semicolon: {
-      fn: () => { subtitleDelay -= 0.1 },
+      fn: () => { subtitles?.setManualDelay(subtitleDelay - 0.1) },
       icon: DecimalsArrowLeft,
       type: 'icon',
       id: 'subtitle_delay_minus',
       desc: 'Decrease Subtitle Delay'
     },
     Quote: {
-      fn: () => { subtitleDelay += 0.1 },
+      fn: () => { subtitles?.setManualDelay(subtitleDelay + 0.1) },
       icon: DecimalsArrowRight,
       type: 'icon',
       id: 'subtitle_delay_plus',
@@ -1636,23 +1634,16 @@
               </Button>
             {/if}
             {#if subtitles}
-              {#if $subtitleAlignmentStatus && $subtitleAlignmentStatus !== 'hidden'}
-                <div
-                  class='size-12 flex shrink-0 items-center justify-center'
-                  class:text-amber-400={$subtitleAlignmentStatus === 'provisional'}
-                  class:text-green-400={$subtitleAlignmentStatus === 'confirmed'}
-                  role='status'
-                  aria-live='polite'
-                  aria-atomic='true'
-                  aria-label={$subtitleAlignmentStatus === 'timing' ? 'Timing subtitles' : $subtitleAlignmentStatus === 'provisional' ? 'Subtitle timing applied; verifying' : 'Subtitles timed'}
-                  title={$subtitleAlignmentStatus === 'timing' ? 'Timing subtitles' : $subtitleAlignmentStatus === 'provisional' ? 'Subtitle timing applied; verifying' : 'Subtitles timed'}
-                >
-                  {#if $subtitleAlignmentStatus !== 'timing'}
-                    <CircleCheck size='24px' strokeWidth='2.5' />
+              {#if $settings.subtitleAutoRetiming && $subtitleTimingStatus && $subtitleTimingStatus !== 'hidden'}
+                <Button class='p-3 size-12 shrink-0' variant='ghost' aria-label={$subtitleTimingStatus === 'provisional' ? 'Early subtitle timing applied; verifying' : $subtitleTimingStatus === 'timing' ? 'Analysing subtitle timing' : $subtitleTimingStatus === 'confirmed' ? 'Subtitle timing verified' : 'Unable to verify subtitle timing'} title={$subtitleTimingStatus === 'provisional' ? 'Early subtitle timing applied; verifying' : $subtitleTimingStatus === 'timing' ? 'Analysing subtitle timing' : $subtitleTimingStatus === 'confirmed' ? 'Subtitle timing verified' : 'Unable to verify subtitle timing'} on:click={() => openPath(['subs'])}>
+                  {#if $subtitleTimingStatus === 'timing' || $subtitleTimingStatus === 'provisional'}
+                    <LoaderCircle size='24px' strokeWidth='2.5' class={$subtitleTimingStatus === 'provisional' ? 'animate-spin motion-reduce:animate-none text-amber-400' : 'animate-spin motion-reduce:animate-none'} />
+                  {:else if $subtitleTimingStatus === 'confirmed'}
+                    <CircleCheck size='24px' class='text-green-400' />
                   {:else}
-                    <LoaderCircle size='24px' strokeWidth='2.5' class='animate-spin' />
+                    <CircleAlert size='24px' class='text-amber-400' />
                   {/if}
-                </div>
+                </Button>
               {/if}
               <Button class='p-3 size-12' variant='ghost' on:click={() => openPath(['subs'])} on:keydown={keywrap(() => openPath(['subs']))}>
                 <Subtitles size='24px' fill='currentColor' strokeWidth='0' />

@@ -1,4 +1,5 @@
 export interface SubtitleCue {
+  text?: string
   start: number
   end: number
 }

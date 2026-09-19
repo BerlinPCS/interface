@@ -11,12 +11,13 @@
 </script>
 
 <script lang='ts'>
-  import { AudioBufferSink, type VideoSample, VideoSampleSink, Input, type InputTrack, type WrappedAudioBuffer, ALL_FORMATS, UrlSource } from 'mediabunny'
+  import { AudioBufferSink, type VideoSample, VideoSampleSink, Input, type InputTrack, type WrappedAudioBuffer, ALL_FORMATS } from 'mediabunny'
   import { createEventDispatcher } from 'svelte'
 
   import Subs from '../subtitles'
 
   import audioWorkletUrl from './audioWorklet.ts?worker&url'
+  import { torrentPlaybackSource, torrentPlaybackBuffer, type PlaybackBuffer } from './playback-buffer'
 
   import type { Track } from '../../../../../app'
   import type PictureInPicture from '../pip'
@@ -129,7 +130,8 @@
     paused = true
   }
 
-  $: buffered = [{ start: 0, end: Math.min(duration, currentTime + 5) }]
+  let playbackBuffer: PlaybackBuffer | undefined
+  $: playbackBuffer?.update(currentTime, !paused && readyState < 3)
 
   const dispatch = createEventDispatcher<{
     loadeddata: undefined
@@ -147,7 +149,7 @@
   const frameCallbacks = new Map<number, VideoFrameRequestCallback>()
 
   const input = new Input({
-    source: new UrlSource(src),
+    source: torrentPlaybackSource(src, current.file.size),
     formats: ALL_FORMATS
   })
 
@@ -320,6 +322,8 @@
 
   async function rebuildBackendPipeline (startTime: number, initial = false) {
     readyState = 0
+    playbackBuffer?.destroy()
+    playbackBuffer = undefined
     await clearIterators()
 
     // const playbackVideoTracks = await filterAsync(await input.getVideoTracks(), track => track.canDecode())
@@ -378,6 +382,8 @@
 
     duration = await input.getDurationFromMetadata(tracks, { skipLiveWait: true }) ?? await input.computeDuration(tracks, { skipLiveWait: true })
     setCurrentTime(clamp(startTime, 0, duration))
+
+    playbackBuffer = torrentPlaybackBuffer(src, current.file.size, selectedVideoId, selectedAudioId, duration, ranges => { buffered = ranges })
 
     if (initial) dispatch('loadedmetadata')
     readyState = 1
@@ -525,6 +531,7 @@
 
   async function seekBackendTo (time: number) {
     const wasPaused = paused
+    playbackBuffer?.reset()
     pause()
     const currentAsyncId = asyncId + 1
     readyState = 1
@@ -554,6 +561,8 @@
   }
 
   async function destroy () {
+    playbackBuffer?.destroy()
+    playbackBuffer = undefined
     await clearIterators()
 
     audioCtx?.close()

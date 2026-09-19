@@ -6,10 +6,14 @@ import { writable } from 'simple-store-svelte'
 import { get } from 'svelte/store'
 
 import { loadCustomSubtitleFont } from './custom-subtitle-font'
-import { findSubtitleAlignment, parseAssCues, shiftAssDialogue, shouldAttemptSubtitleAlignment, type SubtitleCue } from './subtitle-alignment'
-import { advanceAlignment, alignmentStatus, cachedSubtitleAlignment, initialAlignmentProgress, rankJimakuCandidates, readSubtitleAlignmentCache, saveSubtitleAlignment, subtitleReleaseProfile, writeSubtitleAlignmentCache, type SubtitleAlignmentProgress, type SubtitleAlignmentStatus } from './subtitle-profiles'
+import { shiftAssDialogue, type SubtitleCue } from './subtitle-alignment'
+import { TIMING_LIMITS, dialogueCue, type TimingResult, type ReferenceWindow } from './subtitle-matcher'
+import { readSubtitleMemory, writeSubtitleMemory, matchesSubtitlePreference, normalizeSubtitleLanguage, subtitlePairKey, exactSubtitleKey, subtitleFingerprint, safeSubtitleGap, type SubtitlePreference } from './subtitle-preferences'
+import { isMixedChineseJapaneseSubtitle, subtitleReleaseProfile, type SubtitleAlignmentStatus } from './subtitle-profiles'
+import TimingWorker from './subtitle-timing.worker?worker'
 
 import type { ResolvedFile } from './resolver'
+import type { SubtitleSampleEvent, SubtitlePlaybackContext } from './subtitle-sampling-types'
 import type { MediaInfo } from './util'
 import type { ASSEvent, ASSStyle } from 'jassub/dist/worker/util'
 import type { SubtitleTrack, TorrentFile } from 'native'
@@ -37,7 +41,6 @@ Style: Default, Roboto Medium,52,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0
 
 type SubtitleStyle = typeof defaults.subtitleStyle
 type StyleOverride = Pick<ASSStyle, 'FontName' |'Spacing' | 'ScaleX'>
-type PersistedSubtitleSelection = NonNullable<typeof defaults.playerSubtitleSelection>
 
 const STYLE_OVERRIDES: Record<Exclude<SubtitleStyle, 'custom'>, StyleOverride> = {
   none: {
@@ -107,13 +110,26 @@ function detectCJKLanguage (str: string) {
   return null
 }
 
+function externalSubtitleLanguage (filename: string, header: string) {
+  const names: Record<string, string> = { en: 'eng', eng: 'eng', english: 'eng', ja: 'jpn', jp: 'jpn', jpn: 'jpn', japanese: 'jpn', ko: 'kor', kor: 'kor', korean: 'kor', zh: 'chi', chi: 'chi', zho: 'chi', chinese: 'chi', es: 'spa', spa: 'spa', spanish: 'spa', fr: 'fra', fre: 'fra', fra: 'fra', french: 'fra', de: 'deu', ger: 'deu', deu: 'deu', german: 'deu' }
+  const tokens = filename.toLowerCase().split(/[^a-z]+/)
+  const tag = tokens.map(token => names[token]).find(Boolean)
+  if (tag) return tag
+  const dialogue = parseAssMiningCues(header, 'language').map(cue => cue.plainText).join('\n')
+  return detectCJKLanguage(dialogue) ?? 'und'
+}
+
 const stylesRx = /^Style:[^,]*/gm
 
-interface JimakuAlignmentState {
+interface ExternalSubtitleState {
   originalHeader: string
   cues: SubtitleCue[]
   profile?: string
-  progress: SubtitleAlignmentProgress
+  offset: number
+  verifiedOffset?: number
+  fingerprint: string
+  preference: SubtitlePreference
+  rank: number
 }
 
 interface SubtitleTrackState {
@@ -134,11 +150,129 @@ export default class Subtitles {
   jassub: JASSUB | null = null
   current = writable<number | string>(-1)
   alignmentStatus = writable<SubtitleAlignmentStatus>('hidden')
+  timingLog: Array<{ time: string, message: string }> = []
+  timingResults: Array<TimingResult & { id: string, references?: Array<TimingResult & { referenceIndex: number }> }> = []
+  preparedTimingTracks = new Set<string>()
+  timingStartedAt: number | undefined
+  timingReferenceNames: string[] = []
+  timingElapsedMs = 0
+  timingError: string | undefined
+
+  logTiming (message: string) {
+    if (this.destroyed || this.timingLog.at(-1)?.message === message) return
+    this.timingLog.push({ time: new Date().toISOString(), message: message.slice(0, 2000) })
+    if (this.timingLog.length > 200) this.timingLog.shift()
+  }
+
+  getTimingDiagnostics () {
+    const active = String(this.current.value)
+    const language = normalizeSubtitleLanguage(this.identities.get(active)?.language ?? this.preference?.language ?? this.set.subtitleLanguage)
+    const candidates = [...this.externalTracks.entries()].map(([id, state]) => ({
+      id,
+      name: this._tracks.value[id]?.meta.name ?? id,
+      source: state.preference.source,
+      language: state.preference.language,
+      profile: state.profile,
+      fingerprint: state.fingerprint,
+      cues: state.cues.length,
+      offset: state.offset,
+      verifiedOffset: state.verifiedOffset,
+      active: id === active,
+      preferred: matchesSubtitlePreference(this.preference, state.preference),
+      sameLanguage: state.preference.language === language,
+      rank: state.rank,
+      result: this.timingResults.find(result => result.id === id)
+    }))
+    const reason = !this.set.subtitleAutoRetiming
+      ? 'Automatic timing is disabled.'
+      : Number(active) === -1
+        ? 'Subtitles are off.'
+        : this.manualLock
+          ? 'A manual selection or timing adjustment suspended automatic timing. Use Retry to allow automatic changes again.'
+          : this.earlyTiming
+            ? 'An early offset is active. Independent windows are still being checked; it is not saved as verified.'
+            : this.frozen
+              ? 'Timing is verified and frozen for this episode.'
+              : this.pending
+                ? 'Waiting for a subtitle-free interval to apply the change.'
+                : !candidates.some(candidate => candidate.sameLanguage)
+                    ? 'No external subtitle candidate matches the selected language. Embedded tracks provide reference timing; they are not retimed against themselves.'
+                    : this.alignmentStatus.value === 'unavailable'
+                      ? 'No reliable constant offset was verified. Inspect sampling and window results below.'
+                      : this.waitingForSampleBuffer
+                        ? 'Sampling needs pieces that are not downloaded yet. Downloads will resume with 30 seconds buffered; Retry can recheck downloaded data while paused.'
+                        : !this.sampleId && !this.sampleDone && !this.samplingReady()
+                            ? 'Checking already-downloaded pieces; new downloads wait for the playback buffer.'
+                            : this.sampleDone
+                              ? 'Sampling finished; evaluating candidate results.'
+                              : this.playback.stalled || (this.playback.buffered ?? 0) < 15
+                                ? 'Sampling downloads suspended while playback needs data.'
+                                : 'Collecting embedded references and comparing candidates.'
+    return {
+      revision: 'downloaded-first-v5-early-evidence',
+      status: this.alignmentStatus.value,
+      reason,
+      error: this.timingError,
+      video: this.selected.name,
+      videoIdentity: this.videoIdentity,
+      videoProfile: this.videoProfile,
+      language,
+      preferred: this.preference,
+      active,
+      manualDelay: this.manualDelay.value,
+      playback: { ...this.playback },
+      paused: this.paused,
+      seeking: this.seeking,
+      candidates,
+      candidateLoading: this.candidateLoading,
+      candidateDiscoveryDone: this.candidateDiscoveryDone,
+      sessionId: this.sampleId ?? this.sample?.sessionId,
+      elapsedMs: this.timingStartedAt ? (this.sampleId && !this.sampleDone ? Date.now() - this.timingStartedAt : this.timingElapsedMs) : 0,
+      sampleDone: this.sampleDone,
+      sample: this.sample,
+      results: this.timingResults,
+      referenceNames: [...this.timingReferenceNames],
+      earlyTiming: this.earlyTiming,
+      log: [...this.timingLog]
+    }
+  }
+
   set = get(settings)
   embeddedTracks = new Set<string>()
-  jimakuTracks = new Map<string, JimakuAlignmentState>()
-  alignmentCache = readSubtitleAlignmentCache()
-  alignmentReferenceTrack: string | undefined
+  loadedFiles = new Set<string>()
+  fileTracks = new Map<string, string>()
+  fileLoads = new Map<string, Promise<void>>()
+  externalTracks = new Map<string, ExternalSubtitleState>()
+  memory = readSubtitleMemory()
+  manualDelay = writable(0)
+  videoIdentity: string
+  videoProfile: string | undefined
+  preference: SubtitlePreference | null
+  identities = new Map<string, SubtitlePreference>()
+  destroyed = false
+  downloads = new AbortController()
+  selectionRevision = 0
+  manualLock = false
+  frozen = false
+  writingCurrent = false
+  worker: Worker | undefined
+  workerSequence = 0
+  sampleId: string | undefined
+  sample: SubtitleSampleEvent | undefined
+  sampleDone = false
+  waitingForSampleBuffer = false
+  candidateLoading = 0
+  candidateDiscoveryDone = false
+  earlyTiming: { track: string, offset: number, previousTrack: string, previousOffset: number } | undefined
+  earlyTimingAttempted = false
+  earlyTimingTimer: ReturnType<typeof setTimeout> | undefined
+  pending: { track: string, offset: number, verified?: boolean, early?: 'apply' | 'revert' } | undefined
+  applying = false
+  playback: SubtitlePlaybackContext = { time: 0, duration: 0, buffered: 0, stalled: true }
+  paused = true
+  seeking = false
+  lastPlaybackUpdate = 0
+  lastAnalysedSignature = ''
   alignmentTimer: ReturnType<typeof setTimeout> | undefined
   mediaId: number
   settingsUnsubscribe: () => void
@@ -156,10 +290,15 @@ export default class Subtitles {
     this.canvas = canvas
     this.selected = mediaInfo.file
     this.mediaId = mediaInfo.media.id
-    this.initialSubtitleSelection = this.set.playerSubtitleSelection
+    this.videoIdentity = `${this.selected.hash}:${this.selected.id}`
+    const parsedVideo = this.selected.metadata.parseObject
+    const release = subtitleReleaseProfile(this.selected.name, parsedVideo)
+    this.videoProfile = release ? JSON.stringify([release, parsedVideo.source, parsedVideo.video_resolution, parsedVideo.video_term, parsedVideo.audio_term]) : undefined
+    this.preference = this.memory.shows[String(this.mediaId)] ?? this.set.playerSubtitleSelection
+    this.initialSubtitleSelection = this.preference
     this.fonts = [...otherFiles.filter(file => fontRx.test(file.name)).map(file => file.url)]
     this.customFontReady = loadCustomSubtitleFont().then(font => {
-      if (!font) return
+      if (!font || this.destroyed) return
       this.customFontUrl = URL.createObjectURL(new Blob([font.data.buffer as ArrayBuffer], { type: font.type || 'font/ttf' }))
       this.fonts.push(this.customFontUrl)
       const family = font.family
@@ -170,20 +309,29 @@ export default class Subtitles {
     })
 
     this.current.subscribe(value => {
-      this.selectCaptions(value)
+      if (!this.writingCurrent && this.selectionInitialized) this.selectCaptions(value, true).catch(console.error)
     })
 
     this.settingsUnsubscribe = settings.subscribe(set => {
       const autoRetimingChanged = this.set.subtitleAutoRetiming !== set.subtitleAutoRetiming
       this.set = set
       this._applyStyleOverride(set.subtitleStyle)
-      if (autoRetimingChanged) this.resetJimakuAlignment(set.subtitleAutoRetiming).catch(console.error)
+      if (autoRetimingChanged) this.resetAutomaticTiming(set.subtitleAutoRetiming).catch(console.error)
     })
 
     const subFiles = otherFiles.filter(({ name }) => subRx.test(name))
 
+    const cachedFiles = native.subtitleCacheList(this.selected.hash, this.selected.id).catch(error => { console.error('Subtitle cache read failed', error); return [] })
+    const restoredFiles = cachedFiles.then(async files => {
+      for (const file of files.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name))) {
+        if (this.destroyed) return
+        await this.addSingleSubtitleFile(new File([file.text], file.name), file.source, file.profile, file.rank, false)
+      }
+    })
     const fetchSubtitleFile = async (file: { url: string, name: string }) => {
-      const res = await fetch(file.url)
+      this.logTiming('Downloading candidate: ' + file.name)
+      const res = await fetch(file.url, { signal: AbortSignal.any([this.downloads.signal, AbortSignal.timeout(15000)]) })
+      if (!res.ok) throw new Error(`Subtitle download failed: ${res.status}`)
       const blob = await res.blob()
       return new File([blob], file.name)
     }
@@ -193,12 +341,23 @@ export default class Subtitles {
     }
 
     extensions.subtitlesQuery(mediaInfo.media, mediaInfo.episode).then(async results => {
-      const jimaku = results.filter(({ extension }) => extension === 'jimaku')
-      for (const { url, language, extension } of results.filter(({ extension }) => extension !== 'jimaku')) {
-        fetchAndLoad({ url, name: language, extension })
-      }
+      await restoredFiles
+      results = results.filter(result => {
+        if (!isMixedChineseJapaneseSubtitle(result.language)) return true
+        this.logTiming('Excluded mixed Chinese/Japanese subtitle: ' + result.language)
+        return false
+      })
+      const jimaku = results.filter(({ extension, language }) => extension === 'jimaku' && !this.loadedFiles.has(extension + ':' + language))
+      const otherResults = results.filter(({ extension, language }) => extension !== 'jimaku' && !this.loadedFiles.has(extension + ':' + language))
+      this.candidateLoading += otherResults.length
+      const otherDownloads = otherResults.map(async ({ url, language, extension }) => {
+        try { await fetchAndLoad({ url, name: language, extension }) } catch (error) { console.error(error); this.logTiming('Candidate download/load failed: ' + String(error)) } finally {
+          this.candidateLoading--
+          this.scheduleAlignment()
+        }
+      })
 
-      if (!jimaku.length) return
+      if (!jimaku.length) { await Promise.allSettled(otherDownloads); return }
       const parsed = await anitomyscript(jimaku.map(({ language }) => language))
       const candidates = jimaku.map((value, index) => ({
         value,
@@ -208,27 +367,34 @@ export default class Subtitles {
         index
       }))
       const playingMultiEpisode = mediaInfo.file.metadata.parseObject.episode_number.length > 1
-      const ranked = rankJimakuCandidates(candidates, this.set.subtitleAutoRetiming ? this.alignmentCache : {}, this.mediaId, playingMultiEpisode)
-      const files = await Promise.allSettled(ranked.map(async candidate => ({
-        candidate,
-        file: await fetchSubtitleFile({ url: candidate.value.url, name: candidate.value.language })
-      })))
-      for (const result of files) {
-        if (result.status === 'rejected') {
-          console.error(result.reason)
-          continue
+      const ranked = candidates.sort((a, b) =>
+        Number(!playingMultiEpisode && a.episodeNumbers.length > 1) - Number(!playingMultiEpisode && b.episodeNumbers.length > 1) ||
+        Number(b.profile === this.preference?.profile) - Number(a.profile === this.preference?.profile) ||
+        Number(this.hasCompatibleHistory(b.profile)) - Number(this.hasCompatibleHistory(a.profile)) || a.index - b.index
+      ).slice(0, 5)
+      this.candidateLoading += ranked.length
+      await Promise.allSettled([...otherDownloads, ...ranked.map(async (candidate, rank) => {
+        try {
+          const file = await fetchSubtitleFile({ url: candidate.value.url, name: candidate.value.language })
+          if (!this.destroyed) await this.addSingleSubtitleFile(file, 'jimaku', candidate.profile, rank)
+        } catch (error) { console.error(error); this.logTiming('Candidate download/load failed: ' + String(error)) } finally {
+          this.candidateLoading--
+          this.scheduleAlignment()
         }
-        await this.addSingleSubtitleFile(result.value.file, 'jimaku', result.value.candidate.profile)
-      }
+      })])
+    }).catch(error => { console.error(error); this.logTiming('Candidate discovery failed: ' + String(error)) }).finally(() => {
+      this.logTiming('Candidate discovery finished')
+      this.candidateDiscoveryDone = true
+      this.scheduleAlignment()
     })
 
     if (subFiles.length === 1) {
-      fetchAndLoad(subFiles[0]!)
+      fetchAndLoad(subFiles[0]!).catch(console.error)
     } else if (subFiles.length > 1) {
       const videoName = mediaInfo.file.name.substring(0, mediaInfo.file.name.lastIndexOf('.')) || mediaInfo.file.name
       for (const file of subFiles) {
         if (file.name.includes(videoName)) {
-          fetchAndLoad(file)
+          fetchAndLoad(file).catch(console.error)
         }
       }
     }
@@ -247,12 +413,15 @@ export default class Subtitles {
           newtrack.styles[styleMatches[i]!.replace('Style:', '').trim()] = i + 1
         }
       }
-      this.alignmentReferenceTrack = this.chooseAlignmentReferenceTrack()
+      if (this.destroyed) return
+      for (const [id, track] of Object.entries(this._tracks.value)) {
+        if (this.embeddedTracks.has(id)) this.identities.set(id, { off: false, source: 'embedded', language: normalizeSubtitleLanguage(track.meta.language), profile: track.meta.name?.trim().toLowerCase() || undefined, forced: track.meta.forced, name: track.meta.name, number: String(track.meta.number) })
+      }
       await this.initSubtitleRenderer()
 
       const tracks = Object.entries(this._tracks.value)
       if (!tracks.length) return
-      if (this.selectionInitialized && this.current.value !== -1) return
+      if (this.manualLock || this.frozen) return
       this.selectionInitialized = true
       const previousSelection = this.initialSubtitleSelection
       if (previousSelection?.off) {
@@ -261,18 +430,18 @@ export default class Subtitles {
       }
 
       const matchesLast = previousSelection && tracks.filter(([_, { meta }]) =>
-        meta.language === previousSelection.language &&
-        meta.name === previousSelection.name
+        matchesSubtitlePreference(this.preference, this.identities.get(String(meta.number)) ?? { off: false, language: meta.language, name: meta.name })
       )
       if (previousSelection && matchesLast?.length) {
         this.initialSubtitleSelection = null
-        if (matchesLast.length === 1) return await this.selectCaptions(matchesLast[0]![0])
+        if (matchesLast.length === 1) return await this.restoreInitialTrack(matchesLast[0]![0])
 
         const matchesLastNumber = matchesLast.find(([_, { meta }]) => meta.number === previousSelection.number)
-        if (matchesLastNumber) return await this.selectCaptions(matchesLastNumber[0])
-        return await this.selectCaptions(matchesLast[0]![0])
+        if (matchesLastNumber) return await this.restoreInitialTrack(matchesLastNumber[0])
+        return await this.restoreInitialTrack(matchesLast[0]![0])
       }
 
+      if (this.current.value !== -1) return
       if (!this.set.subtitleLanguage) return // if lang set to none dont autoselect
       if (tracks.length === 1) return await this.selectCaptions(tracks[0]![0])
 
@@ -312,6 +481,7 @@ export default class Subtitles {
 
     native.subtitles(this.selected.hash, this.selected.id, async (subtitle: { text: string, time: number, duration: number, style?: string, name?: string, readOrder?: number }, trackNumber) => {
       await tracks
+      if (this.destroyed) return
       const { events, miningEvents, meta, styles } = this.track(trackNumber)
       if (events.has(subtitle)) return
       const event = this.constructSub(subtitle, meta.type !== 'ass', events.size, styles[subtitle.style ?? 'Default'] ?? 0)
@@ -329,9 +499,7 @@ export default class Subtitles {
         miningEvents.set(miningCue.id, miningCue)
         this.miningRevision.value++
       }
-      if (this.alignmentReferenceTrack === String(trackNumber) && this.jimakuTracks.has(String(this.current.value)) && shouldAttemptSubtitleAlignment(events.size)) {
-        this.scheduleJimakuAlignment()
-      }
+
       if (Number(this.current.value) === trackNumber) {
         await this.jassub?.ready
         if (this.jassub?._destroyed) return
@@ -357,7 +525,7 @@ export default class Subtitles {
     })
 
     for (const file of await Promise.all(promises)) {
-      if (subRx.test(file.name)) this.addSingleSubtitleFile(file)
+      if (subRx.test(file.name)) this.addSingleSubtitleFile(file, 'local', undefined, 0, true, true)
     }
   }
 
@@ -368,13 +536,27 @@ export default class Subtitles {
     input.multiple = true
     input.addEventListener('change', () => {
       for (const file of input.files ?? []) {
-        if (subRx.test(file.name)) this.addSingleSubtitleFile(file)
+        if (subRx.test(file.name)) this.addSingleSubtitleFile(file, 'local', undefined, 0, true, true)
       }
     })
     input.click()
   }
 
-  async addSingleSubtitleFile (file: File, source?: string, profile?: string) {
+  async addSingleSubtitleFile (file: File, source = 'local', profile?: string, rank = 0, persist = true, explicit = false) {
+    const key = source + ':' + file.name
+    const previous = this.fileLoads.get(key) ?? Promise.resolve()
+    const operation = previous.catch(() => {}).then(() => this.loadSubtitleFile(file, source, profile, rank, persist, explicit))
+    this.fileLoads.set(key, operation)
+    try { await operation } finally { if (this.fileLoads.get(key) === operation) this.fileLoads.delete(key) }
+  }
+
+  async loadSubtitleFile (file: File, source: string, profile: string | undefined, rank: number, persist: boolean, explicit: boolean) {
+    const fileKey = source + ':' + file.name
+    if (isMixedChineseJapaneseSubtitle(file.name)) {
+      this.logTiming('Excluded mixed Chinese/Japanese subtitle: ' + file.name)
+      return
+    }
+    if (this.destroyed || (!explicit && this.loadedFiles.has(fileKey))) return
     const dot = file.name.lastIndexOf('.')
     const extension = file.name.substring(dot + 1).toLowerCase()
     if (!subtitleExtensions.includes(extension)) return
@@ -384,156 +566,438 @@ export default class Subtitles {
       ? filename.replace(this.selected.name, '')
       : filename.replace(this.selected.name.slice(0, this.selected.name.lastIndexOf('.')), '')
 
-    const convert = Subtitles.convertSubText(await file.text(), extension)
+    const originalText = await file.text()
+    const convert = Subtitles.convertSubText(originalText, extension)
     if (!convert) return
     const { header, type } = convert
-    const cached = source === 'jimaku' && this.set.subtitleAutoRetiming ? cachedSubtitleAlignment(this.alignmentCache, this.mediaId, profile) : undefined
-    const activeHeader = cached ? shiftAssDialogue(header, cached.offset) : header
+    const fingerprint = await subtitleFingerprint(header)
+    if (this.destroyed) return
+    profile ??= subtitleReleaseProfile(file.name, (await anitomyscript([file.name]))[0] ?? {})
+    if (this.destroyed) return
+    const previousTrack = explicit ? this.fileTracks.get(fileKey) : undefined
+    if (previousTrack && this.externalTracks.get(previousTrack)?.fingerprint === fingerprint) {
+      await this.selectCaptions(previousTrack, true)
+      return
+    }
+    if (!explicit && this.loadedFiles.has(fileKey)) return
+    this.loadedFiles.add(fileKey)
+    if (persist) native.subtitleCachePut(this.selected.hash, this.selected.id, { name: file.name, source, profile, rank, text: originalText }).catch(error => console.error('Subtitle cache write failed', error))
+    const exact = this.memory.exact[exactSubtitleKey(this.videoIdentity, fingerprint)]
+    const offset = this.set.subtitleAutoRetiming ? exact?.offset ?? 0 : 0
+    const activeHeader = shiftAssDialogue(header, offset)
     // lets hope there's no more than 1000 subtitle tracks in a file
-    const trackNumber = 1000 + Object.keys(this._tracks.value).length
+    const trackNumber = previousTrack ?? 1000 + Object.keys(this._tracks.value).length
+    this.fileTracks.set(fileKey, String(trackNumber))
     const newtrack = this.track(trackNumber)
     newtrack.styles.Default = 0
-    newtrack.meta = { type, header: activeHeader, number: '' + trackNumber, name, language: (detectCJKLanguage(header) ?? name.replace(/[,._-]/g, ' ').trim()) || 'Track ' + trackNumber, _compressed: false, default: false, forced: false }
+    newtrack.meta = { type, header: activeHeader, number: '' + trackNumber, name, language: externalSubtitleLanguage(file.name, header), _compressed: false, default: false, forced: false }
     this.miningRevision.value++
-    if (source === 'jimaku') {
-      this.jimakuTracks.set(String(trackNumber), {
-        originalHeader: header,
-        cues: parseAssCues(header),
-        profile,
-        progress: initialAlignmentProgress(cached)
-      })
-    }
+    this.externalTracks.set(String(trackNumber), {
+      originalHeader: header,
+      cues: parseAssMiningCues(header, String(trackNumber)).filter(cue => dialogueCue(cue.rawText, cue.style)).map(cue => ({ start: cue.start, end: cue.end, text: cue.plainText })),
+      profile,
+      offset,
+      verifiedOffset: this.set.subtitleAutoRetiming ? exact?.offset : undefined,
+      fingerprint,
+      preference: { off: false, source, language: normalizeSubtitleLanguage(newtrack.meta.language), profile, forced: false, name, number: String(trackNumber) },
+      rank
+    })
+    this.logTiming(`Candidate loaded: ${name}; ${newtrack.meta.language}; ${profile ?? 'unknown release'}; ${this.externalTracks.get(String(trackNumber))!.cues.length} dialogue cues`)
+    this.identities.set(String(trackNumber), this.externalTracks.get(String(trackNumber))!.preference)
     const styleMatches = header.match(stylesRx)
     if (styleMatches) {
       for (let i = 0; i < styleMatches.length; ++i) {
         newtrack.styles[styleMatches[i]!.replace('Style:', '').trim()] = i + 1
       }
     }
+    if (explicit) {
+      await this.initSubtitleRenderer()
+      this.selectionInitialized = true
+      await this.selectCaptions(trackNumber, true)
+      return
+    }
     const previousSelection = this.initialSubtitleSelection
-    const matchesPrevious = previousSelection && !previousSelection.off &&
-      newtrack.meta.language === previousSelection.language &&
-      newtrack.meta.name === previousSelection.name
+    const matchesPrevious = !this.manualLock && matchesSubtitlePreference(this.preference, this.identities.get(String(trackNumber))!)
     if (previousSelection?.off || matchesPrevious) {
       await this.initSubtitleRenderer()
       this.selectionInitialized = true
       if (matchesPrevious) {
         this.initialSubtitleSelection = null
-        await this.selectCaptions(trackNumber)
+        await this.restoreInitialTrack(String(trackNumber))
       }
       return
     }
-    if (this.current.value === -1) {
+    const desiredLanguage = normalizeSubtitleLanguage(this.preference?.language ?? this.set.subtitleLanguage)
+    const currentLanguage = this.identities.get(String(this.current.value))?.language
+    if (!this.manualLock && !this.frozen && !this.preference?.off && (this.current.value === -1 || (newtrack.meta.language === desiredLanguage && currentLanguage !== desiredLanguage))) {
       await this.initSubtitleRenderer()
       this.selectionInitialized = true
-      await this.selectCaptions(trackNumber)
+      await this.restoreInitialTrack(String(trackNumber))
     }
+    this.scheduleAlignment()
   }
 
-  scheduleJimakuAlignment () {
-    if (!this.set.subtitleAutoRetiming || this.alignmentTimer !== undefined || !this.jimakuTracks.has(String(this.current.value))) return
+  async restoreInitialTrack (track: string) {
+    if (this.manualLock || this.frozen) return
+    if (Number(this.current.value) === -1) return await this.selectCaptions(track)
+    this.pending = { track, offset: this.externalTracks.get(track)?.offset ?? 0, verified: false }
+    await this.applyPending()
+  }
+
+  scheduleAlignment () {
+    if (this.destroyed || !this.set.subtitleAutoRetiming || this.manualLock || this.pending || this.alignmentTimer !== undefined || Number(this.current.value) === -1) return
     this.alignmentTimer = setTimeout(() => {
       this.alignmentTimer = undefined
-      this.alignJimakuTracks().catch(console.error)
+      this.analyseAlignment()
+    }, 50)
+  }
+
+  stopSampling () {
+    if (this.sampleId) {
+      this.timingElapsedMs = Date.now() - (this.timingStartedAt ?? Date.now())
+      this.logTiming('Sampling session stopped')
+    }
+    if (this.sampleId) native.subtitleSampleCancel?.(this.sampleId).catch(console.error)
+    this.sampleId = undefined
+  }
+
+  updatePlayback (context: SubtitlePlaybackContext, paused: boolean, seeking: boolean) {
+    const urgent = context.stalled !== this.playback.stalled || ((context.buffered ?? Infinity) < 15) !== ((this.playback.buffered ?? Infinity) < 15) || ((context.buffered ?? Infinity) >= 30) !== ((this.playback.buffered ?? Infinity) >= 30)
+    if (urgent && this.sampleId && !this.sampleDone) this.logTiming(`Playback context: ${context.stalled ? 'stalled' : 'ready'}, ${context.buffered?.toFixed(1) ?? 'unknown'}s buffered`)
+    this.playback = context
+    this.paused = paused
+    this.seeking = seeking
+    if (this.sampleId && (urgent || Date.now() - this.lastPlaybackUpdate > 500)) {
+      this.lastPlaybackUpdate = Date.now()
+      native.subtitleSampleUpdate?.(this.sampleId, context).catch(console.error)
+    }
+    if (!this.sampleId && !this.sampleDone && this.samplingReady()) this.scheduleAlignment()
+    this.applyPending().catch(console.error)
+  }
+
+  samplingReady () {
+    const required = this.playback.duration > this.playback.time ? Math.min(30, this.playback.duration - this.playback.time) : 30
+    return !this.playback.stalled && this.playback.buffered !== null && this.playback.buffered >= required
+  }
+
+  analyseAlignment () {
+    if (this.destroyed || this.manualLock || this.pending || !this.set.subtitleAutoRetiming || Number(this.current.value) === -1) return
+    const active = this.identities.get(String(this.current.value))
+    const language = normalizeSubtitleLanguage(active?.language ?? this.preference?.language ?? this.set.subtitleLanguage)
+    const candidates = [...this.externalTracks.entries()].filter(([, state]) => state.preference.language === language).sort((a, b) =>
+      Number(matchesSubtitlePreference(this.preference, b[1].preference)) - Number(matchesSubtitlePreference(this.preference, a[1].preference)) || a[1].rank - b[1].rank
+    )
+    if (!candidates.length) { this.logTiming(`No external candidate for language ${language}`); return }
+    if (!this.sampleId && !this.sampleDone && (!this.waitingForSampleBuffer || this.samplingReady())) {
+      this.alignmentStatus.value = this.earlyTiming ? 'provisional' : 'timing'
+      // Already verified torrent pieces are usable independently of the player's
+      // media buffer. A cache-only pass returns immediately on a missing piece;
+      // only a subsequent download-capable session waits for playback reserve.
+      const availableOnly = !this.samplingReady()
+      this.waitingForSampleBuffer = false
+      const id = crypto.randomUUID()
+      this.sampleId = id
+      this.timingStartedAt = Date.now()
+      this.timingError = undefined
+      this.logTiming(`Sampling started (${availableOnly ? 'downloaded pieces only' : 'downloads allowed'}): ${id}`)
+      this.alignmentStatus.value = this.earlyTiming ? 'provisional' : 'timing'
+      if (!native.subtitleSampleStart) { this.timingError = 'Native subtitle sampling is unavailable'; this.logTiming(this.timingError); this.sampleDone = true; this.alignmentStatus.value = 'unavailable'; return }
+      native.subtitleSampleStart({ sessionId: id, hash: this.selected.hash, fileId: this.selected.id, playback: this.playback, availableOnly }, event => {
+        if (this.destroyed || this.sampleId !== event.sessionId) return
+        if (this.pending?.early === 'apply') this.pending = undefined
+        this.sample = event
+        this.sampleDone = event.done && event.reason !== 'buffering'
+        if (event.done && event.reason === 'buffering') {
+          this.waitingForSampleBuffer = true
+          this.stopSampling()
+          this.logTiming('Missing sample pieces; waiting for playback reserve before requesting downloads')
+        }
+        this.timingElapsedMs = Date.now() - (this.timingStartedAt ?? Date.now())
+        this.logTiming(`Sampling ${event.done ? event.reason ?? 'finished' : 'progress'}: ${event.bytesFetched} bytes fetched, ${event.bytesParsed} parsed, ${event.tracks.reduce((sum, track) => sum + track.windows.length, 0)} reference windows`)
+        if (event.done) console.debug('Subtitle sampling', JSON.stringify({ reason: event.reason, bytesFetched: event.bytesFetched, bytesParsed: event.bytesParsed, tracks: event.tracks.map(track => ({ id: track.id, name: track.name, windows: track.windows.map(window => ({ start: window.start, end: window.end, cues: window.cues.length })) })) }))
+        this.scheduleAlignment()
+      }).catch(error => {
+        if (this.sampleId !== id || this.destroyed) return
+        console.error(error)
+        this.timingError = String(error)
+        this.logTiming('Sampling failed: ' + this.timingError)
+        this.sampleDone = true
+        this.alignmentStatus.value = 'unavailable'
+        this.withdrawEarlyTiming()
+      })
+    }
+    const references: ReferenceWindow[][] = (this.sample?.tracks ?? []).filter(track => !track.forced && !/sign|karaoke/i.test(track.name ?? '')).map(track => track.windows.map(window => ({ ...window, cues: window.cues.filter(cue => dialogueCue(cue.text, cue.style)) })))
+    const signature = JSON.stringify([this.sample?.bytesParsed, candidates.map(([id]) => id), this.sampleDone, this.candidateLoading, this.candidateDiscoveryDone])
+    if (signature === this.lastAnalysedSignature) return
+    this.lastAnalysedSignature = signature
+    this.worker ??= new TimingWorker()
+    this.worker.onerror = event => { this.timingError = event.message || 'Matching worker failed'; this.logTiming(this.timingError); this.alignmentStatus.value = 'unavailable'; this.sampleDone = true; this.stopSampling(); this.withdrawEarlyTiming() }
+    const analysisStarted = performance.now()
+    this.worker.onmessage = ({ data }: MessageEvent<{ id: number, results: Subtitles['timingResults'] }>) => {
+      if (this.destroyed || this.manualLock || this.pending || !this.set.subtitleAutoRetiming || data.id !== this.workerSequence) return
+      console.debug('Subtitle alignment', JSON.stringify({ elapsedMs: Math.round(performance.now() - analysisStarted), results: data.results.map(({ id, accepted, offset, confidence, reason }) => ({ id, accepted, offset, confidence, reason })) }))
+      this.timingResults = data.results
+      this.logTiming('Matcher: ' + data.results.map(result => `${this._tracks.value[result.id]?.meta.name ?? result.id}: ${result.reason}${result.offset === undefined ? '' : ` (${result.offset}s)`}`).join('; '))
+      const accepted = data.results.filter(result => result.accepted && result.offset !== undefined)
+      for (const result of accepted) {
+        const state = this.externalTracks.get(result.id)
+        if (!state || this.preparedTimingTracks.has(result.id)) continue
+        this.preparedTimingTracks.add(result.id)
+        if (this.frozen && result.id === String(this.current.value)) continue
+        state.verifiedOffset = result.offset
+        // Inactive tracks can be prepared immediately without touching the
+        // current line. The active track still goes through the safe-gap path.
+        if (result.id !== String(this.current.value)) this.applyTrackOffset(result.id, result.offset!)
+      }
+      // Freeze automatic changes to the current track, but keep evaluating late
+      // candidates against the evidence already collected for this episode.
+      if (this.frozen) return
+      const preferred = accepted.find(result => result.id === this.earlyTiming?.track) ?? accepted.find(result => this.preference
+        ? matchesSubtitlePreference(this.preference, this.externalTracks.get(result.id)?.preference ?? { off: false })
+        : result.id === candidates[0]?.[0])
+      if (!accepted.length && !this.earlyTiming && !this.earlyTimingAttempted && !this.sampleDone) {
+        const early = data.results.find(result => result.id === String(this.current.value) && result.earlyOffset !== undefined) ??
+          data.results.find(result => result.earlyOffset !== undefined)
+        if (early?.earlyOffset !== undefined) {
+          this.pending = { track: early.id, offset: early.earlyOffset, verified: false, early: 'apply' }
+          this.logTiming(`Strong first-window estimate ${early.earlyOffset}s for ${early.id}; awaiting safe gap`)
+          this.applyPending().catch(console.error)
+          return
+        }
+      }
+      const earlyResult = data.results.find(result => result.id === this.earlyTiming?.track)
+      const earlyRejected = !!this.earlyTiming && !earlyResult?.accepted && (this.sampleDone || earlyResult?.reason === 'inconsistent-windows' || earlyResult?.reason === 'conflicting-references')
+      if (earlyRejected && this.earlyTiming && !accepted.length) {
+        this.pending = { track: this.earlyTiming.previousTrack, offset: this.earlyTiming.previousOffset, verified: false, early: 'revert' }
+        this.logTiming('Early estimate could not be verified; withdrawing it at a safe gap')
+        this.applyPending().catch(console.error)
+        return
+      }
+      // A late preferred candidate still gets a chance; failed downloads settle independently.
+      const preferredRejected = candidates.filter(([, state]) => matchesSubtitlePreference(this.preference, state.preference)).some(([id]) => data.results.some(result => result.id === id && ['inconsistent-windows', 'conflicting-references'].includes(result.reason)))
+      if (!preferred && !earlyRejected && !preferredRejected && (!this.sampleDone || this.candidateLoading || !this.candidateDiscoveryDone)) return
+      accepted.sort((a, b) => b.confidence - a.confidence || (this.externalTracks.get(a.id)?.rank ?? 0) - (this.externalTracks.get(b.id)?.rank ?? 0))
+      const best = preferred ?? accepted[0]
+      if (best?.offset !== undefined) {
+        this.logTiming(`Accepted ${best.id} at ${best.offset}s; waiting for a safe application gap`)
+        clearTimeout(this.earlyTimingTimer)
+        this.pending = { track: best.id, offset: best.offset }
+        this.sampleDone = true
+        this.stopSampling()
+        this.applyPending().catch(console.error)
+      } else if (this.sampleDone) this.alignmentStatus.value = 'unavailable'
+    }
+    this.timingReferenceNames = (this.sample?.tracks ?? []).filter(track => !track.forced && !/sign|karaoke/i.test(track.name ?? '')).map(track => `${track.id}: ${track.name ?? track.language}`)
+    this.worker.postMessage({ id: ++this.workerSequence, references, candidates: candidates.map(([id, state]) => ({ id, cues: state.cues })) })
+  }
+
+  withdrawEarlyTiming () {
+    clearTimeout(this.earlyTimingTimer)
+    if (!this.earlyTiming || this.manualLock || this.destroyed) return
+    this.pending = { track: this.earlyTiming.previousTrack, offset: this.earlyTiming.previousOffset, verified: false, early: 'revert' }
+    this.logTiming('Early offset expired or failed verification; waiting for a safe gap to restore timing')
+    this.applyPending().catch(console.error)
+  }
+
+  applyTrackOffset (id: string, offset: number) {
+    const state = this.externalTracks.get(id)
+    const track = this._tracks.value[id]
+    if (!state || !track) return
+    state.offset = offset
+    state.verifiedOffset = offset
+    track.meta.header = shiftAssDialogue(state.originalHeader, offset)
+    this.miningRevision.value++
+    const result = { offset, updatedAt: Date.now() }
+    this.memory.exact[exactSubtitleKey(this.videoIdentity, state.fingerprint)] = result
+    this.memory.hints[this.pairKey(id)] = result
+    writeSubtitleMemory(this.memory)
+    this.logTiming(`Prepared verified timing ${offset}s for ${track.meta.name ?? id}`)
+  }
+
+  async applyPending () {
+    const pending = this.pending
+    if (!pending || this.applying || this.manualLock || this.frozen || this.destroyed) return
+    const state = this.externalTracks.get(pending.track)
+    const track = this._tracks.value[pending.track]
+    if (!track || (!state && pending.verified !== false)) return
+    const oldCues = this.getMiningCues()
+    const nextKey = this.pairKey(pending.track)
+    const nextDelay = this.memory.episodes[`${this.videoIdentity}:${nextKey}`] ?? this.memory.manual[nextKey] ?? 0
+    const nextCues = state ? parseAssMiningCues(state.originalHeader, pending.track) : this.getMiningCues(pending.track)
+    if (!this.paused && !this.seeking && !safeSubtitleGap(oldCues, nextCues, this.playback.time + this.manualDelay.value, pending.offset + this.manualDelay.value - nextDelay)) return
+    if (pending.early === 'apply') {
+      this.earlyTimingAttempted = true
+      this.earlyTiming = { track: pending.track, offset: pending.offset, previousTrack: String(this.current.value), previousOffset: this.externalTracks.get(String(this.current.value))?.offset ?? 0 }
+    }
+    if (this.earlyTiming && (pending.early === 'revert' || (pending.verified !== false && pending.track !== this.earlyTiming.track))) {
+      const earlyState = this.externalTracks.get(this.earlyTiming.track)
+      const earlyTrack = this._tracks.value[this.earlyTiming.track]
+      if (earlyState && earlyTrack) {
+        earlyState.offset = earlyState.verifiedOffset ?? 0
+        earlyTrack.meta.header = shiftAssDialogue(earlyState.originalHeader, earlyState.offset)
+      }
+    }
+    this.applying = true
+    this.pending = undefined
+    this.frozen = pending.verified !== false
+    if (state) {
+      if (pending.verified !== false) this.applyTrackOffset(pending.track, pending.offset)
+      else {
+        state.offset = pending.offset
+        track.meta.header = shiftAssDialogue(state.originalHeader, pending.offset)
+      }
+    }
+    this.miningRevision.value++
+    try {
+      await this.selectCaptions(pending.track)
+      if (this.destroyed || this.manualLock) return
+      if (pending.verified === false) {
+        if (pending.early === 'apply') {
+          this.earlyTimingTimer = setTimeout(() => this.withdrawEarlyTiming(), TIMING_LIMITS.earlyTimeoutMs)
+          this.alignmentStatus.value = 'provisional'
+          this.logTiming(`Early offset ${pending.offset}s applied; continuing verification`)
+        } else if (pending.early === 'revert') {
+          clearTimeout(this.earlyTimingTimer)
+          this.earlyTiming = undefined
+          this.alignmentStatus.value = this.sampleDone ? 'unavailable' : 'timing'
+          this.lastAnalysedSignature = ''
+        }
+        this.scheduleAlignment()
+        return
+      }
+      if (!state) return
+      this.earlyTiming = undefined
+      this.alignmentStatus.value = 'confirmed'
+      this.logTiming(`Applied ${pending.offset}s to ${track.meta.name ?? pending.track}; automatic timing frozen`)
+    } finally { this.applying = false }
+  }
+
+  hasCompatibleHistory (profile: string | undefined) {
+    if (!profile || !this.videoProfile) return false
+    return Object.keys(this.memory.hints).some(key => {
+      try {
+        const [show, video, source, , , subtitle] = JSON.parse(key)
+        return show === this.mediaId && video === this.videoProfile && source === 'jimaku' && subtitle === profile
+      } catch { return false }
     })
   }
 
-  chooseAlignmentReferenceTrack () {
-    const references = [...this.embeddedTracks].reduce<Array<{ trackNumber: string, language: string, default: boolean }>>((result, trackNumber) => {
-      const track = this._tracks.value[trackNumber]
-      if (!track || track.meta.forced) return result
-
-      result.push({
-        trackNumber,
-        language: track.meta.language,
-        default: track.meta.default
-      })
-      return result
-    }, [])
-
-    return references.sort((a, b) => {
-      const aEnglish = a.language === 'eng' || a.language === 'en'
-      const bEnglish = b.language === 'eng' || b.language === 'en'
-      if (aEnglish !== bEnglish) return Number(bEnglish) - Number(aEnglish)
-      if (a.default !== b.default) return Number(b.default) - Number(a.default)
-      return 0
-    })[0]?.trackNumber
+  pairKey (id = String(this.current.value)) {
+    const preference = this.identities.get(id) ?? { off: false }
+    return subtitlePairKey(this.mediaId, this.videoIdentity, this.videoProfile, preference, this.externalTracks.get(id)?.fingerprint ?? `embedded:${id}`)
   }
 
-  alignmentReference () {
-    if (!this.alignmentReferenceTrack) return
-    const track = this._tracks.value[this.alignmentReferenceTrack]
-    if (!track || track.meta.forced) return
-
-    const cues = [...track.events]
-      .map(event => ({ start: event.Start / 1000, end: (event.Start + event.Duration) / 1000 }))
-      .filter(cue => Number.isFinite(cue.start) && Number.isFinite(cue.end) && cue.end > cue.start)
-
-    return {
-      cues
-    }
-  }
-
-  async alignJimakuTracks () {
-    if (!this.set.subtitleAutoRetiming) return
-    const trackNumber = String(this.current.value)
-    const state = this.jimakuTracks.get(trackNumber)
-    const reference = this.alignmentReference()
-    if (!state || !reference || reference.cues.length < 4) return
-
-    const estimate = findSubtitleAlignment(reference.cues, state.cues)
-    if (!estimate) return
-
-    const update = advanceAlignment(state.progress, estimate.offset, reference.cues.length)
-    state.progress = update.progress
-
-    if (update.confirmedNow && state.profile && state.progress.offset !== undefined) {
-      saveSubtitleAlignment(this.alignmentCache, this.mediaId, state.profile, state.progress.offset)
-      writeSubtitleAlignmentCache(this.alignmentCache)
-    }
-
-    if (String(this.current.value) === trackNumber) this.updateAlignmentStatus(trackNumber)
-    if (!update.applyOffset || state.progress.offset === undefined) return
-
-    const track = this._tracks.value[trackNumber]
-    if (!track) return
-    track.meta.header = shiftAssDialogue(state.originalHeader, state.progress.offset)
-    this.miningRevision.value++
-
-    if (String(this.current.value) === trackNumber) await this.selectCaptions(trackNumber)
-  }
-
-  updateAlignmentStatus (trackNumber: number | string) {
-    const state = this.jimakuTracks.get(String(trackNumber))
-    this.alignmentStatus.value = this.set.subtitleAutoRetiming && state ? alignmentStatus(state.progress) : 'hidden'
-  }
-
-  async resetJimakuAlignment (enabled: boolean) {
-    if (this.alignmentTimer !== undefined) {
-      clearTimeout(this.alignmentTimer)
-      this.alignmentTimer = undefined
-    }
-
-    for (const [trackNumber, state] of this.jimakuTracks) {
-      const cached = enabled ? cachedSubtitleAlignment(this.alignmentCache, this.mediaId, state.profile) : undefined
-      state.progress = initialAlignmentProgress(cached)
-      const track = this._tracks.value[trackNumber]
-      if (track) {
-        track.meta.header = cached ? shiftAssDialogue(state.originalHeader, cached.offset) : state.originalHeader
-        this.miningRevision.value++
+  getTrackTiming (id: string) {
+    const state = this.externalTracks.get(id)
+    const seconds = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(2)} s`
+    const key = this.pairKey(id)
+    const episode = this.memory.episodes[`${this.videoIdentity}:${key}`]
+    const saved = this.memory.manual[key]
+    const hint = this.memory.hints[key]
+    const adjustment = episode !== undefined ? `Episode adjustment · ${seconds(episode)}` : saved !== undefined ? `Saved show adjustment · ${seconds(saved)} · carried across episodes` : undefined
+    let label = state ? 'Unverified' : 'Embedded timing'
+    let tone = 'neutral'
+    if (state?.verifiedOffset !== undefined) {
+      const applied = state.offset === state.verifiedOffset
+      label = `Verified · ${seconds(state.verifiedOffset)}${applied ? '' : ' · awaiting application'}`
+      tone = applied ? 'verified' : 'neutral'
+    } else if (this.earlyTiming?.track === id) {
+      label = `Temporary · ${seconds(this.earlyTiming.offset)} · not yet verified`
+    } else {
+      const result = this.timingResults.find(result => result.id === id)
+      if (result && !result.accepted) {
+        label = result.reason === 'inconsistent-windows' ? 'Unverified · windows disagree' : `Unverified · ${result.reason.replaceAll('-', ' ')}`
+        tone = 'warning'
       }
     }
+    return { label, tone, adjustment, hint: hint && state?.verifiedOffset === undefined ? `${seconds(hint.offset)} · hint only, not applied to this episode` : undefined }
+  }
 
-    const current = String(this.current.value)
-    this.updateAlignmentStatus(current)
-    if (this.jimakuTracks.has(current)) {
-      await this.selectCaptions(current)
-      if (enabled) this.scheduleJimakuAlignment()
+  restoreManualDelay () {
+    const key = this.pairKey()
+    this.manualDelay.value = this.memory.episodes[`${this.videoIdentity}:${key}`] ?? this.memory.manual[key] ?? 0
+    if (this.jassub) this.jassub.timeOffset = this.manualDelay.value
+  }
+
+  setManualDelay (value: number, episodeOnly = false) {
+    if (!Number.isFinite(value) || Math.abs(value) > 120) return
+    const state = this.externalTracks.get(String(this.current.value))
+    if (state && state.verifiedOffset !== state.offset) state.verifiedOffset = undefined
+    clearTimeout(this.earlyTimingTimer)
+    this.logTiming(`Manual delay ${value}s; automatic changes suspended`)
+    this.manualLock = true
+    this.pending = undefined
+    this.workerSequence++
+    this.stopSampling()
+    this.manualDelay.value = value
+    const active = this.identities.get(String(this.current.value))
+    if (active) {
+      this.preference = active
+      this.initialSubtitleSelection = null
+      this.memory.shows[String(this.mediaId)] = active
     }
+    if (this.jassub) this.jassub.timeOffset = value
+    const key = this.pairKey()
+    if (episodeOnly) this.memory.episodes[`${this.videoIdentity}:${key}`] = value
+    else { this.memory.manual[key] = value; Reflect.deleteProperty(this.memory.episodes, `${this.videoIdentity}:${key}`) }
+    writeSubtitleMemory(this.memory)
+    this.alignmentStatus.value = 'hidden'
+  }
+
+  updateAlignmentStatus (_trackNumber: number | string) {
+    const state = this.externalTracks.get(String(this.current.value))
+    if (!this.set.subtitleAutoRetiming || Number(this.current.value) === -1) this.alignmentStatus.value = 'hidden'
+    else if (state?.verifiedOffset !== undefined && state.offset === state.verifiedOffset) this.alignmentStatus.value = 'confirmed'
+    else if (this.manualLock) this.alignmentStatus.value = 'hidden'
+  }
+
+  async resetAutomaticTiming (enabled: boolean) {
+    this.stopSampling()
+    this.workerSequence++
+    this.pending = undefined
+    this.frozen = false
+    this.sampleDone = false
+    this.sample = undefined
+    this.lastAnalysedSignature = ''
+    this.waitingForSampleBuffer = false
+    this.timingResults = []
+    clearTimeout(this.earlyTimingTimer)
+    this.preparedTimingTracks.clear()
+    this.earlyTiming = undefined
+    this.earlyTimingAttempted = false
+    this.timingReferenceNames = []
+    this.timingStartedAt = undefined
+    this.timingElapsedMs = 0
+    this.timingError = undefined
+    for (const [id, state] of this.externalTracks) {
+      state.offset = 0
+      state.verifiedOffset = undefined
+      this._tracks.value[id]!.meta.header = state.originalHeader
+    }
+    this.miningRevision.value++
+    this.alignmentStatus.value = 'hidden'
+    await this.selectCaptions(this.current.value)
+    if (enabled) this.scheduleAlignment()
+  }
+
+  async retryTiming () {
+    this.logTiming('Retry requested; manual lock released')
+    this.manualLock = false
+    await this.resetAutomaticTiming(true)
+  }
+
+  async resetTiming () {
+    this.setManualDelay(0)
+    const state = this.externalTracks.get(String(this.current.value))
+    if (state) Reflect.deleteProperty(this.memory.exact, exactSubtitleKey(this.videoIdentity, state.fingerprint))
+    Reflect.deleteProperty(this.memory.hints, this.pairKey())
+    writeSubtitleMemory(this.memory)
+    await this.retryTiming()
   }
 
   async initSubtitleRenderer () {
     await this.customFontReady
-    if (this.jassub) return
+    if (this.destroyed || this.jassub) return
 
     const styleOverride = subtitleStyleOverride(this.set.subtitleStyle, this.customFontFamily ?? this.set.subtitleCustomFontName)
     const defaultFont = this.set.subtitleStyle === 'custom' ? 'Roboto Medium' : styleOverride.FontName
@@ -691,34 +1155,58 @@ export default class Subtitles {
     }
   }
 
-  async selectCaptions (trackNumber: number | string) {
+  async selectCaptions (trackNumber: number | string, manual = false) {
+    if (this.destroyed) return
+    const revision = ++this.selectionRevision
+    if (manual) {
+      clearTimeout(this.earlyTimingTimer)
+      this.logTiming(`Manual subtitle selection: ${trackNumber}; automatic changes suspended`)
+      this.manualLock = true
+      this.pending = undefined
+      this.workerSequence++
+      this.stopSampling()
+      const preference = Number(trackNumber) === -1 ? { off: true } : this.identities.get(String(trackNumber))
+      if (preference) {
+        this.preference = preference
+        this.initialSubtitleSelection = null
+        this.memory.shows[String(this.mediaId)] = preference
+        writeSubtitleMemory(this.memory)
+      }
+    }
+    const selectedState = this.externalTracks.get(String(trackNumber))
+    if (manual && this.set.subtitleAutoRetiming && selectedState?.verifiedOffset !== undefined && selectedState.offset !== selectedState.verifiedOffset) {
+      this.applyTrackOffset(String(trackNumber), selectedState.verifiedOffset)
+    }
+    this.writingCurrent = true
     this.current.value = trackNumber
+    this.writingCurrent = false
+    this.restoreManualDelay()
     this.updateAlignmentStatus(trackNumber)
 
     if (trackNumber === -1) {
-      this.persistSubtitleSelection({ off: true })
+      this.stopSampling()
       if (!this.jassub) return
       await this.jassub.ready
+      if (this.destroyed || revision !== this.selectionRevision) return
       await this.jassub.renderer.setTrack(defaultHeader)
       return await this.jassub.resize()
     }
 
     const track = this._tracks.value[trackNumber]
     if (!track) return
-    this.persistSubtitleSelection({
-      off: false,
-      language: track.meta.language,
-      name: track.meta.name,
-      number: track.meta.number
-    })
 
     if (!this.jassub) return
     await this.jassub.ready
+    if (this.destroyed || String(this.current.value) !== String(trackNumber)) return
 
-    if (this.jimakuTracks.has(String(trackNumber))) this.scheduleJimakuAlignment()
+    if (this.externalTracks.has(String(trackNumber))) this.scheduleAlignment()
 
-    await this.jassub.renderer.setTrack(track.meta.header?.slice(0, -1) || defaultHeader)
-    for (const subtitle of track.events) await this.jassub.renderer.createEvent(subtitle)
+    await this.jassub.renderer.setTrack(track.meta.header || defaultHeader)
+    for (const subtitle of track.events) {
+      if (this.destroyed || revision !== this.selectionRevision) return
+      await this.jassub.renderer.createEvent(subtitle)
+    }
+    if (this.destroyed || revision !== this.selectionRevision) return
     const lang = track.meta.language
     if (this.set.subtitleStyle === 'custom') {
       await this.jassub.renderer.setDefaultFont('Roboto Medium')
@@ -731,22 +1219,16 @@ export default class Subtitles {
     await this.jassub.resize()
   }
 
-  private persistSubtitleSelection (selection: PersistedSubtitleSelection) {
-    if (!this.selectionInitialized) return
-    const previous = this.set.playerSubtitleSelection
-    if (previous?.off === selection.off &&
-      previous?.language === selection.language &&
-      previous?.name === selection.name &&
-      previous?.number === selection.number) return
-    settings.update(value => ({ ...value, playerSubtitleSelection: selection }))
-  }
-
   destroy () {
+    this.destroyed = true
+    clearTimeout(this.earlyTimingTimer)
+    this.downloads.abort()
+    this.stopSampling()
+    this.worker?.terminate()
     if (this.alignmentTimer !== undefined) clearTimeout(this.alignmentTimer)
-    this.jimakuTracks.clear()
+    this.externalTracks.clear()
     this.miningCueCache.clear()
     this.embeddedTracks.clear()
-    this.alignmentReferenceTrack = undefined
     this.alignmentStatus.value = 'hidden'
     this.settingsUnsubscribe()
     this.setMiningMode(false)
