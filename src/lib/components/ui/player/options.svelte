@@ -170,6 +170,7 @@
                 <Tree.Item on:click={() => { subtitles.pickFile(); close() }}>
                   <span>Add Subtitle File</span>
                 </Tree.Item>
+                <Tree.Item on:click={() => subtitles.refreshSubtitleFiles()}><span>Refresh subtitle files</span></Tree.Item>
                 <div role='status' class='flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground'>
                   {#if $timingStatus === 'timing'}
                     <span aria-hidden='true' class='size-3 shrink-0 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin motion-reduce:animate-none' />

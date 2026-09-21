@@ -263,6 +263,8 @@ export default class Subtitles {
   waitingForSampleBuffer = false
   candidateLoading = 0
   candidateDiscoveryDone = false
+  discoveryRetryTimer: ReturnType<typeof setTimeout> | undefined
+  refreshSubtitleFiles: () => Promise<void> = async () => {}
   earlyTiming: { track: string, offset: number, previousTrack: string, previousOffset: number } | undefined
   earlyTimingAttempted = false
   earlyTimingTimer: ReturnType<typeof setTimeout> | undefined
@@ -325,7 +327,9 @@ export default class Subtitles {
     const restoredFiles = cachedFiles.then(async files => {
       for (const file of files.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name))) {
         if (this.destroyed) return
-        await this.addSingleSubtitleFile(new File([file.text], file.name), file.source, file.profile, file.rank, false)
+        try {
+          await this.addSingleSubtitleFile(new File([file.text], file.name), file.source, file.profile, file.rank, false)
+        } catch (error) { this.logTiming('Cached subtitle could not be restored: ' + String(error)) }
       }
     })
     const fetchSubtitleFile = async (file: { url: string, name: string }) => {
@@ -340,53 +344,77 @@ export default class Subtitles {
       await this.addSingleSubtitleFile(await fetchSubtitleFile(file), file.extension)
     }
 
-    extensions.subtitlesQuery(mediaInfo.media, mediaInfo.episode).then(async results => {
-      await restoredFiles
-      results = results.filter(result => {
-        if (!isMixedChineseJapaneseSubtitle(result.language)) return true
-        this.logTiming('Excluded mixed Chinese/Japanese subtitle: ' + result.language)
-        return false
-      })
-      const jimaku = results.filter(({ extension, language }) => extension === 'jimaku' && !this.loadedFiles.has(extension + ':' + language))
-      const otherResults = results.filter(({ extension, language }) => extension !== 'jimaku' && !this.loadedFiles.has(extension + ':' + language))
-      this.candidateLoading += otherResults.length
-      const otherDownloads = otherResults.map(async ({ url, language, extension }) => {
-        try { await fetchAndLoad({ url, name: language, extension }) } catch (error) { console.error(error); this.logTiming('Candidate download/load failed: ' + String(error)) } finally {
-          this.candidateLoading--
-          this.scheduleAlignment()
-        }
-      })
+    let discovery: Promise<void> | undefined
+    let automaticRetryUsed = false
+    this.refreshSubtitleFiles = () => {
+      if (this.destroyed) return Promise.resolve()
+      if (discovery) return discovery
+      clearTimeout(this.discoveryRetryTimer)
+      this.candidateDiscoveryDone = false
+      let retryNeeded = false
+      this.logTiming(`Finding subtitle files for episode ${mediaInfo.episode}`)
+      discovery = Promise.resolve().then(() => extensions.subtitlesQuery(mediaInfo.media, mediaInfo.episode, message => { retryNeeded = true; this.logTiming('Provider lookup failed: ' + message) })).then(async results => {
+        await restoredFiles
+        if (this.destroyed) return
+        this.logTiming(`Provider discovery returned ${results.length} files for episode ${mediaInfo.episode}`)
+        retryNeeded ||= results.length === 0
+        results = results.filter(result => {
+          if (!isMixedChineseJapaneseSubtitle(result.language)) return true
+          this.logTiming('Excluded mixed Chinese/Japanese subtitle: ' + result.language)
+          return false
+        })
+        const jimaku = results.filter(({ extension }) => extension === 'jimaku')
+        const otherResults = results.filter(({ extension, language }) => extension !== 'jimaku' && !this.loadedFiles.has(extension + ':' + language))
+        this.candidateLoading += otherResults.length
+        const otherDownloads = otherResults.map(async ({ url, language, extension }) => {
+          try { await fetchAndLoad({ url, name: language, extension }) } catch (error) { retryNeeded = true; console.error(error); this.logTiming('Candidate download/load failed: ' + String(error)) } finally {
+            this.candidateLoading--
+            this.scheduleAlignment()
+          }
+        })
 
-      if (!jimaku.length) { await Promise.allSettled(otherDownloads); return }
-      const parsed = await anitomyscript(jimaku.map(({ language }) => language))
-      const candidates = jimaku.map((value, index) => ({
-        value,
-        filename: value.language,
-        profile: subtitleReleaseProfile(value.language, parsed[index] ?? {}),
-        episodeNumbers: parsed[index]?.episode_number ?? [],
-        index
-      }))
-      const playingMultiEpisode = mediaInfo.file.metadata.parseObject.episode_number.length > 1
-      const ranked = candidates.sort((a, b) =>
-        Number(!playingMultiEpisode && a.episodeNumbers.length > 1) - Number(!playingMultiEpisode && b.episodeNumbers.length > 1) ||
-        Number(b.profile === this.preference?.profile) - Number(a.profile === this.preference?.profile) ||
-        Number(this.hasCompatibleHistory(b.profile)) - Number(this.hasCompatibleHistory(a.profile)) || a.index - b.index
-      ).slice(0, 5)
-      this.candidateLoading += ranked.length
-      await Promise.allSettled([...otherDownloads, ...ranked.map(async (candidate, rank) => {
-        try {
-          const file = await fetchSubtitleFile({ url: candidate.value.url, name: candidate.value.language })
-          if (!this.destroyed) await this.addSingleSubtitleFile(file, 'jimaku', candidate.profile, rank)
-        } catch (error) { console.error(error); this.logTiming('Candidate download/load failed: ' + String(error)) } finally {
-          this.candidateLoading--
-          this.scheduleAlignment()
+        if (!jimaku.length) { await Promise.allSettled(otherDownloads); return }
+        const parsed = await anitomyscript(jimaku.map(({ language }) => language))
+        if (this.destroyed) return
+        const candidates = jimaku.map((value, index) => ({
+          value,
+          filename: value.language,
+          profile: subtitleReleaseProfile(value.language, parsed[index] ?? {}),
+          episodeNumbers: parsed[index]?.episode_number ?? [],
+          index
+        }))
+        const playingMultiEpisode = mediaInfo.file.metadata.parseObject.episode_number.length > 1
+        const ranked = candidates.sort((a, b) =>
+          Number(!playingMultiEpisode && a.episodeNumbers.length > 1) - Number(!playingMultiEpisode && b.episodeNumbers.length > 1) ||
+          Number(b.profile === this.preference?.profile) - Number(a.profile === this.preference?.profile) ||
+          Number(this.hasCompatibleHistory(b.profile)) - Number(this.hasCompatibleHistory(a.profile)) || a.index - b.index
+        ).slice(0, 5)
+        const missing = ranked.map((candidate, rank) => ({ candidate, rank })).filter(({ candidate }) => !this.loadedFiles.has('jimaku:' + candidate.value.language))
+        this.candidateLoading += missing.length
+        await Promise.allSettled([...otherDownloads, ...missing.map(async ({ candidate, rank }) => {
+          try {
+            const file = await fetchSubtitleFile({ url: candidate.value.url, name: candidate.value.language })
+            if (!this.destroyed) await this.addSingleSubtitleFile(file, 'jimaku', candidate.profile, rank)
+          } catch (error) { retryNeeded = true; console.error(error); this.logTiming('Candidate download/load failed: ' + String(error)) } finally {
+            this.candidateLoading--
+            this.scheduleAlignment()
+          }
+        })])
+      }).catch(error => { retryNeeded = true; console.error(error); this.logTiming('Candidate discovery failed: ' + String(error)) }).finally(() => {
+        discovery = undefined
+        if (this.destroyed) return
+        this.logTiming('Candidate discovery finished')
+        this.candidateDiscoveryDone = true
+        this.scheduleAlignment()
+        if (retryNeeded && !automaticRetryUsed) {
+          automaticRetryUsed = true
+          this.logTiming('Subtitle discovery incomplete; retrying once in 5 seconds')
+          this.discoveryRetryTimer = setTimeout(() => { this.refreshSubtitleFiles().catch(console.error) }, 5000)
         }
-      })])
-    }).catch(error => { console.error(error); this.logTiming('Candidate discovery failed: ' + String(error)) }).finally(() => {
-      this.logTiming('Candidate discovery finished')
-      this.candidateDiscoveryDone = true
-      this.scheduleAlignment()
-    })
+      })
+      return discovery
+    }
+    this.refreshSubtitleFiles().catch(console.error)
 
     if (subFiles.length === 1) {
       fetchAndLoad(subFiles[0]!).catch(console.error)
@@ -1222,6 +1250,7 @@ export default class Subtitles {
   destroy () {
     this.destroyed = true
     clearTimeout(this.earlyTimingTimer)
+    clearTimeout(this.discoveryRetryTimer)
     this.downloads.abort()
     this.stopSampling()
     this.worker?.terminate()

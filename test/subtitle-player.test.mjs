@@ -42,7 +42,7 @@ async function setup (options = {}) {
   const sampleCallbacks = []
   const cache = options.cache ?? new Map()
   const native = { subtitleCacheList: async (hash, id) => cache.get(hash + ':' + id) ?? [], subtitleCachePut: async (hash, id, file) => cache.set(hash + ':' + id, [...(cache.get(hash + ':' + id) ?? []), file]), tracks: () => embedded.promise, subtitles: async () => {}, attachments: async () => [], subtitleSampleStart: async (request, callback) => { sampleStarts.push(request); sampleCallbacks.push(callback) }, subtitleSampleCancel: async id => cancellations.push(id), subtitleSampleUpdate: async () => {} }
-  const dependencies = { ...preferences, ...profiles, ...alignment, ...matcher, ...mining, JASSUB: Renderer, TimingWorker: Worker, modernWasmUrl: '', wasmUrl: '', workerUrl: '', writable, get, loadCustomSubtitleFont: async () => undefined, extensions: { subtitlesQuery: () => query.promise }, native, settings, anitomyscript: anitomy, fontRx: /\.ttf$/, subRx: /\.(ass|srt)$/, subtitleExtensions: ['ass', 'srt'], HashMap, toTS: String }
+  const dependencies = { ...preferences, ...profiles, ...alignment, ...matcher, ...mining, JASSUB: Renderer, TimingWorker: Worker, modernWasmUrl: '', wasmUrl: '', workerUrl: '', writable, get, loadCustomSubtitleFont: async () => undefined, extensions: { subtitlesQuery: options.subtitlesQuery ?? (() => query.promise) }, native, settings, anitomyscript: anitomy, fontRx: /\.ttf$/, subRx: /\.(ass|srt)$/, subtitleExtensions: ['ass', 'srt'], HashMap, toTS: String }
   const Subtitles = new Function(...Object.keys(dependencies), `${compiled}\nreturn Subtitles`)(...Object.values(dependencies))
   const name = `[Video] Show - ${options.episode ?? '01'} [1080p].mkv`
   const parsed = (await anitomy([name]))[0]
@@ -477,4 +477,87 @@ test('selector distinguishes carried show adjustments and unapplied automatic re
   second.controller.setManualDelay(0.4, true)
   assert.equal(second.controller.getTrackTiming(id).adjustment, 'Episode adjustment · +0.40 s')
   second.controller.destroy()
+})
+
+
+test('subtitle discovery can recover in the same episode and deduplicates concurrent refreshes', async () => {
+  let calls = 0
+  const pending = deferred()
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async () => new Response(ass())
+  try {
+    const { controller } = await setup({ subtitlesQuery: () => ++calls === 1 ? Promise.resolve([]) : pending.promise })
+    assert.equal(controller.externalTracks.size, 0)
+    const first = controller.refreshSubtitleFiles()
+    const second = controller.refreshSubtitleFiles()
+    assert.equal(first, second)
+    pending.resolve([{ extension: 'jimaku', language: '[Subs] Show - 01.ass', url: 'download' }])
+    await first
+    assert.equal(calls, 2)
+    assert.equal(controller.externalTracks.size, 1)
+    controller.destroy()
+  } finally { globalThis.fetch = originalFetch }
+})
+
+test('late discovery from a destroyed episode never downloads and the next episode loads independently', async () => {
+  const pending = deferred()
+  const requests = []
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async url => { requests.push(url); return new Response(ass()) }
+  try {
+    const first = await setup({ subtitlesQuery: () => pending.promise })
+    first.controller.destroy()
+    const next = await setup({ episode: '02', results: [{ extension: 'jimaku', language: '[Subs] Show - 02.ass', url: 'episode-two' }] })
+    pending.resolve([{ extension: 'jimaku', language: '[Subs] Show - 01.ass', url: 'episode-one' }])
+    await tick()
+    assert.deepEqual(requests, ['episode-two'])
+    assert.equal(next.controller.externalTracks.size, 1)
+    next.controller.destroy()
+  } finally { globalThis.fetch = originalFetch }
+})
+
+test('empty subtitle discovery retries once automatically and stops after destruction', async t => {
+  let calls = 0
+  const { controller } = await setup({ subtitlesQuery: async () => { calls++; return [] } })
+  clearTimeout(controller.discoveryRetryTimer)
+  controller.destroy()
+  await controller.refreshSubtitleFiles()
+  assert.equal(calls, 1)
+  let retries = 0
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const setupPromise = setup({ subtitlesQuery: async () => { retries++; return [] } })
+  // Settle constructor discovery without advancing its retry deadline.
+  for (let i = 0; i < 20; i++) await Promise.resolve()
+  t.mock.timers.tick(5)
+  const next = await setupPromise
+  for (let i = 0; i < 20; i++) await Promise.resolve()
+  t.mock.timers.tick(5000)
+  for (let i = 0; i < 20; i++) await Promise.resolve()
+  assert.equal(retries, 2)
+  t.mock.timers.tick(10000)
+  for (let i = 0; i < 20; i++) await Promise.resolve()
+  assert.equal(retries, 2)
+  next.controller.destroy()
+})
+
+test('refresh retries failed downloads without fetching successful candidates or exceeding the five-file limit', async () => {
+  const originalFetch = globalThis.fetch
+  const requests = []
+  let fail = true
+  globalThis.fetch = async url => {
+    requests.push(url)
+    return new Response(ass(), { status: url === 'file-0' && fail ? 503 : 200 })
+  }
+  try {
+    const results = Array.from({ length: 7 }, (_, index) => ({ extension: 'jimaku', language: `[Group${index}] Show - 01.ass`, url: `file-${index}` }))
+    const { controller } = await setup({ results })
+    await controller.refreshSubtitleFiles()
+    fail = false
+    await controller.refreshSubtitleFiles()
+    assert.equal(controller.externalTracks.size, 5)
+    assert.equal(requests.filter(url => url === 'file-1').length, 1)
+    assert.equal(requests.includes('file-5'), false)
+    assert.equal(requests.includes('file-6'), false)
+    controller.destroy()
+  } finally { globalThis.fetch = originalFetch }
 })

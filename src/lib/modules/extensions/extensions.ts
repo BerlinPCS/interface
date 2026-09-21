@@ -343,7 +343,7 @@ export const extensions = new class Extensions {
     return settled.filter((ws): ws is WebSeedResult => ws !== undefined).flat()
   }
 
-  async subtitlesQuery (media: Media, episode: number) {
+  async subtitlesQuery (media: Media, episode: number, onError?: (message: string) => void) {
     await storage.ready
 
     const extopts = get(extensionOptions)
@@ -366,6 +366,7 @@ export const extensions = new class Extensions {
     if (errors.length) {
       for (const { error, extension } of errors) {
         toast.error(`Error fetching subtitles from ${configs[extension]?.name ?? extension}`, { description: error.message, duration: 15_000 })
+        onError?.(`${configs[extension]?.name ?? extension}: ${error.message}`)
       }
     }
 
