@@ -263,6 +263,8 @@ export default class Subtitles {
   waitingForSampleBuffer = false
   candidateLoading = 0
   candidateDiscoveryDone = false
+  cacheWaitTimer: ReturnType<typeof setTimeout> | undefined
+  releaseCacheWait: (() => void) | undefined
   discoveryRetryTimer: ReturnType<typeof setTimeout> | undefined
   refreshSubtitleFiles: () => Promise<void> = async () => {}
   earlyTiming: { track: string, offset: number, previousTrack: string, previousOffset: number } | undefined
@@ -323,14 +325,29 @@ export default class Subtitles {
 
     const subFiles = otherFiles.filter(({ name }) => subRx.test(name))
 
+    this.logTiming('Reading subtitle cache from torrent process')
     const cachedFiles = native.subtitleCacheList(this.selected.hash, this.selected.id).catch(error => { console.error('Subtitle cache read failed', error); return [] })
     const restoredFiles = cachedFiles.then(async files => {
+      this.logTiming(`Subtitle cache returned ${files.length} files`)
       for (const file of files.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name))) {
         if (this.destroyed) return
         try {
           await this.addSingleSubtitleFile(new File([file.text], file.name), file.source, file.profile, file.rank, false)
         } catch (error) { this.logTiming('Cached subtitle could not be restored: ' + String(error)) }
       }
+    })
+    // The optional cache crosses the torrent-process bridge. It must not gate
+    // provider downloads if the process or a cached renderer load stays pending.
+    const cacheHeadStart = new Promise<void>(resolve => {
+      this.releaseCacheWait = resolve
+      this.cacheWaitTimer = setTimeout(() => {
+        this.logTiming('Subtitle cache still pending after 1 second; continuing provider discovery')
+        resolve()
+      }, 1000)
+      restoredFiles.catch(error => this.logTiming('Subtitle cache restore failed: ' + String(error))).finally(() => {
+        clearTimeout(this.cacheWaitTimer)
+        resolve()
+      })
     })
     const fetchSubtitleFile = async (file: { url: string, name: string }) => {
       this.logTiming('Downloading candidate: ' + file.name)
@@ -354,7 +371,7 @@ export default class Subtitles {
       let retryNeeded = false
       this.logTiming(`Finding subtitle files for episode ${mediaInfo.episode}`)
       discovery = Promise.resolve().then(() => extensions.subtitlesQuery(mediaInfo.media, mediaInfo.episode, message => { retryNeeded = true; this.logTiming('Provider lookup failed: ' + message) })).then(async results => {
-        await restoredFiles
+        await cacheHeadStart
         if (this.destroyed) return
         this.logTiming(`Provider discovery returned ${results.length} files for episode ${mediaInfo.episode}`)
         retryNeeded ||= results.length === 0
@@ -1251,6 +1268,8 @@ export default class Subtitles {
     this.destroyed = true
     clearTimeout(this.earlyTimingTimer)
     clearTimeout(this.discoveryRetryTimer)
+    clearTimeout(this.cacheWaitTimer)
+    this.releaseCacheWait?.()
     this.downloads.abort()
     this.stopSampling()
     this.worker?.terminate()

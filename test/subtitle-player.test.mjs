@@ -41,7 +41,7 @@ async function setup (options = {}) {
   const sampleStarts = []
   const sampleCallbacks = []
   const cache = options.cache ?? new Map()
-  const native = { subtitleCacheList: async (hash, id) => cache.get(hash + ':' + id) ?? [], subtitleCachePut: async (hash, id, file) => cache.set(hash + ':' + id, [...(cache.get(hash + ':' + id) ?? []), file]), tracks: () => embedded.promise, subtitles: async () => {}, attachments: async () => [], subtitleSampleStart: async (request, callback) => { sampleStarts.push(request); sampleCallbacks.push(callback) }, subtitleSampleCancel: async id => cancellations.push(id), subtitleSampleUpdate: async () => {} }
+  const native = { subtitleCacheList: options.subtitleCacheList ?? (async (hash, id) => cache.get(hash + ':' + id) ?? []), subtitleCachePut: async (hash, id, file) => cache.set(hash + ':' + id, [...(cache.get(hash + ':' + id) ?? []), file]), tracks: () => embedded.promise, subtitles: async () => {}, attachments: async () => [], subtitleSampleStart: async (request, callback) => { sampleStarts.push(request); sampleCallbacks.push(callback) }, subtitleSampleCancel: async id => cancellations.push(id), subtitleSampleUpdate: async () => {} }
   const dependencies = { ...preferences, ...profiles, ...alignment, ...matcher, ...mining, JASSUB: Renderer, TimingWorker: Worker, modernWasmUrl: '', wasmUrl: '', workerUrl: '', writable, get, loadCustomSubtitleFont: async () => undefined, extensions: { subtitlesQuery: options.subtitlesQuery ?? (() => query.promise) }, native, settings, anitomyscript: anitomy, fontRx: /\.ttf$/, subRx: /\.(ass|srt)$/, subtitleExtensions: ['ass', 'srt'], HashMap, toTS: String }
   const Subtitles = new Function(...Object.keys(dependencies), `${compiled}\nreturn Subtitles`)(...Object.values(dependencies))
   const name = `[Video] Show - ${options.episode ?? '01'} [1080p].mkv`
@@ -559,5 +559,35 @@ test('refresh retries failed downloads without fetching successful candidates or
     assert.equal(requests.includes('file-5'), false)
     assert.equal(requests.includes('file-6'), false)
     controller.destroy()
+  } finally { globalThis.fetch = originalFetch }
+})
+
+
+test('a stalled torrent cache cannot block Jimaku discovery, and a late cache reply is deduplicated', async () => {
+  const pendingCache = deferred()
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async () => new Response(ass())
+  try {
+    const { controller } = await setup({ subtitleCacheList: () => pendingCache.promise, results: [{ extension: 'jimaku', language: '[Subs] Show - 01.ass', url: 'download' }] })
+    await controller.refreshSubtitleFiles()
+    assert.equal(controller.externalTracks.size, 1)
+    assert.equal(controller.candidateDiscoveryDone, true)
+    assert.ok(controller.timingLog.some(entry => entry.message.includes('cache still pending')))
+    pendingCache.resolve([{ name: '[Subs] Show - 01.ass', source: 'jimaku', rank: 0, text: ass() }])
+    await tick()
+    assert.equal(controller.externalTracks.size, 1)
+    controller.destroy()
+  } finally { globalThis.fetch = originalFetch }
+})
+
+test('destroying an episode releases its pending cache gate without downloading obsolete subtitles', async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = () => assert.fail('destroyed episode must not download')
+  try {
+    const { controller } = await setup({ subtitleCacheList: () => new Promise(() => {}), results: [{ extension: 'jimaku', language: '[Subs] Show - 01.ass', url: 'download' }] })
+    const discovery = controller.refreshSubtitleFiles()
+    controller.destroy()
+    await discovery
+    assert.equal(controller.externalTracks.size, 0)
   } finally { globalThis.fetch = originalFetch }
 })
