@@ -63,7 +63,7 @@
 <div class='flex-col w-full flex-shrink-0 relative overflow-clip flex justify-center items-center bg-background {isMiniplayer ? 'aspect-video cursor-pointer' : 'h-full' } px-8' on:click={openPlayer} bind:this={wrapper}>
   <div class='flex flex-col gap-2 text-left' class:max-w-[320px]={!isMiniplayer}>
     <div class='text-foreground text-2xl font-bold leading-none line-clamp-1 mb-2'>Now Watching</div>
-    <EpisodesModal portal={wrapper} {mediaInfo} />
+    <EpisodesModal portal={wrapper} {mediaInfo} {videoFiles} {selectFile} />
     {#await player}
       <div class='ml-auto self-end text-sm leading-none font-light text-nowrap mt-3'>{toTS(Math.min($elapsed, duration))} / {toTS(duration)}</div>
       <div class='relative w-full h-1 flex items-center justify-center overflow-clip rounded-[2px]'>

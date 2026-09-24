@@ -145,6 +145,16 @@ function highestOccurence <T> (arr: T[] = [], mapfn = (a: T) => ''): T | undefin
   }, { sums: {}, max: undefined }).max
 }
 
+// Anitomy sometimes keeps the season marker in the title (e.g. MTBB's S2 batch).
+function hasExplicitSeason (obj: AnitomyResult): boolean {
+  return !!obj.anime_season[0] || /\bS\d+\b/i.test(obj.anime_title[0] ?? '')
+}
+
+// AniList counts Mushoku Tensei II's episode 00 as episode 1. Only apply
+// this correction when the batch actually demonstrates zero-based numbering;
+// other shows can have an episode 00 that is a separate special.
+const INCLUDED_ZERO_EPISODE_MEDIA = new Set([146065])
+
 const postfix: Record<number, string> = {
   1: 'st', 2: 'nd', 3: 'rd'
 }
@@ -172,19 +182,19 @@ const AnimeResolver = new class AnimeResolver {
 
     let modified = title
     // preemptively change S2 into Season 2 or 2nd Season, otherwise this will have accuracy issues
-    const seasonMatch = title.match(/ S(\d+)/)
+    const seasonMatch = title.match(/\bS(\d+)\b/i)
     if (obj.anime_season[0] && Number(obj.anime_season[0]) > 1) {
       modified = title + ` ${Number(obj.anime_season[0])}${postfix[Number(obj.anime_season[0])] ?? 'th'} Season`
       titles.add(modified)
       titles.add(title + ` Season ${Number(obj.anime_season[0])}`)
     } else if (seasonMatch) {
       if (Number(seasonMatch[1]) === 1) { // if this is S1, remove the " S1" or " S01"
-        modified = title.replace(/ S(\d+)/, '')
+        modified = title.replace(/\s*\bS(\d+)\b/i, '')
         titles.add(modified)
       } else {
-        modified = title.replace(/ S(\d+)/, ` ${Number(seasonMatch[1])}${postfix[Number(seasonMatch[1])] ?? 'th'} Season`)
+        modified = title.replace(/\s*\bS(\d+)\b/i, ` ${Number(seasonMatch[1])}${postfix[Number(seasonMatch[1])] ?? 'th'} Season`)
         titles.add(modified)
-        titles.add(title.replace(/ S(\d+)/, ` Season ${Number(seasonMatch[1])}`))
+        titles.add(title.replace(/\s*\bS(\d+)\b/i, ` Season ${Number(seasonMatch[1])}`))
       }
     } else {
       titles.add(title)
@@ -239,7 +249,6 @@ const AnimeResolver = new class AnimeResolver {
     return (await client.single(id)).data?.Media as Media
   }
 
-  // TODO: anidb aka true episodes need to be mapped to anilist episodes a bit better, shit like mushoku offsets caused by episode 0's in between seasons
   async resolveFileAnime (files: Array<{file: TorrentFile, parseObject: AnitomyResult}>) {
     if (!files.length) return []
 
@@ -252,6 +261,10 @@ const AnimeResolver = new class AnimeResolver {
     }
     await this.findAnimesByTitle(Object.values(uniq))
 
+    const zeroBasedTitles = new Set(files
+      .filter(({ parseObject }) => parseObject.episode_number.length === 1 && Number(parseObject.episode_number[0]) === 0)
+      .map(({ parseObject }) => this.getCacheKeyForTitle(parseObject)))
+
     const fileAnimes: ResolvedFile[] = []
     for (const { parseObject, file } of files) {
       let failed = false
@@ -261,49 +274,52 @@ const AnimeResolver = new class AnimeResolver {
       let media = await this.getAnimeById(id)
       // resolve episode, if movie, dont.
       const maxep = episodes(media)
+      const explicitSeason = hasExplicitSeason(parseObject)
+      const episodeOffset = INCLUDED_ZERO_EPISODE_MEDIA.has(id) && zeroBasedTitles.has(this.getCacheKeyForTitle(parseObject)) ? 1 : 0
+      const episodeNumbers = parseObject.episode_number.map(value => Number(value) + episodeOffset)
       if ((media.format !== 'MOVIE' || maxep) && parseObject.episode_number.length) {
         if (parseObject.episode_number.length > 1) {
           // is an episode range
-          if (parseInt(parseObject.episode_number[0]!) === 1) {
+          if (Math.floor(episodeNumbers[0]!) === 1) {
             // if it starts with #1 and overflows then it includes more than 1 season in a batch, cant fix this cleanly, name is parsed per file basis so this shouldnt be an issue
-            episode = `${parseObject.episode_number[0]} ~ ${parseObject.episode_number[1]}`
+            episode = `${episodeNumbers[0]} ~ ${episodeNumbers[1]}`
           } else {
-            if (maxep && parseInt(parseObject.episode_number[1]!) > maxep) {
+            if (maxep && Math.floor(episodeNumbers[1]!) > maxep) {
               // get root media to start at S1, instead of S2 or some OVA due to parsing errors
               // this is most likely safe, if it was relative episodes then it would likely use an accurate title for the season
               // if they didnt use an accurate title then its likely an absolute numbering scheme
               // parent check is to break out of those incorrectly resolved OVA's
               // if we used anime season to resolve anime name, then there's no need to march into prequel!
-              const prequel = !parseObject.anime_season[0] && (this.findEdge(media, 'PREQUEL')?.node ?? ((media.format === 'OVA' || media.format === 'ONA') && this.findEdge(media, 'PARENT')?.node))
+              const prequel = !explicitSeason && (this.findEdge(media, 'PREQUEL')?.node ?? ((media.format === 'OVA' || media.format === 'ONA') && this.findEdge(media, 'PARENT')?.node))
               // debug(`Prequel ${prequel?.id}:${prequel?.title.userPreferred}`)
               const root = prequel && (await this.resolveSeason({ media: await this.getAnimeById(prequel.id), force: true })).media
               // debug(`Root ${root?.id}:${root?.title.userPreferred}`)
 
               // if highest value is bigger than episode count or latest streamed episode +1 for safety, parseint to math.floor a number like 12.5 - specials - in 1 go
 
-              const result = await this.resolveSeason({ media: root || media, episode: Number(parseObject.episode_number[1]!), increment: !parseObject.anime_season[0] ? null : true })
+              const result = await this.resolveSeason({ media: root || media, episode: episodeNumbers[1]!, increment: !explicitSeason ? null : true })
               // debug(`Found rootMedia for ${parseObj.anime_title}: ${result.rootMedia.id}:${result.rootMedia.title.userPreferred} from ${media.id}:${media.title.userPreferred}`)
               media = result.rootMedia
-              const diff = Number(parseObject.episode_number[1]!) - result.episode
-              episode = `${Number(parseObject.episode_number[0]!) - diff} ~ ${result.episode}`
+              const diff = episodeNumbers[1]! - result.episode
+              episode = `${episodeNumbers[0]! - diff} ~ ${result.episode}`
               failed = !!result.failed
               // if (failed) debug(`Failed to resolve ${parseObj.anime_title} ${parseObj.episode_number} ${media.title.userPreferred}`)
             } else {
               // cant find ep count or range seems fine
-              episode = `${Number(parseObject.episode_number[0])} ~ ${Number(parseObject.episode_number[1])}`
+              episode = `${episodeNumbers[0]} ~ ${episodeNumbers[1]}`
             }
           }
         } else {
-          if (maxep && parseInt(parseObject.episode_number[0]!) > maxep) {
+          if (maxep && Math.floor(episodeNumbers[0]!) > maxep) {
             // see big comment above
-            const prequel = !parseObject.anime_season[0] && (this.findEdge(media, 'PREQUEL')?.node ?? ((media.format === 'OVA' || media.format === 'ONA') && this.findEdge(media, 'PARENT')?.node))
+            const prequel = !explicitSeason && (this.findEdge(media, 'PREQUEL')?.node ?? ((media.format === 'OVA' || media.format === 'ONA') && this.findEdge(media, 'PARENT')?.node))
             // debug(`Prequel ${prequel.id}:${prequel.title?.userPreferred}`)
             const root = prequel && (await this.resolveSeason({ media: await this.getAnimeById(prequel.id), force: true })).media
             // debug(`Root ${root.id}:${root.title?.userPreferred}`)
 
             // value bigger than episode count
 
-            const result = await this.resolveSeason({ media: root || media, episode: parseInt(parseObject.episode_number[0]!), increment: !parseObject.anime_season[0] ? null : true })
+            const result = await this.resolveSeason({ media: root || media, episode: Math.floor(episodeNumbers[0]!), increment: !explicitSeason ? null : true })
             // debug(`Found rootMedia for ${parseObj.anime_title[0]}: ${result.rootMedia.id}:${result.rootMedia.title?.userPreferred} from ${media.id}:${media.title?.userPreferred}`)
             media = result.rootMedia
             episode = result.episode
@@ -311,7 +327,7 @@ const AnimeResolver = new class AnimeResolver {
             // if (failed) debug(`Failed to resolve ${parseObj.anime_title[0]} ${parseObj.episode_number[0]} ${media.title?.userPreferred}`)
           } else {
             // cant find ep count or episode seems fine
-            episode = Number(parseObject.episode_number[0])
+            episode = episodeNumbers[0]
           }
         }
       }
@@ -320,7 +336,7 @@ const AnimeResolver = new class AnimeResolver {
         ...file,
         metadata: {
           parseObject,
-          episode: episode ?? Number(parseObject.episode_number[0]),
+          episode: episode ?? episodeNumbers[0],
           media,
           failed
         }
