@@ -46,7 +46,7 @@
     if (!native.isApp) return
     try {
       immersionState = await native.immersionState()
-      immersionEndpoint = immersionState.endpoint
+      immersionEndpoint = immersionState.endpoint || 'https://api.berlinpcs.dev'
     } catch (error) {
       toast.error('Could not load immersion sync settings', { description: errorMessage(error) })
     }
@@ -264,7 +264,7 @@
             <div class='space-y-5'>
               <label class='block space-y-2'>
                 <span class='text-sm font-medium'>Backend URL</span>
-                <Input type='url' bind:value={immersionEndpoint} placeholder='https://homelab-1-vnic.tail1661de.ts.net' autocomplete='off' spellcheck={false} />
+                <Input type='url' bind:value={immersionEndpoint} placeholder='https://api.berlinpcs.dev' autocomplete='off' spellcheck={false} />
                 <span class='block text-xs text-muted-foreground'>Enter the server origin only, without an API path.</span>
               </label>
 

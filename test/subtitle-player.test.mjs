@@ -10,10 +10,40 @@ import * as profiles from '../src/lib/components/ui/player/subtitle-profiles.ts'
 import * as alignment from '../src/lib/components/ui/player/subtitle-alignment.ts'
 import * as matcher from '../src/lib/components/ui/player/subtitle-matcher.ts'
 import * as mining from '../src/lib/modules/mining/subtitle.ts'
+import { parseMiningAnkiPopupPayload } from '../src/lib/modules/mining/anki.ts'
 
 // Run the actual controller with only browser/native side effects replaced.
 const source = await readFile(new URL('../src/lib/components/ui/player/subtitles.ts', import.meta.url), 'utf8')
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext }, transformers: { before: [() => node => ts.factory.updateSourceFile(node, node.statements.filter(statement => !ts.isImportDeclaration(statement)))] } }).outputText.replace('export default class Subtitles', 'class Subtitles')
+const playerSource = await readFile(new URL('../src/lib/components/ui/player/player.svelte', import.meta.url), 'utf8')
+const playerScript = ts.createSourceFile('player.ts', playerSource.match(/<script lang='ts'>([\s\S]*?)<\/script>/)[1], ts.ScriptTarget.Latest, true)
+const mineToAnkiSource = playerScript.statements.find(statement => ts.isFunctionDeclaration(statement) && statement.name?.text === 'mineToAnki').getText(playerScript)
+const compiledMineToAnki = ts.transpileModule(mineToAnkiSource, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
+
+async function captureCard (controller, cue, { paddingStart = 0.25, paddingEnd = 0.5 } = {}) {
+  let request
+  const dependencies = {
+    parseMiningAnkiPopupPayload,
+    subtitles: controller,
+    miningAnkiCue: cue,
+    miningCue: controller.getMiningCues()[0],
+    // Deliberately stale: export must read the controller's current timing.
+    subtitleDelay: 0,
+    currentTime: 20,
+    miningAnkiState: { settings: { fieldMappings: { Audio: '{sentence-audio}' } } },
+    $settings: { miningAnkiCaptureAudio: true, miningAnkiAudioPaddingStart: paddingStart, miningAnkiAudioPaddingEnd: paddingEnd },
+    video: { audioTracks: [{ enabled: true }] },
+    mediaInfo: { file: { url: 'http://localhost:7344/video.mkv' }, session: { title: 'Show' } },
+    miningAnkiSelectedText: 'こんにちは',
+    miningAnkiSentenceOffset: 0,
+    native: { miningAnkiAddNote: async value => { request = value; return { status: 'success' } } },
+    recordMinedCard () {},
+    toast: { success () {}, error () {}, info () {} }
+  }
+  const mine = new Function(...Object.keys(dependencies), `${compiledMineToAnki}\nreturn mineToAnki`)(...Object.values(dependencies))
+  const result = await mine({ expression: 'こんにちは' })
+  return { result, capture: request?.context.capture }
+}
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r }); return { resolve, promise } }
 const tick = () => new Promise(resolve => setTimeout(resolve, 5))
 const ass = (offset = 0) => '[Script Info]\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n' + [2, 8, 17, 29].map(start => `Dialogue: 0,0:00:${String(start + offset).padStart(2, '0')}.00,0:00:${String(start + offset + 2).padStart(2, '0')}.00,Default,,0,0,0,,こんにちは`).join('\n')
@@ -99,6 +129,67 @@ test('accepted correction waits for a gap, updates mining and renderer, then fre
   assert.match(controller.jassub.rendered, /0:00:07.00/)
   assert.equal(controller.frozen, true)
   assert.equal(controller.alignmentStatus.value, 'confirmed')
+  controller.destroy()
+})
+
+test('card audio uses current retiming and manual delay after a dictionary lookup', async t => {
+  const { controller } = await setup()
+  t.after(() => controller.destroy())
+  const id = await add(controller)
+  const selectedCue = controller.getMiningCues()[1] // 8–10 seconds; other lines repeat the same text.
+  controller.applyTrackOffset(id, 5)
+  controller.setManualDelay(1.5)
+  const { result, capture } = await captureCard(controller, selectedCue)
+  assert.equal(result.status, 'success')
+  assert.equal(capture.start, 11.25)
+  assert.equal(capture.end, 14)
+  assert.equal(capture.currentTime, 20, 'screenshot timestamp stays in video time')
+  assert.equal(capture.audioTrackIndex, 0)
+  controller.destroy()
+})
+
+test('card audio applies negative delay once to an already retimed cue', async t => {
+  const { controller } = await setup()
+  t.after(() => controller.destroy())
+  const id = await add(controller)
+  controller.applyTrackOffset(id, -1)
+  controller.setManualDelay(-2)
+  const { capture } = await captureCard(controller, controller.getMiningCues()[1])
+  assert.equal(capture.start, 8.75)
+  assert.equal(capture.end, 11.5)
+  controller.destroy()
+})
+
+test('card audio follows provisional timing and its reset without applying a pending result', async t => {
+  const { controller } = await setup()
+  t.after(() => controller.destroy())
+  const id = await add(controller)
+  const selectedCue = controller.getMiningCues()[1]
+  controller.pending = { track: id, offset: 5, verified: false, early: 'apply' }
+  await controller.applyPending()
+  const provisionalCue = controller.getMiningCues()[1]
+  assert.equal((await captureCard(controller, selectedCue)).capture.start, 12.75)
+  await controller.resetAutomaticTiming(false)
+  controller.externalTracks.get(id).verifiedOffset = 10
+  controller.pending = { track: id, offset: 10 }
+  assert.equal((await captureCard(controller, provisionalCue)).capture.start, 7.75)
+  controller.destroy()
+})
+
+test('card audio preserves capture bounds and rejects a cue from a previous track', async t => {
+  const { controller } = await setup()
+  t.after(() => controller.destroy())
+  await add(controller)
+  const selectedCue = controller.getMiningCues()[0]
+  controller.setManualDelay(1.9)
+  const { capture } = await captureCard(controller, selectedCue, { paddingStart: 1, paddingEnd: 60 })
+  assert.equal(capture.start, 0)
+  assert.equal(capture.end, 30)
+  const other = await add(controller, '01', 'Other')
+  await controller.selectCaptions(other, true)
+  const stale = await captureCard(controller, selectedCue)
+  assert.equal(stale.result.status, 'error')
+  assert.equal(stale.capture, undefined)
   controller.destroy()
 })
 test('manual adjustment cancels queued timing and stale sampling cannot override it', async () => {

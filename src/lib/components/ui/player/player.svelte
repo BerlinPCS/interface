@@ -446,6 +446,7 @@
     const activeCues = subtitles.getActiveMiningCues(effectiveTime, trackNumber)
 
     if (trackChanged) {
+      closeMiningDictionary()
       miningDictionaryCache.clear()
       miningNavigationCueId = undefined
       miningCue = subtitles.getMiningCueAt(effectiveTime, trackNumber)
@@ -575,6 +576,9 @@
     miningSelectionLength = 0
     miningActiveSelection = undefined
     miningDictionaryRequestKey = ''
+    miningAnkiCue = undefined
+    miningAnkiSelectedText = ''
+    miningAnkiSentenceOffset = undefined
     if (resume && miningMode) Promise.allSettled([video.play(), pip.element.value?.play()])
   }
 
@@ -752,18 +756,19 @@
         templates.some(value => value.includes('{sentence-audio}'))
       const audioTracks = [...(video.audioTracks ?? [])]
       const selectedAudioTrack = audioTracks.findIndex(track => track.enabled)
-      const captureStart = Math.max(0, cue.start - Number(subtitleDelay) - Number($settings.miningAnkiAudioPaddingStart))
-      const captureEnd = Math.min(
-        Math.max(0, cue.end - Number(subtitleDelay) + Number($settings.miningAnkiAudioPaddingEnd)),
-        captureStart + 30
+      const captureRange = subtitles?.getMiningCaptureRange(
+        cue,
+        Number($settings.miningAnkiAudioPaddingStart),
+        Number($settings.miningAnkiAudioPaddingEnd)
       )
+      if (!captureRange) throw new Error('The subtitle context is no longer available. Select the word again.')
       const capture = captureImage || captureAudio
         ? {
           sourceUrl: mediaInfo.file.url,
           ...(selectedAudioTrack < 0 ? {} : { audioTrackIndex: selectedAudioTrack }),
           currentTime: captureTimestamp,
-          start: captureStart,
-          end: captureEnd,
+          start: captureRange.start,
+          end: captureRange.end,
           captureImage,
           captureAudio,
           imageMode: $settings.miningAnkiImageMode,

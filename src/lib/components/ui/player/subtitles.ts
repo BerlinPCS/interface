@@ -1145,6 +1145,23 @@ export default class Subtitles {
     return findActiveMiningCues(this.getMiningCues(trackNumber), time)
   }
 
+  getMiningCaptureRange (selectedCue: MiningCue, paddingStart: number, paddingEnd: number) {
+    if (this.destroyed || selectedCue.trackId !== String(this.current.value)) return
+    const cues = this.getMiningCues(selectedCue.trackId)
+    // Retiming changes cue IDs and timestamps while the dictionary can remain open.
+    // Read order and text identify the same line even when dialogue repeats.
+    const cue = cues.find(cue => cue.id === selectedCue.id) ?? cues.find(cue =>
+      cue.readOrder === selectedCue.readOrder && cue.rawText === selectedCue.rawText &&
+      cue.style === selectedCue.style && cue.speaker === selectedCue.speaker
+    )
+    if (!cue) return
+    // Cue timestamps already include applied automatic retiming. JASSUB's manual
+    // delay advances the subtitle clock, so subtract it to return to video time.
+    const start = Math.max(0, cue.start - this.manualDelay.value - paddingStart)
+    const end = Math.min(Math.max(0, cue.end - this.manualDelay.value + paddingEnd), start + 30)
+    return { start, end }
+  }
+
   setMiningMode (active: boolean) {
     this.miningMode = active
     this.syncMiningVisibility()
